@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.env
+venv/
+ENV/
+
+# dbt
+target/
+dbt_packages/
+logs/
+profiles.yml
+
+# Secrets and config
+*.toml
+secrets.*
+config/secrets.*
+*.pem
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db 
+
+# Data files
+*.csv
+
+# Project structure
+architecture.md
+tasks.md
