@@ -7,7 +7,7 @@ from time import sleep
 import shutil
 from data_ingestion.utils import upload_to_s3
 
-LONDON_BASE_URL = "https://cycling.data.tfl.gov.uk/usage-stats/"
+LONDON_BASE_URL = "https://cycling.data.tfl.gov.uk/"
 LOCAL_TMP_DIR = "/tmp/london_bike/"
 S3_PREFIX = "london_csv"
 
@@ -21,8 +21,12 @@ def list_london_csv_files():
     files = []
     for link in soup.find_all("a", href=True):
         filename = link['href']
+        print("Found link:", filename)  # Debug print
         if pattern.search(filename):
+            print("Matched pattern:", filename)  # Debug print
             year_match = re.search(r"(20\d{2})", filename)
+            if year_match:
+                print("Year found:", year_match.group(1))  # Debug print
             if year_match and int(year_match.group(1)) >= 2019:
                 files.append(filename)
     print(f"Matched {len(files)} files for 2019 and later.")
