@@ -4,6 +4,7 @@ import boto3
 from datetime import datetime
 import zipfile
 import shutil
+from data_ingestion.utils import upload_to_s3
 
 S3_BUCKET = os.environ.get("S3_BUCKET")
 NYC_PUBLIC_BUCKET = "tripdata"
@@ -16,7 +17,6 @@ os.makedirs(LOCAL_TMP_DIR, exist_ok=True)
 from botocore import UNSIGNED
 from botocore.client import Config
 public_s3 = boto3.client("s3", config=Config(signature_version=UNSIGNED))
-private_s3 = boto3.client("s3")
 
 def list_nyc_citibike_files(start_year=2018, end_year=None):
     if end_year is None:
@@ -43,10 +43,6 @@ def list_nyc_citibike_files(start_year=2018, end_year=None):
 def download_file_from_s3(bucket, key, dest_path):
     print(f"Downloading s3://{bucket}/{key} to {dest_path} ...")
     public_s3.download_file(bucket, key, dest_path)
-
-def upload_to_s3(local_path, s3_key):
-    print(f"Uploading CSV: {local_path} to s3://{S3_BUCKET}/{s3_key} ...")
-    private_s3.upload_file(local_path, S3_BUCKET, s3_key)
 
 def is_valid_zip(path):
     try:
