@@ -62,7 +62,15 @@ async def list_and_download_london_csv_files():
             response.raise_for_status()
             with open(local_path, 'wb') as f:
                 f.write(response.content)
-            s3_key = f"{S3_PREFIX}/{os.path.basename(filename)}"
+            # If the file ends with .xls but is actually a CSV, rename it to .csv
+            if local_path.lower().endswith('.xls'):
+                new_local_path = local_path[:-4] + '.csv'
+                os.rename(local_path, new_local_path)
+                local_path = new_local_path
+                s3_filename = os.path.basename(local_path)
+            else:
+                s3_filename = os.path.basename(filename)
+            s3_key = f"{S3_PREFIX}/{s3_filename}"
             upload_to_s3(local_path, s3_key)
             os.remove(local_path)
             print(f"Uploaded and cleaned up: {local_path}")

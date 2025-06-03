@@ -1,11 +1,59 @@
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, Any, Optional
-from .base import BaseBikeShareRecord
+from typing import Optional, Dict, Any
 
-class NYCModernBikeShareRecord(BaseBikeShareRecord):
-    """Model for NYC bike share data from 2020 onwards (modern schema)."""
+@dataclass
+class NYCLegacyBikeShareRecord:
+    tripduration: int
+    starttime: str
+    stoptime: str
+    start_station_id: str
+    start_station_name: str
+    start_station_latitude: float
+    start_station_longitude: float
+    end_station_id: str
+    end_station_name: str
+    end_station_latitude: float
+    end_station_longitude: float
+    bikeid: str
+    usertype: str
+    birth_year: Optional[int]
+    gender: Optional[int]
+
+    @classmethod
+    def from_csv_row(cls, row: Dict[str, Any]) -> 'NYCLegacyBikeShareRecord':
+        return cls(
+            tripduration=int(row['tripduration']),
+            starttime=row['starttime'],
+            stoptime=row['stoptime'],
+            start_station_id=str(row['start station id']),
+            start_station_name=row['start station name'],
+            start_station_latitude=float(row['start station latitude']),
+            start_station_longitude=float(row['start station longitude']),
+            end_station_id=str(row['end station id']),
+            end_station_name=row['end station name'],
+            end_station_latitude=float(row['end station latitude']),
+            end_station_longitude=float(row['end station longitude']),
+            bikeid=str(row['bikeid']),
+            usertype=row['usertype'],
+            birth_year=int(row['birth year']) if row.get('birth year') and str(row['birth year']).isdigit() else None,
+            gender=int(row['gender']) if row.get('gender') and str(row['gender']).isdigit() else None
+        )
+
+@dataclass
+class NYCModernBikeShareRecord:
     ride_id: str
     rideable_type: str
+    started_at: str
+    ended_at: str
+    start_station_name: str
+    start_station_id: str
+    end_station_name: str
+    end_station_id: str
+    start_lat: float
+    start_lng: float
+    end_lat: float
+    end_lng: float
     member_casual: str
 
     @classmethod
@@ -13,44 +61,17 @@ class NYCModernBikeShareRecord(BaseBikeShareRecord):
         return cls(
             ride_id=row['ride_id'],
             rideable_type=row['rideable_type'],
-            start_time=datetime.fromisoformat(row['started_at'].replace('Z', '')),
-            end_time=datetime.fromisoformat(row['ended_at'].replace('Z', '')),
-            start_station_id=row['start_station_id'],
+            started_at=row['started_at'],
+            ended_at=row['ended_at'],
             start_station_name=row['start_station_name'],
-            start_latitude=float(row['start_lat']),
-            start_longitude=float(row['start_lng']),
-            end_station_id=row['end_station_id'],
+            start_station_id=str(row['start_station_id']),
             end_station_name=row['end_station_name'],
-            end_latitude=float(row['end_lat']),
-            end_longitude=float(row['end_lng']),
-            user_type=row['member_casual']
-        )
-
-class NYCLegacyBikeShareRecord(BaseBikeShareRecord):
-    """Model for NYC bike share data from 2019 and earlier (legacy schema)."""
-    bike_id: str
-    trip_duration: int
-    birth_year: Optional[int]
-    gender: Optional[int]
-
-    @classmethod
-    def from_csv_row(cls, row: Dict[str, Any]) -> 'NYCLegacyBikeShareRecord':
-        return cls(
-            bike_id=row['bikeid'],
-            trip_duration=int(row['tripduration']),
-            start_time=datetime.fromisoformat(row['starttime'].replace('Z', '')),
-            end_time=datetime.fromisoformat(row['stoptime'].replace('Z', '')),
-            start_station_id=str(row['start station id']),
-            start_station_name=row['start station name'],
-            start_latitude=float(row['start station latitude']),
-            start_longitude=float(row['start station longitude']),
-            end_station_id=str(row['end station id']),
-            end_station_name=row['end station name'],
-            end_latitude=float(row['end station latitude']),
-            end_longitude=float(row['end station longitude']),
-            user_type=row['usertype'],
-            birth_year=int(row['birth year']) if row['birth year'] else None,
-            gender=int(row['gender']) if row['gender'] else None
+            end_station_id=str(row['end_station_id']),
+            start_lat=float(row['start_lat']),
+            start_lng=float(row['start_lng']),
+            end_lat=float(row['end_lat']),
+            end_lng=float(row['end_lng']),
+            member_casual=row['member_casual']
         )
 
 def get_nyc_model_class(year: int) -> type:
