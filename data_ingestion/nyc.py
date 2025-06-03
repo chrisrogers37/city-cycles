@@ -3,6 +3,7 @@ import re
 import boto3
 from datetime import datetime
 import zipfile
+import shutil
 
 S3_BUCKET = os.environ.get("S3_BUCKET")
 NYC_PUBLIC_BUCKET = "tripdata"
@@ -47,17 +48,37 @@ def upload_to_s3(local_path, s3_key):
     print(f"Uploading {local_path} to s3://{S3_BUCKET}/{s3_key} ...")
     private_s3.upload_file(local_path, S3_BUCKET, s3_key)
 
-def unzip_and_upload_csvs(local_zip_path, s3_prefix):
-    with zipfile.ZipFile(local_zip_path, 'r') as zip_ref:
-        for member in zip_ref.namelist():
-            if member.endswith('.csv'):
-                extracted_path = zip_ref.extract(member, LOCAL_TMP_DIR)
-                s3_key = f"{s3_prefix}/{os.path.basename(member)}"
-                upload_to_s3(extracted_path, s3_key)
-                os.remove(extracted_path)
-                print(f"Uploaded and cleaned up {member}")
+def process_path(path, s3_prefix):
+    """
+    Recursively process a file or directory:
+    - If CSV, upload to S3
+    - If zip, extract and process contents
+    - If directory, process contents
+    """
+    if os.path.isdir(path):
+        for entry in os.listdir(path):
+            process_path(os.path.join(path, entry), s3_prefix)
+        # Clean up directory after processing
+        if path != LOCAL_TMP_DIR:
+            shutil.rmtree(path)
+    elif path.endswith('.csv'):
+        s3_key = f"{s3_prefix}/{os.path.basename(path)}"
+        upload_to_s3(path, s3_key)
+        os.remove(path)
+        print(f"Uploaded and cleaned up CSV: {path}")
+    elif path.endswith('.zip'):
+        extract_dir = path + "_extracted"
+        os.makedirs(extract_dir, exist_ok=True)
+        with zipfile.ZipFile(path, 'r') as zip_ref:
+            zip_ref.extractall(extract_dir)
+            print(f"Extracted zip: {path} to {extract_dir}")
+        os.remove(path)
+        process_path(extract_dir, s3_prefix)
+    else:
+        print(f"Skipping unsupported file: {path}")
+        os.remove(path)
 
-def download_unzip_upload_all(start_year=2018, end_year=None):
+def download_unzip_upload_all(start_year=2019, end_year=None):
     print(f"Using S3 bucket: {S3_BUCKET}")
     files = list_nyc_citibike_files(start_year, end_year)
     print(f"Found {len(files)} files to process.")
@@ -66,10 +87,8 @@ def download_unzip_upload_all(start_year=2018, end_year=None):
         local_path = os.path.join(LOCAL_TMP_DIR, fname)
         # Download zip
         download_file_from_s3(NYC_PUBLIC_BUCKET, key, local_path)
-        # Unzip and upload CSVs
-        unzip_and_upload_csvs(local_path, "nyc_csv")
-        # Remove zip
-        os.remove(local_path)
+        # Recursively process zip and its contents
+        process_path(local_path, "nyc_csv")
         print(f"Done: {fname}")
 
 if __name__ == "__main__":
