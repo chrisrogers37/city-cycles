@@ -59,13 +59,9 @@ class BaseBikeShareRecord:
 
         # Filter models by location
         models = [m for m in cls._registry if m.s3_prefix.startswith(s3_prefix[:len(prefix)])]
-        print(f"Assigning model for file: {filename} (s3_prefix: {s3_prefix})")
         for model in models:
-            result = model.matches_file(filename, df_head)
-            print(f"  Checked {model.__name__}: matches_file={result}")
-            if result:
+            if model.matches_file(filename, df_head):
                 return model
-        print(f"  No model matched for file: {filename}")
         return None
 
     @classmethod
