@@ -28,7 +28,30 @@ class NYCLegacyBikeShareRecord(BaseBikeShareRecord):
     s3_prefix = "nyc_csv/"
 
     @classmethod
-    def from_dataframe(cls, df: pd.DataFrame, source_file: str) -> pd.DataFrame:
+    def validate_schema(cls, df: pd.DataFrame) -> bool:
+        """Validate if the dataframe contains all required columns for legacy NYC format."""
+        required_columns = [
+            "tripduration",
+            "starttime",
+            "stoptime",
+            "start station id",
+            "start station name",
+            "start station latitude",
+            "start station longitude",
+            "end station id",
+            "end station name",
+            "end station latitude",
+            "end station longitude",
+            "bikeid",
+            "usertype",
+            "birth year",
+            "gender"
+        ]
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        return not missing_columns
+
+    @classmethod
+    def to_dataframe(cls, df: pd.DataFrame, source_file: str) -> pd.DataFrame:
         df = df.rename(columns={
             "tripduration": "tripduration",
             "bikeid": "bikeid",
@@ -48,13 +71,6 @@ class NYCLegacyBikeShareRecord(BaseBikeShareRecord):
         })
         df["source_file"] = source_file
         return df[list(cls.__dataclass_fields__.keys())]
-
-    @classmethod
-    def matches_file(cls, filename: str, df_head=None) -> bool:
-        # Match years 2019 and earlier, allowing for additional suffixes
-        match = re.search(r"201[0-9]", filename)
-        print(f"Checking file {filename} with pattern 201[0-9]: {bool(match)}")
-        return bool(match)
 
 @dataclass
 class NYCModernBikeShareRecord(BaseBikeShareRecord):
@@ -77,7 +93,28 @@ class NYCModernBikeShareRecord(BaseBikeShareRecord):
     s3_prefix = "nyc_csv/"
 
     @classmethod
-    def from_dataframe(cls, df: pd.DataFrame, source_file: str) -> pd.DataFrame:
+    def validate_schema(cls, df: pd.DataFrame) -> bool:
+        """Validate if the dataframe contains all required columns for modern NYC format."""
+        required_columns = [
+            "ride_id",
+            "rideable_type",
+            "started_at",
+            "ended_at",
+            "start_station_name",
+            "start_station_id",
+            "end_station_name",
+            "end_station_id",
+            "start_lat",
+            "start_lng",
+            "end_lat",
+            "end_lng",
+            "member_casual"
+        ]
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        return not missing_columns
+
+    @classmethod
+    def to_dataframe(cls, df: pd.DataFrame, source_file: str) -> pd.DataFrame:
         df = df.rename(columns={
             "ride_id": "ride_id",
             "rideable_type": "rideable_type",
@@ -94,10 +131,4 @@ class NYCModernBikeShareRecord(BaseBikeShareRecord):
             "member_casual": "member_casual"
         })
         df["source_file"] = source_file
-        return df[list(cls.__dataclass_fields__.keys())]
-
-    @classmethod
-    def matches_file(cls, filename: str, df_head=None) -> bool:
-        # Match years 2020 and later
-        match = re.search(r"(20(2[0-9]|[3-9][0-9]))", filename)
-        return bool(match) 
+        return df[list(cls.__dataclass_fields__.keys())] 

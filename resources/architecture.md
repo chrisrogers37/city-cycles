@@ -21,11 +21,13 @@ city-cycles/
 │   ├── __init__.py
 │   ├── base.py                  # Base class for raw data schema definitions
 │   ├── london_bike.py           # Raw schema for London data
-│   └── nyc_bike.py              # Raw schema for NYC data
+│   ├── nyc_bike.py              # Raw schema for NYC data
+│   └── README.md               # Documentation for data models
 │
 ├── db/
-│   ├── init.sql                 # DDL to initialize tables (raw & staging)
-│   └── load.py                  # Logic to insert parsed data into database
+│   ├── init_tables.py          # Dynamic table initialization from models
+│   ├── batch_load_from_s3.py   # Batch loading script for specific prefix
+│   └── batch_load_all_from_s3.py # Load all prefixes
 │
 ├── dbt_project/
 │   ├── dbt_project.yml
@@ -39,6 +41,11 @@ city-cycles/
 │   │       └── stg_nyc.sql
 │   └── seeds/
 │       └── covid_phases.csv     # Manually annotated COVID lockdown phases
+│
+├── resources/
+│   ├── architecture.md         # This file - system architecture documentation
+│   ├── tasks.md               # Project tasks and progress tracking
+│   └── playwright_recommendations.md # Playwright-specific guidance
 │
 ├── dashboards/
 │   └── tableau_workbook.twbx    # Or PowerBI or Streamlit
@@ -64,21 +71,33 @@ city-cycles/
 ### 1. **Data Ingestion Layer**
 - **Raw data is first downloaded and staged in Amazon S3. S3 acts as the canonical raw data store.**
 - **`data_ingestion/london.py`**:
-  - Downloads and uploads weekly CSVs from TfL FTP to S3
-  - Cleans dates and standardizes column names
+  - Uses Playwright to download weekly CSVs from TfL website
+  - Implements robust download handling with retries and validation
+  - Uploads to S3 with standardized naming
 - **`data_ingestion/nyc.py`**:
-  - Downloads monthly CitiBike CSVs from S3 (NYC public bucket) and stages them in your S3 bucket
+  - Downloads monthly CitiBike CSVs from S3 (NYC public bucket)
+  - Stages them in your S3 bucket with consistent naming
 - **`data_ingestion/weather.py`**:
-  - Pulls historical daily weather using OpenWeatherMap or Meteostat API and stages results in S3
+  - Pulls historical daily weather using OpenWeatherMap or Meteostat API
+  - Stages results in S3 for later joining
 
 All ingestion outputs are stored in S3 and parsed into pandas DataFrames, conforming to schemas defined in `data_models/`.
 
 ---
 
 ### 2. **Data Modeling Layer**
-- **Raw schema definitions** live in `data_models/`
-  - Ensures consistent field handling across ingestion
-  - Supports validation and transformation compatibility
+- **Model-Driven Architecture** in `data_models/`:
+  - `BaseBikeShareRecord`: Abstract base class providing common functionality
+  - Model registry for automatic file-to-model assignment
+  - Schema validation and alignment
+  - Dynamic DDL generation and table creation
+  - Memory-efficient, chunked loading with progress tracking
+- **Key Features**:
+  - Automatic model assignment based on file patterns
+  - Schema alignment and type conversion
+  - S3 integration for file listing and downloading
+  - Database loading with chunked processing
+  - Progress and memory usage logging
 
 ---
 
@@ -86,6 +105,7 @@ All ingestion outputs are stored in S3 and parsed into pandas DataFrames, confor
 - **Database:** Amazon RDS with PostgreSQL
   - Scalable, easy to query with dbt + BI tools
 - **Tables:**
+  - Dynamically created from model definitions
   - `raw_london_rides`, `raw_nyc_rides`, `raw_weather`
   - `stg_london`, `stg_nyc`, `weather_joined`
   - `mart_city_comparison`

@@ -23,7 +23,24 @@ class LondonLegacyBikeShareRecord(BaseBikeShareRecord):
     s3_prefix = "london_csv/"
 
     @classmethod
-    def from_dataframe(cls, df: pd.DataFrame, source_file: str) -> pd.DataFrame:
+    def validate_schema(cls, df: pd.DataFrame) -> bool:
+        """Validate if the dataframe contains all required columns for legacy London format."""
+        required_columns = [
+            "Rental Id",
+            "Bike Id",
+            "Start Date",
+            "End Date",
+            "StartStation Id",
+            "StartStation Name",
+            "EndStation Id",
+            "EndStation Name",
+            "Duration"
+        ]
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        return not missing_columns
+
+    @classmethod
+    def to_dataframe(cls, df: pd.DataFrame, source_file: str) -> pd.DataFrame:
         df = df.rename(columns={
             "Rental Id": "rental_id",
             "Bike Id": "bike_id",
@@ -39,12 +56,6 @@ class LondonLegacyBikeShareRecord(BaseBikeShareRecord):
         for col in ["start_date", "end_date"]:
             df[col] = pd.to_datetime(df[col], format="%d/%m/%Y %H:%M").dt.strftime("%Y-%m-%d %H:%M:%S")
         return df[list(cls.__dataclass_fields__.keys())]
-
-    @classmethod
-    def matches_file(cls, filename: str, df_head=None) -> bool:
-        # Match years 2018, 2019, 2020
-        match = re.search(r"(20(18|19|20))", filename)
-        return bool(match)
 
 @dataclass
 class LondonModernBikeShareRecord(BaseBikeShareRecord):
@@ -66,7 +77,24 @@ class LondonModernBikeShareRecord(BaseBikeShareRecord):
     s3_prefix = "london_csv/"
 
     @classmethod
-    def from_dataframe(cls, df: pd.DataFrame, source_file: str) -> pd.DataFrame:
+    def validate_schema(cls, df: pd.DataFrame) -> bool:
+        """Validate if the dataframe contains all required columns for modern London format."""
+        required_columns = [
+            "Number",
+            "Bike model",
+            "Start date",
+            "End date",
+            "Start station number",
+            "Start station",
+            "End station number",
+            "End station",
+            "Total duration"
+        ]
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        return not missing_columns
+
+    @classmethod
+    def to_dataframe(cls, df: pd.DataFrame, source_file: str) -> pd.DataFrame:
         df = df.rename(columns={
             "Number": "number",
             "Bike number": "bike_number",
@@ -82,11 +110,5 @@ class LondonModernBikeShareRecord(BaseBikeShareRecord):
         })
         df["source_file"] = source_file
         for col in ["start_date", "end_date"]:
-            df[col] = pd.to_datetime(df[col], format="%Y-%m-%d %H:%M").dt.strftime("%Y-%m-%d %H:%M:%S")
-        return df[list(cls.__dataclass_fields__.keys())]
-
-    @classmethod
-    def matches_file(cls, filename: str, df_head=None) -> bool:
-        # Match years 2021 and later
-        match = re.search(r"(20(2[1-9]|[3-9][0-9]))", filename)
-        return bool(match) 
+            df[col] = pd.to_datetime(df[col], format="%d/%m/%Y %H:%M").dt.strftime("%Y-%m-%d %H:%M:%S")
+        return df[list(cls.__dataclass_fields__.keys())] 
