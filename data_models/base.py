@@ -244,4 +244,96 @@ class BaseBikeShareRecord:
     def create_all_tables(cls):
         """Executes the DDL for all registered models."""
         for model in cls._registry:
-            model.create_table() 
+            model.create_table()
+
+    @classmethod
+    def truncate_table(cls):
+        """Truncates the staging table for this model."""
+        load_dotenv()
+        DB_HOST = os.environ.get("DB_HOST")
+        DB_USER = os.environ.get("DB_USER")
+        DB_PASSWORD = os.environ.get("DB_PASSWORD")
+        DB_NAME = os.environ.get("DB_NAME")
+        DB_PORT = os.environ.get("DB_PORT", 5432)
+        
+        with psycopg2.connect(
+            host=DB_HOST,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            dbname=DB_NAME,
+            port=DB_PORT
+        ) as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"TRUNCATE TABLE {cls.staging_table}")
+            conn.commit()
+        print(f"Truncated table: {cls.staging_table}")
+
+    @classmethod
+    def delete_by_source_file(cls, source_file: str):
+        """Deletes records from the staging table for a specific source file."""
+        load_dotenv()
+        DB_HOST = os.environ.get("DB_HOST")
+        DB_USER = os.environ.get("DB_USER")
+        DB_PASSWORD = os.environ.get("DB_PASSWORD")
+        DB_NAME = os.environ.get("DB_NAME")
+        DB_PORT = os.environ.get("DB_PORT", 5432)
+        
+        with psycopg2.connect(
+            host=DB_HOST,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            dbname=DB_NAME,
+            port=DB_PORT
+        ) as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"DELETE FROM {cls.staging_table} WHERE source_file = %s", (source_file,))
+            conn.commit()
+        print(f"Deleted records for source file: {source_file} from {cls.staging_table}")
+
+    @classmethod
+    def load_from_s3_with_model(cls, model_class, prefix=None, year=None, dry_run=False, filename=None, chunksize=10000):
+        """Load data using a specific model class instead of auto-detecting."""
+        if not issubclass(model_class, BaseBikeShareRecord):
+            raise ValueError(f"{model_class.__name__} is not a valid bike share record model")
+            
+        files = model_class.list_s3_files(prefix=prefix, year=year)
+        if filename:
+            files = [f for f in files if os.path.basename(f) == filename]
+        print(f"Found {len(files)} files in S3 prefix '{prefix}'")
+        
+        for s3_key in files:
+            filename = os.path.basename(s3_key)
+            print(f"\nProcessing {s3_key}")
+            csv_buffer = model_class.download_csv_from_s3(s3_key)
+            chunk_iter = pd.read_csv(csv_buffer, chunksize=chunksize)
+            total_rows = 0
+            chunk_num = 0
+            
+            for chunk in chunk_iter:
+                chunk_num += 1
+                df_aligned = model_class.to_dataframe(chunk, filename)
+                total_rows += len(df_aligned)
+                if dry_run:
+                    print(f"[DRY RUN] Chunk {chunk_num}: Would insert {len(df_aligned)} rows into {model_class.staging_table}")
+                else:
+                    model_class.to_database(df_aligned)
+                    print(f"Inserted chunk {chunk_num}: {len(df_aligned)} rows into {model_class.staging_table}")
+                # Log memory usage
+                process = psutil.Process(os.getpid())
+                mem_mb = process.memory_info().rss / 1024 / 1024
+                print(f"[Memory] After chunk {chunk_num}: {mem_mb:.2f} MB used")
+                # Explicitly delete DataFrames and run garbage collection
+                del chunk
+                del df_aligned
+                gc.collect()
+            print(f"Finished {filename}: {total_rows} rows processed.")
+
+    @classmethod
+    def reload_file(cls, filename: str, prefix=None, dry_run=False, chunksize=10000):
+        """Delete and reload a specific file."""
+        # First delete existing records
+        if not dry_run:
+            cls.delete_by_source_file(filename)
+        
+        # Then load the file
+        cls.load_from_s3(prefix=prefix, filename=filename, dry_run=dry_run, chunksize=chunksize) 

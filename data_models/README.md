@@ -2,7 +2,7 @@
 
 This directory contains the data models for London and NYC bike share data. The models are designed to handle both legacy and modern schemas, and provide a robust way to load data from S3 into a PostgreSQL database.
 
-## Overview
+## Architecture Overview
 
 The data models are built on top of a base class (`BaseBikeShareRecord`) that provides common functionality for listing files in S3, downloading files, assigning models, and loading data into the database. Each model (e.g., `LondonLegacyBikeShareRecord`, `LondonModernBikeShareRecord`, `NYCLegacyBikeShareRecord`, `NYCModernBikeShareRecord`) is a subclass of `BaseBikeShareRecord` and defines its own schema, S3 prefix, and methods for matching files and aligning data.
 
@@ -10,10 +10,9 @@ The data models are built on top of a base class (`BaseBikeShareRecord`) that pr
 
 - **Model Registry:** The base class maintains a registry of all subclasses, allowing for robust model assignment based on file names and content.
 - **S3 Integration:** Methods for listing and downloading files from S3.
-- **Database Loading:** Methods for loading data into the correct table in the database, supporting chunked, memory-efficient loading with progress and memory logging.
 - **Schema Generation & Execution:** Generate and execute SQL DDLs for creating tables directly from the models.
 
-## Example Usage
+## Model Usage
 
 ### Listing Files in S3
 
@@ -61,34 +60,19 @@ from data_models.base import BaseBikeShareRecord
 BaseBikeShareRecord.create_all_tables()
 ```
 
-### Loading Data into the Database (Chunked, Memory-Efficient)
+## Data Validation
 
-```python
-from data_models.base import BaseBikeShareRecord
+Each model implements schema validation to ensure the data matches the expected format. The validation process:
+1. Checks for the presence of required columns
+2. Validates data types during transformation
+3. Handles missing or malformed data appropriately
 
-# Load all files in the 'london_csv/' prefix, processing in memory-efficient chunks
-BaseBikeShareRecord.load_from_s3(prefix='london_csv/', chunksize=10000)
-```
+## Data Transformation
 
-### Batch Loading
+The `to_dataframe` method in each model handles:
+1. Column renaming to match the standardized schema
+2. Data type conversion
+3. Adding metadata (source file, ingestion timestamp)
+4. Filtering to only include required columns
 
-You can also use the batch loading scripts to load all files for a specific prefix or all prefixes:
-
-```bash
-# Load all files in the 'london_csv/' prefix
-python db/batch_load_from_s3.py london_csv/
-
-# Load files for a specific year
-python db/batch_load_from_s3.py london_csv/ 2021
-
-# Dry run
-python db/batch_load_from_s3.py london_csv/ --dry-run
-
-# Load all prefixes
-python db/batch_load_all_from_s3.py
-```
-
-### Error Handling & Logging
-
-- The ETL process logs progress and memory usage for each chunk and file.
-- Errors in loading one file or prefix do not stop the rest of the batch.
+For database loading and batch processing details, please refer to the [db/README.md](../db/README.md).
