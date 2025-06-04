@@ -1,4 +1,7 @@
 import os
+import sys
+import psutil
+import gc
 import psycopg2
 from psycopg2.extras import execute_values
 import pandas as pd
@@ -65,7 +68,7 @@ class BaseBikeShareRecord:
         return None
 
     @classmethod
-    def load_from_s3(cls, prefix=None, year=None, dry_run=False, filename=None):
+    def load_from_s3(cls, prefix=None, year=None, dry_run=False, filename=None, chunksize=10000):
         files = cls.list_s3_files(prefix=prefix, year=year)
         if filename:
             files = [f for f in files if os.path.basename(f) == filename]
@@ -74,18 +77,31 @@ class BaseBikeShareRecord:
             filename = os.path.basename(s3_key)
             print(f"\nProcessing {s3_key}")
             csv_buffer = cls.download_csv_from_s3(s3_key)
-            df = pd.read_csv(csv_buffer)
-            model = cls.assign_model(filename, prefix, df.head())
-            if model is None:
-                print(f"ERROR: No model matched file {filename}")
-                continue
-            print(f"Matched model: {model.__name__} (table: {model.staging_table})")
-            df_aligned = model.from_dataframe(df, filename)
-            if dry_run:
-                print(f"[DRY RUN] Would insert {len(df_aligned)} rows into {model.staging_table}")
-            else:
-                model.to_database(df_aligned)
-                print(f"Inserted {len(df_aligned)} rows into {model.staging_table}")
+            chunk_iter = pd.read_csv(csv_buffer, chunksize=chunksize)
+            total_rows = 0
+            chunk_num = 0
+            for chunk in chunk_iter:
+                chunk_num += 1
+                model = cls.assign_model(filename, prefix, chunk.head())
+                if model is None:
+                    print(f"ERROR: No model matched file {filename} (chunk {chunk_num})")
+                    continue
+                df_aligned = model.from_dataframe(chunk, filename)
+                total_rows += len(df_aligned)
+                if dry_run:
+                    print(f"[DRY RUN] Chunk {chunk_num}: Would insert {len(df_aligned)} rows into {model.staging_table}")
+                else:
+                    model.to_database(df_aligned)
+                    print(f"Inserted chunk {chunk_num}: {len(df_aligned)} rows into {model.staging_table}")
+                # Log memory usage
+                process = psutil.Process(os.getpid())
+                mem_mb = process.memory_info().rss / 1024 / 1024
+                print(f"[Memory] After chunk {chunk_num}: {mem_mb:.2f} MB used")
+                # Explicitly delete DataFrames and run garbage collection
+                del chunk
+                del df_aligned
+                gc.collect()
+            print(f"Finished {filename}: {total_rows} rows processed.")
 
     @classmethod
     def to_database(cls, df: pd.DataFrame):
