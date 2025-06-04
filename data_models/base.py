@@ -139,3 +139,31 @@ class BaseBikeShareRecord:
             raise ValueError(f"Missing columns in dataframe: {missing_columns}")
 
         # ... existing code ... 
+
+    @classmethod
+    def create_table(cls):
+        """Executes the DDL statement for this model's table in the database."""
+        load_dotenv()
+        DB_HOST = os.environ.get("DB_HOST")
+        DB_USER = os.environ.get("DB_USER")
+        DB_PASSWORD = os.environ.get("DB_PASSWORD")
+        DB_NAME = os.environ.get("DB_NAME")
+        DB_PORT = os.environ.get("DB_PORT", 5432)
+        ddl = cls.get_schema_sql()
+        with psycopg2.connect(
+            host=DB_HOST,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            dbname=DB_NAME,
+            port=DB_PORT
+        ) as conn:
+            with conn.cursor() as cur:
+                cur.execute(ddl)
+            conn.commit()
+        print(f"Created table (if not exists): {cls.staging_table}")
+
+    @classmethod
+    def create_all_tables(cls):
+        """Executes the DDL for all registered models."""
+        for model in cls._registry:
+            model.create_table() 
