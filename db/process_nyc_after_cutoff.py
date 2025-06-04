@@ -25,7 +25,7 @@ def main():
         return
     for f in files_to_process:
         print(f"\nProcessing {f} ...")
-        os.system(f"python db/batch_load_from_s3.py nyc_csv/ {f}")
+        os.system(f"python -m db.batch_load_from_s3 nyc_csv/ {f}")
 
 if __name__ == "__main__":
     main() 
