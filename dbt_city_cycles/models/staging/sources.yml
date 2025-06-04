@@ -1,0 +1,15 @@
+version: 2
+
+sources:
+  - name: raw
+    database: citycycles
+    schema: public
+    tables:
+      - name: raw_nyc_legacy
+        description: Raw NYC bike share data (legacy format)
+      - name: raw_nyc_modern
+        description: Raw NYC bike share data (modern format)
+      - name: raw_london_legacy
+        description: Raw London bike share data (legacy format)
+      - name: raw_london_modern
+        description: Raw London bike share data (modern format) 
