@@ -11,6 +11,9 @@ from db.load import (
 )
 from data_models.london_bike import get_london_model_class
 from data_models.nyc_bike import get_nyc_model_class
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Usage: python db/batch_load_from_s3.py <s3_key>
 def main():
