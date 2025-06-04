@@ -101,20 +101,34 @@
 ## 🧪 Phase 5: dbt Transformation
 
 ### 17. Initialize dbt project and add Postgres profile
-- [ ] `dbt init dbt_project`
-- [ ] Add Postgres profile
+- [x] `dbt init dbt_project`
+- [x] Add Postgres profile
+- [x] Configure database connection
 
 ### 18. Create staging models
-- [ ] `stg_nyc_legacy.sql`, `stg_nyc_modern.sql`, `stg_london_legacy.sql`, `stg_london_modern.sql`
-- [ ] Test model materializations and basic transforms
+- [x] `stg_nyc_legacy.sql`, `stg_nyc_modern.sql`, `stg_london_legacy.sql`, `stg_london_modern.sql`
+- [x] Implement proper data type casting
+- [x] Add metadata fields (location, schema_version, dbt_updated_at)
+- [x] Create unique ride IDs
+- [x] Add appropriate indexes
+- [x] Implement incremental processing
+- [x] Test model materializations and basic transforms
 
-### 19. Create summary models
-- [ ] `nyc_summary.sql`, `london_summary.sql`
-- [ ] Aggregate by month/year, user type, ride duration
+### 19. Create intermediate models
+- [x] `int_nyc_rides.sql`, `int_london_rides.sql`
+- [x] Combine modern and legacy data
+- [x] Standardize column names and types
+- [x] Add appropriate indexes
+- [x] Implement incremental processing
+- [x] Test model materializations
 
-### 20. Create comparison model
-- [ ] `city_comparison.sql` for normalized metrics
-- [ ] Join on aligned date fields
+### 20. Create metrics models
+- [x] Create city-specific aggregations
+- [x] Add time-based analysis
+- [x] Create comparison metrics
+- [ ] Add data quality tests
+- [ ] Implement documentation
+- [ ] Add data lineage tracking
 
 ---
 
@@ -171,3 +185,10 @@
 - [ ] Update staging models to include weather and COVID data
 - [ ] Update summary models to include weather and COVID data
 - [ ] Update comparison model to include weather and COVID data
+
+## Notes
+- All staging models now use proper data types and indexes
+- NYC Modern remains as a view while raw table is being indexed
+- Other staging models are materialized as incremental tables
+- Intermediate models combine modern and legacy data with proper indexing
+- Analytics layer is in progress with metrics models created
