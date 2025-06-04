@@ -2,9 +2,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Dict, Any
 import pandas as pd
+from data_models.base import BaseBikeShareRecord
+import re
 
 @dataclass
-class LondonLegacyBikeShareRecord:
+class LondonLegacyBikeShareRecord(BaseBikeShareRecord):
     """Model for London bike share data from 2018-2020 (legacy schema)."""
     rental_id: str
     bike_id: str
@@ -17,20 +19,8 @@ class LondonLegacyBikeShareRecord:
     end_station_name: str
     source_file: str
 
-    @classmethod
-    def from_csv_row(cls, row: Dict[str, Any], source_file: str) -> 'LondonLegacyBikeShareRecord':
-        return cls(
-            rental_id=str(row['Rental Id']),
-            bike_id=str(row['Bike Id']),
-            start_date=datetime.strptime(row['Start Date'], "%d/%m/%Y %H:%M"),
-            end_date=datetime.strptime(row['End Date'], "%d/%m/%Y %H:%M"),
-            duration=int(row['Duration']),
-            start_station_id=str(row['StartStation Id']),
-            start_station_name=row['StartStation Name'],
-            end_station_id=str(row['EndStation Id']),
-            end_station_name=row['EndStation Name'],
-            source_file=source_file
-        )
+    staging_table = "raw_london_legacy"
+    s3_prefix = "london_csv/"
 
     @classmethod
     def from_dataframe(cls, df: pd.DataFrame, source_file: str) -> pd.DataFrame:
@@ -50,8 +40,14 @@ class LondonLegacyBikeShareRecord:
             df[col] = pd.to_datetime(df[col], format="%d/%m/%Y %H:%M").dt.strftime("%Y-%m-%d %H:%M:%S")
         return df[list(cls.__dataclass_fields__.keys())]
 
+    @classmethod
+    def matches_file(cls, filename: str, df_head=None) -> bool:
+        # Match years 2018, 2019, 2020
+        match = re.search(r"(20(18|19|20))", filename)
+        return bool(match)
+
 @dataclass
-class LondonModernBikeShareRecord:
+class LondonModernBikeShareRecord(BaseBikeShareRecord):
     """Model for London bike share data from 2021+ (modern schema)."""
     number: str
     bike_number: str
@@ -66,22 +62,8 @@ class LondonModernBikeShareRecord:
     end_station: str
     source_file: str
 
-    @classmethod
-    def from_csv_row(cls, row: Dict[str, Any], source_file: str) -> 'LondonModernBikeShareRecord':
-        return cls(
-            number=str(row['Number']),
-            bike_number=str(row['Bike number']),
-            bike_model=row['Bike model'],
-            start_date=datetime.strptime(row['Start date'], "%Y-%m-%d %H:%M"),
-            end_date=datetime.strptime(row['End date'], "%Y-%m-%d %H:%M"),
-            total_duration=row['Total duration'],
-            total_duration_ms=int(row['Total duration (ms)']),
-            start_station_number=str(row['Start station number']),
-            start_station=row['Start station'],
-            end_station_number=str(row['End station number']),
-            end_station=row['End station'],
-            source_file=source_file
-        )
+    staging_table = "raw_london_modern"
+    s3_prefix = "london_csv/"
 
     @classmethod
     def from_dataframe(cls, df: pd.DataFrame, source_file: str) -> pd.DataFrame:
@@ -103,9 +85,8 @@ class LondonModernBikeShareRecord:
             df[col] = pd.to_datetime(df[col], format="%Y-%m-%d %H:%M").dt.strftime("%Y-%m-%d %H:%M:%S")
         return df[list(cls.__dataclass_fields__.keys())]
 
-def get_london_model_class(year: int) -> type:
-    """Return the appropriate model class based on the year of the data."""
-    if year >= 2021:
-        return LondonModernBikeShareRecord
-    else:
-        return LondonLegacyBikeShareRecord 
+    @classmethod
+    def matches_file(cls, filename: str, df_head=None) -> bool:
+        # Match years 2021 and later
+        match = re.search(r"(20(2[1-9]|[3-9][0-9]))", filename)
+        return bool(match) 

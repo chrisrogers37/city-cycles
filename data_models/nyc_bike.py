@@ -2,9 +2,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Dict, Any
 import pandas as pd
+from data_models.base import BaseBikeShareRecord
+import re
 
 @dataclass
-class NYCLegacyBikeShareRecord:
+class NYCLegacyBikeShareRecord(BaseBikeShareRecord):
     tripduration: int
     bikeid: str
     starttime: str
@@ -22,26 +24,8 @@ class NYCLegacyBikeShareRecord:
     gender: Optional[int]
     source_file: str
 
-    @classmethod
-    def from_csv_row(cls, row: Dict[str, Any], source_file: str) -> 'NYCLegacyBikeShareRecord':
-        return cls(
-            tripduration=int(row['tripduration']),
-            bikeid=str(row['bikeid']),
-            starttime=row['starttime'],
-            stoptime=row['stoptime'],
-            start_station_id=str(row['start station id']),
-            start_station_name=row['start station name'],
-            start_station_latitude=float(row['start station latitude']),
-            start_station_longitude=float(row['start station longitude']),
-            end_station_id=str(row['end station id']),
-            end_station_name=row['end station name'],
-            end_station_latitude=float(row['end station latitude']),
-            end_station_longitude=float(row['end station longitude']),
-            usertype=row['usertype'],
-            birth_year=int(row['birth year']) if row.get('birth year') and str(row['birth year']).isdigit() else None,
-            gender=int(row['gender']) if row.get('gender') and str(row['gender']).isdigit() else None,
-            source_file=source_file
-        )
+    staging_table = "raw_nyc_legacy"
+    s3_prefix = "nyc_csv/"
 
     @classmethod
     def from_dataframe(cls, df: pd.DataFrame, source_file: str) -> pd.DataFrame:
@@ -65,8 +49,15 @@ class NYCLegacyBikeShareRecord:
         df["source_file"] = source_file
         return df[list(cls.__dataclass_fields__.keys())]
 
+    @classmethod
+    def matches_file(cls, filename: str, df_head=None) -> bool:
+        # Match years 2019 and earlier, allowing for additional suffixes
+        match = re.search(r"201[0-9]", filename)
+        print(f"Checking file {filename} with pattern 201[0-9]: {bool(match)}")
+        return bool(match)
+
 @dataclass
-class NYCModernBikeShareRecord:
+class NYCModernBikeShareRecord(BaseBikeShareRecord):
     ride_id: str
     rideable_type: str
     started_at: str
@@ -82,24 +73,8 @@ class NYCModernBikeShareRecord:
     member_casual: str
     source_file: str
 
-    @classmethod
-    def from_csv_row(cls, row: Dict[str, Any], source_file: str) -> 'NYCModernBikeShareRecord':
-        return cls(
-            ride_id=row['ride_id'],
-            rideable_type=row['rideable_type'],
-            started_at=row['started_at'],
-            ended_at=row['ended_at'],
-            start_station_id=str(row['start_station_id']),
-            start_station_name=row['start_station_name'],
-            end_station_id=str(row['end_station_id']),
-            end_station_name=row['end_station_name'],
-            start_lat=float(row['start_lat']),
-            start_lng=float(row['start_lng']),
-            end_lat=float(row['end_lat']),
-            end_lng=float(row['end_lng']),
-            member_casual=row['member_casual'],
-            source_file=source_file
-        )
+    staging_table = "raw_nyc_modern"
+    s3_prefix = "nyc_csv/"
 
     @classmethod
     def from_dataframe(cls, df: pd.DataFrame, source_file: str) -> pd.DataFrame:
@@ -121,9 +96,8 @@ class NYCModernBikeShareRecord:
         df["source_file"] = source_file
         return df[list(cls.__dataclass_fields__.keys())]
 
-def get_nyc_model_class(year: int) -> type:
-    """Return the appropriate model class based on the year of the data."""
-    if year >= 2020:
-        return NYCModernBikeShareRecord
-    else:
-        return NYCLegacyBikeShareRecord 
+    @classmethod
+    def matches_file(cls, filename: str, df_head=None) -> bool:
+        # Match years 2020 and later
+        match = re.search(r"(20(2[0-9]|[3-9][0-9]))", filename)
+        return bool(match) 

@@ -1,49 +1,63 @@
-# City Cycles Analytics Project
+# City Cycles Data Pipeline
+
+This project provides a robust pipeline for ingesting, processing, and loading bike share data from London and NYC into a PostgreSQL database.
 
 ## Overview
-This project provides an end-to-end analytics workflow for NYC CitiBike and London Santander bike-sharing data, using a cloud-native, modular architecture.
 
-## Key Configuration Steps & Decisions
+The pipeline consists of the following components:
 
-### Cloud Environment
-- **Cloud Provider:** AWS
-- **S3 Bucket:** `city-cycles-data-ctr37` (for raw and intermediate data)
-- **RDS (Postgres):** `city-cycles-db` (database: `citycycles`)
-- **EC2 Instance:** Ubuntu 22.04 LTS, t2.micro, 30 GiB EBS, IAM role for S3 access
-- **SSH Key:** `city-cycles-ec2-key.pem`
+- **Data Ingestion**: Scraping and downloading bike share data from websites and uploading it to S3.
+- **Data Models**: Python classes for handling both legacy and modern schemas for London and NYC bike share data.
+- **ETL Process**: Loading data from S3 into a PostgreSQL database using the data models.
 
-### Python Environment
-- **Python Version:** 3.13.3 (installed via deadsnakes PPA on Ubuntu)
-- **Virtual Environment:** Created with `python3.13 -m venv venv`
-- **Dependencies:** Installed from `requirements.txt`
+## Setup
 
-### Project Structure
-- Folders and files initialized as per `architecture.md` (see that file for details)
-- All ETL, data ingestion, and transformation will be performed on the EC2 instance
+### Prerequisites
 
-### Networking & Security
-- EC2 security group allows SSH from admin IP
-- RDS security group allows inbound PostgreSQL (5432) from EC2 security group
-- EC2 instance has IAM role for S3 access
+- Python 3.8+
+- PostgreSQL DB
+- AWS S3 bucket
+- Required Python packages (see `requirements.txt`)
 
-### Decisions
-- Use Ubuntu EC2 for easier Python and package management
-- Use Python 3.13+ for compatibility with latest data tools and dbt
-- Store all raw/intermediate data in S3, not on local disk
-- All development and production runs will be cloud-native
+### Environment Variables
 
-## Setup Steps (So Far)
-1. Create S3 bucket and IAM role for EC2
-2. Provision RDS (Postgres) and test connectivity
-3. Launch Ubuntu EC2, increase EBS to 30 GiB
-4. Install Python 3.13, set up venv, clone repo, install dependencies
-5. Test internet and RDS access from EC2
+Set the following environment variables in a `.env` file:
 
-## Next Steps
-- Configure secrets and environment variables
-- Begin ETL and data ingestion tasks
-- Update this README as more configuration and decisions are made
+```
+S3_BUCKET=your_s3_bucket_name
+DB_HOST=your_db_host
+DB_USER=your_db_user
+DB_PASSWORD=your_db_password
+DB_NAME=your_db_name
+DB_PORT=5432
+```
 
----
+## Execution
 
-*This README will be updated as the project progresses and more tasks are completed.*
+### Scraping Data to S3
+
+*[Placeholder: Instructions for scraping data from websites and uploading to S3 will be added later.]*
+
+### Loading Data from S3 to RDS
+
+To load data from S3 into the PostgreSQL database, use the provided batch loading scripts:
+
+```bash
+# Load all files in the 'london_csv/' prefix
+python db/batch_load_from_s3.py london_csv/
+
+# Load files for a specific year
+python db/batch_load_from_s3.py london_csv/ 2021
+
+# Dry run (no actual insertion)
+python db/batch_load_from_s3.py london_csv/ --dry-run
+
+# Load all prefixes
+python db/batch_load_all_from_s3.py
+```
+
+For more details on the data models and their functionality, refer to the `data_models/README.md`.
+
+## Conclusion
+
+This README provides a high-level overview of the project setup and execution. For detailed information on the data models and their usage, refer to the `data_models/README.md`.
