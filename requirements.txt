@@ -9,6 +9,7 @@ jmespath==1.0.1
 numpy==2.2.6
 pandas==2.2.3
 playwright==1.52.0
+psutil==7.0.0
 psycopg2-binary==2.9.10
 pyarrow==20.0.0
 pyee==13.0.0
