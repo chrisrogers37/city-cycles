@@ -292,23 +292,36 @@ class BaseBikeShareRecord:
 
     @classmethod
     def load_from_s3_with_model(cls, model_class, prefix=None, year=None, dry_run=False, filename=None, chunksize=10000):
-        """Load data using a specific model class instead of auto-detecting."""
-        if not issubclass(model_class, BaseBikeShareRecord):
-            raise ValueError(f"{model_class.__name__} is not a valid bike share record model")
-            
-        files = model_class.list_s3_files(prefix=prefix, year=year)
+        """Load files from S3 using a specific model class."""
+        files = cls.list_s3_files(prefix=prefix, year=year)
         if filename:
             files = [f for f in files if os.path.basename(f) == filename]
         print(f"Found {len(files)} files in S3 prefix '{prefix}'")
         
+        # First, validate which files match this model's schema
+        matching_files = []
         for s3_key in files:
             filename = os.path.basename(s3_key)
+            print(f"\nValidating schema for {s3_key}")
+            csv_buffer = cls.download_csv_from_s3(s3_key)
+            # Read just the first chunk to validate schema
+            df_head = pd.read_csv(csv_buffer, nrows=1)
+            if model_class.validate_schema(df_head):
+                matching_files.append(s3_key)
+                print(f"✓ {filename} matches {model_class.__name__} schema")
+            else:
+                print(f"✗ {filename} does not match {model_class.__name__} schema - skipping")
+        
+        print(f"\nFound {len(matching_files)} files matching {model_class.__name__} schema")
+        
+        # Now process only the matching files
+        for s3_key in matching_files:
+            filename = os.path.basename(s3_key)
             print(f"\nProcessing {s3_key}")
-            csv_buffer = model_class.download_csv_from_s3(s3_key)
+            csv_buffer = cls.download_csv_from_s3(s3_key)
             chunk_iter = pd.read_csv(csv_buffer, chunksize=chunksize)
             total_rows = 0
             chunk_num = 0
-            
             for chunk in chunk_iter:
                 chunk_num += 1
                 df_aligned = model_class.to_dataframe(chunk, filename)
