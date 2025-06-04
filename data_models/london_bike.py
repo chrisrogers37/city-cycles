@@ -66,7 +66,7 @@ class LondonModernBikeShareRecord(BaseBikeShareRecord):
     start_date: datetime
     end_date: datetime
     total_duration: str
-    total_duration_ms: int
+    total_duration_ms: int  # This will be stored as BIGINT in PostgreSQL
     start_station_number: str
     start_station: str
     end_station_number: str
@@ -110,5 +110,6 @@ class LondonModernBikeShareRecord(BaseBikeShareRecord):
         })
         df["source_file"] = source_file
         for col in ["start_date", "end_date"]:
-            df[col] = pd.to_datetime(df[col], format="%d/%m/%Y %H:%M").dt.strftime("%Y-%m-%d %H:%M:%S")
+            # Modern format uses YYYY-MM-DD HH:MM
+            df[col] = pd.to_datetime(df[col], format="%Y-%m-%d %H:%M").dt.strftime("%Y-%m-%d %H:%M:%S")
         return df[list(cls.__dataclass_fields__.keys())] 

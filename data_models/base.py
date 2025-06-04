@@ -191,9 +191,9 @@ class BaseBikeShareRecord:
     def get_schema_sql(cls) -> str:
         type_map = {
             "str": "TEXT",
-            "int": "INTEGER",
+            "int": "BIGINT",
             "float": "FLOAT",
-            "Optional[int]": "INTEGER",
+            "Optional[int]": "BIGINT",
             "Optional[float]": "FLOAT",
             "datetime": "TIMESTAMP"
         }
