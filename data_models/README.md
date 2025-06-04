@@ -92,3 +92,11 @@ python db/batch_load_all_from_s3.py
 
 - The ETL process logs progress and memory usage for each chunk and file.
 - Errors in loading one file or prefix do not stop the rest of the batch.
+
+## London Data Model Schema Change (September 2022)
+
+**Note:** The schema for London bike share data changes between the following files:
+- `334JourneyDataExtract07Sep2022-11Sep2022.csv` (uses the legacy schema)
+- `335JourneyDataExtract12Sep2022-18Sep2022.csv` (uses the modern schema)
+
+This indicates that the data model diverges in mid-September 2022. When processing London data, ensure you use the correct model for files before and after this point.
