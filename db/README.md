@@ -48,7 +48,6 @@ Available models:
 ### Command Line Options
 
 - `s3_prefix`: Required. The S3 prefix to load files from (e.g., `nyc_csv/`)
-- `--year`: Optional. Filter files by year
 - `--filename`: Optional. Load a specific file
 - `--dry-run`: Optional. Simulate loading without making changes
 - `--model`: Optional. Specify which model to use

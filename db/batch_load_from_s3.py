@@ -18,12 +18,12 @@ def get_model_class(model_name):
 def main():
     parser = argparse.ArgumentParser(description='Load bike share data from S3 into database')
     parser.add_argument('s3_prefix', help='S3 prefix to load files from')
-    parser.add_argument('--year', type=int, help='Optional year to filter files')
     parser.add_argument('--filename', help='Optional specific filename to load')
     parser.add_argument('--dry-run', action='store_true', help='Dry run without making changes')
     parser.add_argument('--model', help='Specific model to use (london_legacy, london_modern, nyc_legacy, nyc_modern)')
     parser.add_argument('--truncate', action='store_true', help='Truncate the table before loading')
     parser.add_argument('--reload', action='store_true', help='Delete and reload the specified file')
+    parser.add_argument('--chunksize', type=int, default=5000, help='Number of rows to process at once (default: 5000)')
     args = parser.parse_args()
 
     if args.model:
@@ -36,9 +36,9 @@ def main():
             model_class.truncate_table()
             
         if args.reload and args.filename:
-            model_class.reload_file(args.filename, args.s3_prefix, args.dry_run)
+            model_class.reload_file(args.filename, args.s3_prefix, args.dry_run, args.chunksize)
         else:
-            model_class.load_from_s3_with_model(model_class, args.s3_prefix, args.year, args.dry_run, args.filename)
+            model_class.load_from_s3_with_model(model_class, args.s3_prefix, args.dry_run, args.filename, args.chunksize)
     else:
         if args.truncate and not args.dry_run:
             print("Error: --truncate requires --model to be specified")
@@ -48,7 +48,7 @@ def main():
             print("Error: --reload requires --model to be specified")
             sys.exit(1)
             
-        BaseBikeShareRecord.load_from_s3(args.s3_prefix, args.year, args.dry_run, args.filename)
+        BaseBikeShareRecord.load_from_s3(args.s3_prefix, args.dry_run, args.filename, args.chunksize)
 
 if __name__ == '__main__':
     main() 

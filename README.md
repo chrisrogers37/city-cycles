@@ -1,42 +1,76 @@
-# City Cycles - Bike Share Data ETL
+# City Cycles Data Pipeline
 
-A robust ETL pipeline for processing and loading bike share data from London and NYC into a PostgreSQL database.
+This project contains scripts and tools for loading bike share data from various cities into a database.
 
-## Overview
+## Setup
 
-This project provides a flexible and maintainable way to:
-- Process bike share data from multiple sources (London, NYC)
-- Handle different data formats and schemas (legacy and modern)
-- Load data efficiently into a PostgreSQL database
-- Support batch processing and incremental updates
+1. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-## Quick Start
+2. Set up environment variables:
+```bash
+cp .env.example .env
+# Edit .env with your database and S3 credentials
+```
 
-1. **Setup Environment**
-   ```bash
-   # Create and activate virtual environment
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   
-   # Install dependencies
-   pip install -r requirements.txt
-   ```
+## Usage
 
-2. **Configure Database**
-   ```bash
-   # Set up your database connection in .env
-   cp .env.example .env
-   # Edit .env with your database credentials
-   ```
+### Loading Data from S3
 
-3. **Load Data**
-   ```bash
-   # Load all London data
-   python -m db.batch_load_from_s3 london_csv/
-   
-   # Load specific year of NYC data
-   python -m db.batch_load_from_s3 nyc_csv/ --year 2023
-   ```
+The main script for loading data is `db/batch_load_from_s3.py`. It supports several options:
+
+```bash
+# Load all files from a prefix
+python -m db.batch_load_from_s3 nyc_csv/
+
+# Load a specific file
+python -m db.batch_load_from_s3 nyc_csv/ --filename 202001-citibike-tripdata.csv
+
+# Use a specific model
+python -m db.batch_load_from_s3 nyc_csv/ --model nyc_modern
+
+# Dry run (no changes)
+python -m db.batch_load_from_s3 nyc_csv/ --dry-run
+
+# Truncate table before loading
+python -m db.batch_load_from_s3 nyc_csv/ --model nyc_modern --truncate
+
+# Reload a specific file
+python -m db.batch_load_from_s3 nyc_csv/ --model nyc_modern --filename 202001-citibike-tripdata.csv --reload
+
+# Control chunk size for memory management
+python -m db.batch_load_from_s3 nyc_csv/ --model nyc_modern --chunksize 1000
+```
+
+### Available Models
+
+- `nyc_modern`: NYC Citi Bike data (2020 onwards)
+- `nyc_legacy`: NYC Citi Bike data (pre-2020)
+- `london_modern`: London Santander Cycles data (2020 onwards)
+- `london_legacy`: London Santander Cycles data (pre-2020)
+
+## Development
+
+### Adding New Models
+
+1. Create a new model class in `data_models/` directory
+2. Inherit from `BaseBikeShareRecord`
+3. Implement required methods:
+   - `validate_schema()`
+   - `to_dataframe()`
+   - `to_database()`
+
+### Testing
+
+```bash
+# Run tests
+pytest
+
+# Run specific test file
+pytest tests/test_nyc_bike.py
+```
 
 ## Project Structure
 
@@ -51,19 +85,6 @@ This project provides a flexible and maintainable way to:
 
 - [Data Models](data_models/README.md): Detailed documentation of the data models and schema handling
 - [Database Loading](db/README.md): Information about database loading and batch processing
-
-## Development
-
-### Running Tests
-```bash
-pytest
-```
-
-### Adding New Data Sources
-1. Create a new model class in `data_models/`
-2. Implement required methods from `BaseBikeShareRecord`
-3. Add tests in `tests/`
-4. Update documentation
 
 ## Contributing
 

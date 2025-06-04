@@ -23,21 +23,20 @@ class BaseBikeShareRecord:
             BaseBikeShareRecord._registry.append(cls)
 
     @classmethod
-    def list_s3_files(cls, prefix=None, year=None):
-        load_dotenv()
-        S3_BUCKET = os.environ["S3_BUCKET"]
-        s3 = boto3.client("s3")
-        if prefix is None:
-            prefix = cls.s3_prefix
-        paginator = s3.get_paginator("list_objects_v2")
-        files = []
-        for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=prefix):
-            for obj in page.get("Contents", []):
-                key = obj["Key"]
-                if key.endswith(".csv"):
-                    if year is None or str(year) in key:
-                        files.append(key)
-        return files
+    def list_s3_files(cls, prefix=None):
+        """List files in S3 bucket matching the model's pattern."""
+        s3_client = boto3.client('s3')
+        bucket = os.getenv('S3_BUCKET')
+        
+        if prefix:
+            response = s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        else:
+            response = s3_client.list_objects_v2(Bucket=bucket)
+            
+        if 'Contents' not in response:
+            return []
+            
+        return [obj['Key'] for obj in response['Contents'] if obj['Key'].endswith('.csv')]
 
     @classmethod
     def download_csv_from_s3(cls, s3_key):
@@ -126,42 +125,35 @@ class BaseBikeShareRecord:
         return None
 
     @classmethod
-    def load_from_s3(cls, prefix=None, year=None, dry_run=False, filename=None, chunksize=10000):
-        files = cls.list_s3_files(prefix=prefix, year=year)
+    def load_from_s3(cls, prefix=None, dry_run=False, filename=None, chunksize=5000):
+        """Load data from S3 into database."""
         if filename:
-            files = [f for f in files if os.path.basename(f) == filename]
-        print(f"Found {len(files)} files in S3 prefix '{prefix}'")
-        for s3_key in files:
-            filename = os.path.basename(s3_key)
-            print(f"\nProcessing {s3_key}")
-            csv_buffer = cls.download_csv_from_s3(s3_key)
-            chunk_iter = pd.read_csv(csv_buffer, chunksize=chunksize)
-            total_rows = 0
-            chunk_num = 0
-            model = None
-            for chunk in chunk_iter:
-                chunk_num += 1
-                if model is None:
-                    model = cls.assign_model(filename, prefix, chunk.head())
-                    if model is None:
-                        print(f"ERROR: No model matched file {filename} (chunk {chunk_num})")
-                        break
-                df_aligned = model.to_dataframe(chunk, filename)
-                total_rows += len(df_aligned)
+            files = [filename]
+        else:
+            files = cls.list_s3_files(prefix)
+            
+        if not files:
+            print(f"No files found in S3 bucket {os.getenv('S3_BUCKET')} with prefix {prefix}")
+            return
+            
+        print(f"Found {len(files)} files in S3")
+        
+        for file in files:
+            try:
+                print(f"\nProcessing {file}")
+                df = cls.read_from_s3(file)
+                if df is None:
+                    continue
+                    
                 if dry_run:
-                    print(f"[DRY RUN] Chunk {chunk_num}: Would insert {len(df_aligned)} rows into {model.staging_table}")
-                else:
-                    model.to_database(df_aligned)
-                    print(f"Inserted chunk {chunk_num}: {len(df_aligned)} rows into {model.staging_table}")
-                # Log memory usage
-                process = psutil.Process(os.getpid())
-                mem_mb = process.memory_info().rss / 1024 / 1024
-                print(f"[Memory] After chunk {chunk_num}: {mem_mb:.2f} MB used")
-                # Explicitly delete DataFrames and run garbage collection
-                del chunk
-                del df_aligned
-                gc.collect()
-            print(f"Finished {filename}: {total_rows} rows processed.")
+                    print(f"Would insert {len(df)} rows into {cls.__name__}")
+                    continue
+                    
+                cls.insert_dataframe(df, chunksize=chunksize)
+                print(f"Successfully loaded {file}")
+            except Exception as e:
+                print(f"Error processing {file}: {str(e)}")
+                continue
 
     @classmethod
     def to_database(cls, df: pd.DataFrame):
@@ -291,62 +283,95 @@ class BaseBikeShareRecord:
         print(f"Deleted records for source file: {source_file} from {cls.staging_table}")
 
     @classmethod
-    def load_from_s3_with_model(cls, model_class, prefix=None, year=None, dry_run=False, filename=None, chunksize=10000):
-        """Load files from S3 using a specific model class."""
-        files = cls.list_s3_files(prefix=prefix, year=year)
+    def load_from_s3_with_model(cls, model_class, prefix=None, dry_run=False, filename=None, chunksize=5000):
+        """Load data from S3 into database using a specific model class."""
+        if not issubclass(model_class, BaseBikeShareRecord):
+            raise ValueError(f"Model class {model_class.__name__} must be a subclass of BaseBikeShareRecord")
+            
         if filename:
-            files = [f for f in files if os.path.basename(f) == filename]
-        print(f"Found {len(files)} files in S3 prefix '{prefix}'")
+            files = [filename]
+        else:
+            files = model_class.list_s3_files(prefix)
+            
+        if not files:
+            print(f"No files found in S3 bucket {os.getenv('S3_BUCKET')} with prefix {prefix}")
+            return
+            
+        print(f"Found {len(files)} files in S3")
         
-        # First, validate which files match this model's schema
-        matching_files = []
-        for s3_key in files:
-            filename = os.path.basename(s3_key)
-            print(f"\nValidating schema for {s3_key}")
-            csv_buffer = cls.download_csv_from_s3(s3_key)
-            # Read just the first chunk to validate schema
-            df_head = pd.read_csv(csv_buffer, nrows=1)
-            if model_class.validate_schema(df_head):
-                matching_files.append(s3_key)
-                print(f"✓ {filename} matches {model_class.__name__} schema")
-            else:
-                print(f"✗ {filename} does not match {model_class.__name__} schema - skipping")
-        
-        print(f"\nFound {len(matching_files)} files matching {model_class.__name__} schema")
-        
-        # Now process only the matching files
-        for s3_key in matching_files:
-            filename = os.path.basename(s3_key)
-            print(f"\nProcessing {s3_key}")
-            csv_buffer = cls.download_csv_from_s3(s3_key)
-            chunk_iter = pd.read_csv(csv_buffer, chunksize=chunksize)
-            total_rows = 0
-            chunk_num = 0
-            for chunk in chunk_iter:
-                chunk_num += 1
-                df_aligned = model_class.to_dataframe(chunk, filename)
-                total_rows += len(df_aligned)
-                if dry_run:
-                    print(f"[DRY RUN] Chunk {chunk_num}: Would insert {len(df_aligned)} rows into {model_class.staging_table}")
-                else:
-                    model_class.to_database(df_aligned)
-                    print(f"Inserted chunk {chunk_num}: {len(df_aligned)} rows into {model_class.staging_table}")
-                # Log memory usage
-                process = psutil.Process(os.getpid())
-                mem_mb = process.memory_info().rss / 1024 / 1024
-                print(f"[Memory] After chunk {chunk_num}: {mem_mb:.2f} MB used")
-                # Explicitly delete DataFrames and run garbage collection
-                del chunk
-                del df_aligned
+        # Process files one at a time to manage memory
+        for file in files:
+            try:
+                print(f"\nProcessing {file}")
+                
+                # Download and validate schema
+                s3_client = boto3.client('s3')
+                bucket = os.getenv('S3_BUCKET')
+                
+                # Read first row for schema validation
+                response = s3_client.get_object(Bucket=bucket, Key=file)
+                df_head = pd.read_csv(response['Body'], nrows=1)
+                
+                # Validate schema
+                if not model_class.validate_schema(df_head):
+                    print(f"Skipping {file} - schema mismatch")
+                    continue
+                    
+                print(f"Schema validation passed for {file}")
+                
+                # Reset buffer for full read
+                response = s3_client.get_object(Bucket=bucket, Key=file)
+                
+                # Process file in chunks
+                chunk_num = 0
+                for chunk in pd.read_csv(response['Body'], chunksize=chunksize):
+                    chunk_num += 1
+                    print(f"Processing chunk {chunk_num} of {file}")
+                    
+                    if dry_run:
+                        print(f"Would insert {len(chunk)} rows into {model_class.__name__}")
+                        continue
+                        
+                    model_class.insert_dataframe(chunk, chunksize=chunksize)
+                    print(f"Inserted chunk {chunk_num}: {len(chunk)} rows into {model_class.__name__}")
+                    
+                    # Clear memory
+                    del chunk
+                    gc.collect()
+                    
+                print(f"Successfully loaded {file}")
+                
+            except Exception as e:
+                print(f"Error processing {file}: {str(e)}")
+                continue
+            finally:
+                # Clear memory after each file
                 gc.collect()
-            print(f"Finished {filename}: {total_rows} rows processed.")
 
     @classmethod
-    def reload_file(cls, filename: str, prefix=None, dry_run=False, chunksize=10000):
+    def reload_file(cls, filename, prefix=None, dry_run=False, chunksize=5000):
         """Delete and reload a specific file."""
-        # First delete existing records
-        if not dry_run:
-            cls.delete_by_source_file(filename)
+        if dry_run:
+            print(f"Would delete and reload {filename}")
+            return
+            
+        cls.delete_file(filename)
+        cls.load_from_s3(prefix, dry_run, filename, chunksize)
+
+    @classmethod
+    def insert_dataframe(cls, df, chunksize=5000):
+        """Insert a DataFrame into the database in chunks."""
+        if df is None or len(df) == 0:
+            return
+            
+        # Transform data using the model's to_dataframe method
+        df_aligned = cls.to_dataframe(df, df['source_file'].iloc[0])
         
-        # Then load the file
-        cls.load_from_s3(prefix=prefix, filename=filename, dry_run=dry_run, chunksize=chunksize) 
+        # Insert in chunks
+        for i in range(0, len(df_aligned), chunksize):
+            chunk = df_aligned.iloc[i:i + chunksize]
+            cls.to_database(chunk)
+            
+        # Clear memory
+        del df_aligned
+        gc.collect() 
