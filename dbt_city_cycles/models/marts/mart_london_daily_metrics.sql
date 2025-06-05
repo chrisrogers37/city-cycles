@@ -3,10 +3,16 @@
 ) }}
 
 select
-    date_trunc('day', start_time) as date,
-    extract(year from start_time) as year,
+    m.location,
+    date_trunc('day', m.start_time) as date,
+    extract(year from m.start_time) as year,
     count(*) as total_rides,
-    avg(duration_seconds)/60 as avg_duration_minutes
-from {{ ref('int_london_rides') }}
-group by 1, 2
-order by 1 
+    avg(m.duration_seconds)/60 as avg_duration_minutes,
+    p.population,
+    (count(*)::float / nullif(p.population, 0)) * 1000 as rides_per_1000
+from {{ ref('int_london_rides') }} m
+left join {{ ref('population') }} p
+  on m.location = p.location
+ and extract(year from m.start_time) = p.year
+group by 1, 2, 3, 6
+order by 2 

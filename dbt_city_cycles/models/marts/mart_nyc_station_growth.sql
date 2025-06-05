@@ -4,22 +4,29 @@
 
 with station_counts as (
     select 
+        location,
         extract(year from start_time) as year,
         count(distinct start_station_id) as station_count
     from {{ ref('int_nyc_rides') }}
-    group by 1
+    group by 1, 2
 ),
 growth_calc as (
     select 
-        year,
-        station_count,
-        lag(station_count) over (order by year) as prev_year_count,
+        s.location,
+        s.year,
+        s.station_count,
+        p.population,
+        (s.station_count::float / nullif(p.population, 0)) * 1000 as stations_per_1000,
+        lag(s.station_count) over (partition by s.location order by s.year) as prev_year_count,
         case 
-            when lag(station_count) over (order by year) = 0 then null
-            else round(((station_count - lag(station_count) over (order by year))::numeric / 
-                  lag(station_count) over (order by year) * 100)::numeric, 1)
+            when lag(s.station_count) over (partition by s.location order by s.year) = 0 then null
+            else round(((s.station_count - lag(s.station_count) over (partition by s.location order by s.year))::numeric / 
+                  lag(s.station_count) over (partition by s.location order by s.year) * 100)::numeric, 1)
         end as yoy_growth
-    from station_counts
+    from station_counts s
+    left join {{ ref('population') }} p
+      on s.location = p.location
+     and s.year = p.year
 )
 select * from growth_calc
-order by year 
+order by location, year 

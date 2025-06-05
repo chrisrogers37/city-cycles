@@ -3,8 +3,9 @@
 ) }}
 
 select
+    location,
     extract(hour from start_time) as hour_of_day,
     count(*) as ride_count
 from {{ ref('int_london_rides') }}
-group by 1
-order by 1 
+group by 1, 2
+order by 2 
