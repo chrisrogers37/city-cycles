@@ -132,18 +132,7 @@
 
 ---
 
-## 🔁 Phase 6: Automation & Maintenance
-
-### 21. Automate ETL execution
-- [ ] Add a cron job (or systemd timer) to run ETL script on schedule (reading from S3)
-- [ ] (Optional) Set up logging and error notification
-
-### 22. (Optional) Clean up old files in S3
-- [ ] Add script/cron to delete/archive old zip/CSV files in S3 to save storage
-
----
-
-## 📊 Phase 7: Dashboard Reporting
+## 📊 Phase 6: Dashboard Reporting
 
 ### 23. Choose BI tool and connect to DB/dbt outputs
 - [ ] Tableau (recommended), PowerBI, or Streamlit
@@ -155,9 +144,7 @@
 ### 25. Build comparison dashboard
 - [ ] YoY growth, COVID drop + rebound, seasonal overlays
 
----
-
-## 🧼 Phase 8: Packaging
+## 🧼 Phase 7: Packaging
 
 ### 26. Export visuals to PDF
 - [ ] Add screenshots to final `submission.pdf`
@@ -165,11 +152,16 @@
 ### 27. Write summary of architecture
 - [ ] Add commentary on trade-offs, automation, future scaling
 
----
-
 ## ✅ MVP Complete
 
----
+## 🔁 Phase 8: Automation & Maintenance
+
+### 21. Automate ETL execution
+- [ ] Add a cron job (or systemd timer) to run ETL script on schedule (reading from S3)
+- [ ] (Optional) Set up logging and error notification
+
+### 22. (Optional) Clean up old files in S3
+- [ ] Add script/cron to delete/archive old zip/CSV files in S3 to save storage
 
 ## 🌍 Phase 9: Weather & COVID Data Ingestion (Nice-to-Have)
 
