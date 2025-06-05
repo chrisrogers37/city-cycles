@@ -2,7 +2,7 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
-import psycopg
+import psycopg2
 from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
@@ -15,7 +15,7 @@ MART_SCHEMA = "dbt_models_marts"
 
 # Database connection
 def get_db_connection():
-    return psycopg.connect(
+    return psycopg2.connect(
         host=os.getenv('DB_HOST'),
         dbname=os.getenv('DB_NAME'),
         user=os.getenv('DB_USER'),
@@ -202,6 +202,8 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
           AND metric_name = 'avg_duration_minutes'
         """
         avg_duration = pd.read_sql(avg_duration_query, conn)['avg_duration'][0]
+
+        col1, col2, col3 = st.columns(3)
 
         with col1:
             st.metric("Total Rides", f"{total_rides:,.0f}")
