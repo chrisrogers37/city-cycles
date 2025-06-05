@@ -46,5 +46,3 @@ config/secrets.*
 .DS_Store
 Thumbs.db 
 
-# Data files
-*.csv
