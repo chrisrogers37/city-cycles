@@ -2,7 +2,7 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
-import psycopg2
+import psycopg
 from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
@@ -15,9 +15,9 @@ MART_SCHEMA = "dbt_models_marts"
 
 # Database connection
 def get_db_connection():
-    return psycopg2.connect(
+    return psycopg.connect(
         host=os.getenv('DB_HOST'),
-        database=os.getenv('DB_NAME'),
+        dbname=os.getenv('DB_NAME'),
         user=os.getenv('DB_USER'),
         password=os.getenv('DB_PASSWORD')
     )

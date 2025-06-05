@@ -4,8 +4,8 @@ from data_models.nyc_bike import NYCModernBikeShareRecord, NYCLegacyBikeShareRec
 
 SAMPLE_DIR = os.path.join(os.path.dirname(__file__), "..", "data_models", "nyc_sample_data")
 
-LEGACY_FILE = "201907-citibike-tripdata_2.csv"
-MODERN_FILE = "202404-citibike-tripdata.csv"
+LEGACY_FILE = "201906-citibike-tripdata_3.csv"
+MODERN_FILE = "202312-citibike-tripdata_3.csv"
 N_ROWS = 5
 
 def test_nyc_legacy():
