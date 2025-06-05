@@ -42,19 +42,13 @@ col1, col2 = st.columns(2)
 with col1:
     daily_rides_query = """
     SELECT 
-        AVG(daily_rides) as avg_daily_rides
+        AVG(total_rides) as avg_daily_rides
     FROM (
-        SELECT 
-            DATE(start_time) as ride_date,
-            COUNT(*) as daily_rides
-        FROM dbt_models.int_nyc_rides
-        GROUP BY DATE(start_time)
+        SELECT total_rides
+        FROM dbt_models.mart_london_daily_metrics
         UNION ALL
-        SELECT 
-            DATE(start_time) as ride_date,
-            COUNT(*) as daily_rides
-        FROM dbt_models.int_london_rides
-        GROUP BY DATE(start_time)
+        SELECT total_rides
+        FROM dbt_models.mart_nyc_daily_metrics
     ) combined_rides
     """
     avg_daily_rides = pd.read_sql(daily_rides_query, conn).iloc[0]['avg_daily_rides']
@@ -64,14 +58,14 @@ with col1:
 with col2:
     duration_query = """
     SELECT 
-        AVG(duration_seconds)/60 as avg_duration_minutes
+        AVG(avg_duration_minutes) as avg_duration_minutes
     FROM (
-        SELECT duration_seconds
-        FROM dbt_models.int_nyc_rides
+        SELECT avg_duration_minutes
+        FROM dbt_models.mart_london_daily_metrics
         UNION ALL
-        SELECT duration_seconds
-        FROM dbt_models.int_london_rides
-    ) combined_rides
+        SELECT avg_duration_minutes
+        FROM dbt_models.mart_nyc_daily_metrics
+    ) combined_durations
     """
     avg_duration = pd.read_sql(duration_query, conn).iloc[0]['avg_duration_minutes']
     st.metric("Average Ride Duration", f"{avg_duration:.1f} minutes")
@@ -82,46 +76,44 @@ st.header("Ride Trends")
 # Query for daily rides trend
 rides_trend_query = """
 SELECT 
-    DATE(start_time) as ride_date,
-    EXTRACT(YEAR FROM start_time) as year,
-    COUNT(*) as daily_rides
-FROM dbt_models.int_nyc_rides
-GROUP BY DATE(start_time), EXTRACT(YEAR FROM start_time)
-ORDER BY ride_date
+    date,
+    year,
+    total_rides as daily_rides
+FROM dbt_models.mart_london_daily_metrics
+ORDER BY date
 """
 rides_trend_df = pd.read_sql(rides_trend_query, conn)
 
 # Plot daily rides trend
 fig_rides = px.line(
     rides_trend_df,
-    x='ride_date',
+    x='date',
     y='daily_rides',
     color='year',
     title='Daily Rides Trend by Year',
-    labels={'ride_date': 'Date', 'daily_rides': 'Number of Rides', 'year': 'Year'}
+    labels={'date': 'Date', 'daily_rides': 'Number of Rides', 'year': 'Year'}
 )
 st.plotly_chart(fig_rides, use_container_width=True)
 
 # Query for duration trend
 duration_trend_query = """
 SELECT 
-    DATE(start_time) as ride_date,
-    EXTRACT(YEAR FROM start_time) as year,
-    AVG(duration_seconds)/60 as avg_duration_minutes
-FROM dbt_models.int_nyc_rides
-GROUP BY DATE(start_time), EXTRACT(YEAR FROM start_time)
-ORDER BY ride_date
+    date,
+    year,
+    avg_duration_minutes
+FROM dbt_models.mart_london_daily_metrics
+ORDER BY date
 """
 duration_trend_df = pd.read_sql(duration_trend_query, conn)
 
 # Plot duration trend
 fig_duration = px.line(
     duration_trend_df,
-    x='ride_date',
+    x='date',
     y='avg_duration_minutes',
     color='year',
     title='Average Ride Duration Trend by Year',
-    labels={'ride_date': 'Date', 'avg_duration_minutes': 'Duration (minutes)', 'year': 'Year'}
+    labels={'date': 'Date', 'avg_duration_minutes': 'Duration (minutes)', 'year': 'Year'}
 )
 st.plotly_chart(fig_duration, use_container_width=True)
 
@@ -131,10 +123,9 @@ st.header("Time of Day Analysis")
 # Query for time of day distribution
 time_of_day_query = """
 SELECT 
-    EXTRACT(HOUR FROM start_time) as hour_of_day,
-    COUNT(*) as ride_count
-FROM dbt_models.int_nyc_rides
-GROUP BY EXTRACT(HOUR FROM start_time)
+    hour_of_day,
+    ride_count
+FROM dbt_models.mart_london_hourly_patterns
 ORDER BY hour_of_day
 """
 time_of_day_df = pd.read_sql(time_of_day_query, conn)
@@ -178,20 +169,12 @@ st.header("Station Growth Analysis")
 
 # Query for station growth
 station_growth_query = """
-WITH station_counts AS (
-    SELECT 
-        EXTRACT(YEAR FROM start_time) as year,
-        COUNT(DISTINCT start_station_id) as station_count
-    FROM dbt_models.int_nyc_rides
-    GROUP BY EXTRACT(YEAR FROM start_time)
-)
 SELECT 
     year,
     station_count,
-    LAG(station_count) OVER (ORDER BY year) as prev_year_count,
-    (station_count - LAG(station_count) OVER (ORDER BY year)) * 100.0 / 
-    LAG(station_count) OVER (ORDER BY year) as yoy_growth
-FROM station_counts
+    prev_year_count,
+    yoy_growth
+FROM dbt_models.mart_london_station_growth
 ORDER BY year
 """
 station_growth_df = pd.read_sql(station_growth_query, conn)
