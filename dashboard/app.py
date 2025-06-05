@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
 
-print("HELLO")
+raise Exception("HELLO")
 # Load environment variables
 load_dotenv()
 
