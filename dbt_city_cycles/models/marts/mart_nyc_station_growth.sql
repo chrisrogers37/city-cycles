@@ -6,7 +6,7 @@ with station_counts as (
     select 
         extract(year from start_time) as year,
         count(distinct start_station_id) as station_count
-    from {{ ref('int_london_rides') }}
+    from {{ ref('int_nyc_rides') }}
     group by 1
 ),
 growth_calc as (
