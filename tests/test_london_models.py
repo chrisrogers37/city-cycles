@@ -6,7 +6,7 @@ SAMPLE_DIR = os.path.join(os.path.dirname(__file__), "..", "data_models", "londo
 
 # Pick one legacy and one modern file
 LEGACY_FILE = "193JourneyDataExtract18Dec2019-24Dec2019.csv"
-MODERN_FILE = "399JourneyDataExtract01Jul2024-14Jul2024.csv"
+MODERN_FILE = "360JourneyDataExtract06Mar2023-12Mar2023.csv"
 
 N_ROWS = 5
 

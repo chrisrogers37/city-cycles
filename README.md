@@ -1,74 +1,146 @@
-# City Cycles Data Pipeline
+# City Cycles Analytics
 
-This project provides a robust, model-driven pipeline for ingesting, processing, and loading bike share data from London and NYC into a PostgreSQL database.
+This project demonstrates a full-stack, automated analytics pipeline for comparing bike share systems in New York City (CitiBike) and London (Santander Cycles). It showcases robust engineering, cloud infrastructure, and modern analytics best practices and includes a roadmap for future development and enhancement.
 
-## Key Features
+---
 
-- **Data Ingestion:** Scraping and downloading bike share data from websites and uploading it to S3.
-- **Data Models:** Python dataclasses for both legacy and modern schemas for London and NYC, with schema alignment and validation.
-- **Model-Driven ETL:** Batch loading from S3 to PostgreSQL using memory-efficient, chunked processing with detailed logging and error handling.
-- **Automated DDL Generation:** Table schemas are generated and created directly from the data model classes.
-- **Easy Table Initialization:** Use `python db/init_tables.py` to create all required tables in your database.
-- **Robust Logging:** Progress and memory usage are logged for each chunk and file, aiding in monitoring and debugging.
+## Project Overview
 
-## Setup
+I built an end-to-end, automatable flow that:
 
-### Prerequisites
+- **Utilizes modern cloud infrastructure** 
+- **Extracts and ingests data from multiple sources:**
+- **Performs schema validation and data modeling:**
+- **Transforms and unifies data with dbt:** 
+- **Visualizes results in a modern dashboard:** 
+- **Automates and documents the entire process:**
 
-- Python 3.8+
-- PostgreSQL DB
-- AWS S3 bucket
-- Required Python packages (see `requirements.txt`)
+---
 
-### Environment Variables
+## Infrastructure
 
-Set the following environment variables in a `.env` file:
+- **AWS S3:** Centralized storage for all raw and processed data.
+- **AWS RDS (PostgreSQL):** Scalable, cloud-hosted analytics database.
+- **AWS EC2 (Ubuntu):** Orchestration and processing environment.
+- **Streamlit Cloud:** Free public hosting for the dashboard.
 
-```
-S3_BUCKET=your_s3_bucket_name
-DB_HOST=your_db_host
-DB_USER=your_db_user
-DB_PASSWORD=your_db_password
-DB_NAME=your_db_name
-DB_PORT=5432
-```
+---
 
-## Table Initialization
+## Data Extraction
 
-To create all required tables in your database, run:
-```bash
-python db/init_tables.py
-```
+- **NYC:**  
+  - Uses `boto3` to list and download zipped CSVs from the official S3 bucket.
+  - Unzips and uploads files to the project S3 bucket.
 
-## Execution
+- **London:**  
+  - Uses Playwright to automate browser downloads from the TFL website (no direct S3 access).
+  - Handles schema differences and uploads to S3.
 
-### Scraping Data to S3
+---
 
-*[Placeholder: Instructions for scraping data from websites and uploading to S3 will be added later.]*
+## Data Modeling & Loading
 
-### Loading Data from S3 to PostgreSQL
+- **Python data classes** represent each schema (legacy/modern, NYC/London).
+- **Validation** ensures only well-formed data is loaded.
+- **Automated table creation**: Table schemas are generated from the data models.
+- **Batch loading**: Efficient, chunked inserts from S3 to PostgreSQL.
 
-To load data from S3 into the PostgreSQL database, use the provided batch loading scripts:
+---
 
-```bash
-# Load all files in the 'london_csv/' prefix
-python db/batch_load_from_s3.py london_csv/
+## Transformation & Analytics
 
-# Load files for a specific year
-python db/batch_load_from_s3.py london_csv/ 2021
+- **dbt** is used to:
+  - Standardize and clean raw data in staging models.
+  - Combine legacy and modern data into unified intermediate tables.
+  - Build flexible, long-format metrics marts for analytics and dashboarding.
 
-# Dry run (no actual insertion)
-python db/batch_load_from_s3.py london_csv/ --dry-run
+---
 
-# Load all prefixes
-python db/batch_load_all_from_s3.py
-```
+## Dashboard
 
-## Notes
+- **Plotly + Streamlit** power an interactive analytics dashboard:
+  - City-specific and comparative views.
+  - Flexible date filtering, per-capita toggles, and trend overlays.
+  - KPIs, time series, and station growth visualizations.
+- **Deployed on Streamlit Cloud** for public access.
 
-- Legacy scripts such as `db/load.py` and static `db/init.sql` are no longer used; all operations are now model-driven and automated.
-- For more details on the data models and their functionality, refer to `data_models/README.md`.
+---
 
-## Conclusion
+## Additional Documentation
 
-This README provides a high-level overview of the project setup and execution. For detailed information on the data models and their usage, refer to the `data_models/README.md`.
+- See `data_models/README.md` for details on the data model architecture.
+- See `resources/` for learnings, design notes, task flows, and architecture ideas that I accumulated along the way.
+
+## Technologies Used
+
+- **Python 3.8+** — Core language for all ETL, modeling, and orchestration
+- **boto3** — AWS SDK for Python, used for S3 data access and management
+- **Playwright** — Headless browser automation for scraping London data
+- **pandas** — Data manipulation and validation
+- **psycopg** — PostgreSQL database driver for Python
+- **dbt (Data Build Tool)** — SQL-based data transformation, modeling, and analytics marts
+- **PostgreSQL (AWS RDS)** — Cloud-hosted relational database for analytics
+- **AWS S3** — Cloud object storage for raw and processed data
+- **AWS EC2 (Ubuntu)** — Cloud compute for orchestration and automation
+- **Streamlit** — Interactive dashboarding and web app framework
+- **Plotly** — Advanced data visualization and charting
+- **Streamlit Cloud** — Free public hosting for the dashboard
+- **dotenv** — Environment variable management
+- **pytest** — Automated testing framework
+- **Git & GitHub** — Version control and collaboration
+- **ChatGPT & Cursor** — AI-assisted coding, documentation, and ideation
+
+---
+
+## Roadmap & Next Steps
+
+### Additional Data Sources
+- **Populations**
+  - Validate that the population figures used reflect the total volume of people living within bike infrastructure coverage.
+- **Weather**
+  - Enrich the database with weather data and utilize it in analytics to provide weather-based insight on bike utilization.
+- **Covid**
+  - Bring in annotated events data to contextualize anomalies and visualize pandemic impact.
+
+### Data Extraction
+- **Enhanced Extraction**
+  - Build file indexing that keeps track of available files on web locations and diffs against the S3 bucket.
+  - Refactor extraction of files from the web to leverage this indexing.
+- **S3 Management**
+  - Refactor the flow to include an intermediate process that scans S3 and moves files into the right location based on schema, rather than determining the model and raw landing table at load time.
+
+### Database Load
+- **Improved Data Modeling**
+  - Fix schemas for better performance and investigate indexing at load.
+- **Utilize more efficient processing**
+  - Remove pandas from the process, if possible, for greater efficiency.
+
+### Analytics
+- **Move date-derived fields upstream**
+  - Add fields like `day_type` (weekday/weekend), `is_weekday`, `year`, `month`, etc. to staging models (`stg_*`) to ensure all downstream models receive these fields consistently and avoid logic duplication.
+- **Explore new metrics, categorizations, and areas of insight**
+  - Station-focused metrics
+  - Route-focused insight (distance, heatmapping, common routes, inflow vs outflow)
+  - Bike-focused insight (in London using bike_id)
+  - Segmentation by day of week
+  - Segmentation by weather (bring in external data source)
+  - Quantified seasonal effects
+  - Quantified Covid effects (bring in external data source)
+
+- Further automate and productionize the pipeline.
+
+---
+
+## Contact
+
+If you are interested in gaining access to the database or have questions about the project, please reach out:
+
+christophertrogers37@gmail.com
+
+## Data Sources & Acknowledgements
+
+Special thanks to:
+- [Transport for London (cycling.data.tfl.gov.uk)](https://cycling.data.tfl.gov.uk/) for making London Santander Cycles data publicly available
+- [Citi Bike / Lyft](https://citibikenyc.com/system-data) for making NYC Citi Bike data publicly available
+
+**This project demonstrates the design and implementation of a modern, cloud-native analytics stack—from raw data extraction to interactive dashboarding—using open-source tools and best practices.**
