@@ -4,7 +4,6 @@
     indexes=[
         {'columns': ['start_time']},
         {'columns': ['ride_id'], 'unique': true},
-        {'columns': ['bike_id']},
         {'columns': ['user_type']}
     ]
 ) }}
@@ -12,7 +11,7 @@
 with modern_rides as (
     select
         ride_id,
-        bike_id,
+        NULL as bike_id,  -- Modern data doesn't have bike_id
         start_time,
         stop_time,
         start_station_id,

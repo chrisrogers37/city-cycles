@@ -1,11 +1,5 @@
 {{ config(
-    materialized='table',
-    indexes=[
-        {'columns': ['start_time']},
-        {'columns': ['ride_id'], 'unique': true},
-        {'columns': ['bike_id']},
-        {'columns': ['user_type']}
-    ]
+    materialized='table'
 ) }}
 
 with source as (
