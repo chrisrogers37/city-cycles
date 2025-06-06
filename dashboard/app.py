@@ -144,17 +144,19 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         nyc_rides_per_1000 = (nyc_rides / nyc_pop * 1000) if nyc_rides and nyc_pop else None
         london_rides_per_1000 = (london_rides / london_pop * 1000) if london_rides and london_pop else None
 
-        # Average Ride Duration
-        nyc_avg_duration = pd.read_sql(f"""
-            SELECT AVG(metric_value) as avg_duration
+        # Average Ride Duration (global, not average of daily averages)
+        nyc_duration_query = f"""
+            SELECT SUM(metric_value) FILTER (WHERE metric_name = 'total_minutes_biked') / NULLIF(SUM(metric_value) FILTER (WHERE metric_name = 'total_rides'), 0) AS avg_ride_duration_minutes
             FROM {MART_SCHEMA}.mart_daily_metrics_long
-            WHERE location = 'nyc' AND {date_filter} AND metric_name = 'avg_duration_minutes'
-        """, conn)['avg_duration'][0]
-        london_avg_duration = pd.read_sql(f"""
-            SELECT AVG(metric_value) as avg_duration
+            WHERE location = 'nyc' AND {date_filter}
+        """
+        nyc_avg_duration = pd.read_sql(nyc_duration_query, conn)['avg_ride_duration_minutes'][0]
+        london_duration_query = f"""
+            SELECT SUM(metric_value) FILTER (WHERE metric_name = 'total_minutes_biked') / NULLIF(SUM(metric_value) FILTER (WHERE metric_name = 'total_rides'), 0) AS avg_ride_duration_minutes
             FROM {MART_SCHEMA}.mart_daily_metrics_long
-            WHERE location = 'london' AND {date_filter} AND metric_name = 'avg_duration_minutes'
-        """, conn)['avg_duration'][0]
+            WHERE location = 'london' AND {date_filter}
+        """
+        london_avg_duration = pd.read_sql(london_duration_query, conn)['avg_ride_duration_minutes'][0]
 
         with col_nyc:
             st.subheader("NYC")
@@ -193,15 +195,13 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         """
         avg_daily = pd.read_sql(avg_daily_query, conn)['avg_daily_rides'][0]
 
-        # Average ride duration
+        # Average ride duration (global, not average of daily averages)
         avg_duration_query = f"""
-        SELECT AVG(metric_value) as avg_duration
-        FROM {MART_SCHEMA}.mart_daily_metrics_long
-        WHERE location = '{page.lower()}'
-          AND {date_filter}
-          AND metric_name = 'avg_duration_minutes'
+            SELECT SUM(metric_value) FILTER (WHERE metric_name = 'total_minutes_biked') / NULLIF(SUM(metric_value) FILTER (WHERE metric_name = 'total_rides'), 0) AS avg_ride_duration_minutes
+            FROM {MART_SCHEMA}.mart_daily_metrics_long
+            WHERE location = '{page.lower()}' AND {date_filter}
         """
-        avg_duration = pd.read_sql(avg_duration_query, conn)['avg_duration'][0]
+        avg_duration = pd.read_sql(avg_duration_query, conn)['avg_ride_duration_minutes'][0]
 
         col1, col2, col3 = st.columns(3)
 
