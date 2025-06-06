@@ -265,11 +265,15 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         # --- Trip Duration Trend ---
         st.subheader("Average Trip Duration by Month (Overlayed by Year)")
         duration_trend_query = f"""
-        SELECT EXTRACT(MONTH FROM date) AS month, year, AVG(metric_value) as avg_duration
+        SELECT
+          EXTRACT(MONTH FROM date) AS month,
+          year,
+          SUM(CASE WHEN metric_name = 'total_minutes_biked' THEN metric_value ELSE 0 END) /
+            NULLIF(SUM(CASE WHEN metric_name = 'total_rides' THEN metric_value ELSE 0 END), 0) AS avg_duration
         FROM {MART_SCHEMA}.mart_daily_metrics_long
         WHERE location = '{page.lower()}'
           AND {date_filter}
-          AND metric_name = 'avg_duration_minutes'
+          AND metric_name IN ('total_minutes_biked', 'total_rides')
         GROUP BY month, year
         ORDER BY month, year
         """
@@ -286,7 +290,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
             ticktext=['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
         )
         st.plotly_chart(fig_duration, use_container_width=True)
-        st.caption("Approximation: monthly aggregation of daily averages")
+        st.caption("True average: total minutes biked / total rides per period")
         with st.expander("Show data table for trip duration trend"):
             st.dataframe(duration_trend_df)
 
@@ -369,10 +373,12 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         # 2. Comparative Average Ride Duration
         st.markdown("<h2 style='font-size:2.2rem; margin-top:2em;'>Comparative Average Ride Duration</h2>", unsafe_allow_html=True)
         duration_query = f"""
-            SELECT {date_expr} as period, location, AVG(metric_value) as avg_duration
+            SELECT {date_expr} as period, location,
+              SUM(CASE WHEN metric_name = 'total_minutes_biked' THEN metric_value ELSE 0 END) /
+                NULLIF(SUM(CASE WHEN metric_name = 'total_rides' THEN metric_value ELSE 0 END), 0) AS avg_duration
             FROM {MART_SCHEMA}.mart_daily_metrics_long
             WHERE {date_filter}
-              AND metric_name = 'avg_duration_minutes'
+              AND metric_name IN ('total_minutes_biked', 'total_rides')
             GROUP BY period, location
             ORDER BY period, location
         """
