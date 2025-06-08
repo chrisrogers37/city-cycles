@@ -30,6 +30,13 @@ renamed as (
         member_casual as user_type,
         -- Calculate duration in seconds from timestamps
         extract(epoch from (ended_at::timestamp - started_at::timestamp)) as duration_seconds,
+        -- Date-derived fields
+        date_trunc('day', started_at::timestamp) as date,
+        extract(month from started_at::timestamp) as month,
+        extract(year from started_at::timestamp) as year,
+        CASE WHEN extract(isodow from started_at::timestamp) < 6 THEN 'weekday' ELSE 'weekend' END AS day_type,
+        extract(isodow from started_at::timestamp) - 1 as day_of_week, -- 0=Monday
+        extract(hour from started_at::timestamp) as hour_of_day,
         -- Add metadata
         source_file,
         'nyc' as location,
