@@ -29,6 +29,13 @@ renamed as (
         end_station_number as end_station_id,
         -- Calculate duration in seconds from timestamps
         extract(epoch from (end_date::timestamp - start_date::timestamp)) as duration_seconds,
+        -- Date-derived fields
+        date_trunc('day', start_date::timestamp) as date,
+        extract(month from start_date::timestamp) as month,
+        extract(year from start_date::timestamp) as year,
+        CASE WHEN extract(isodow from start_date::timestamp) < 6 THEN 'weekday' ELSE 'weekend' END AS day_type,
+        extract(isodow from start_date::timestamp) - 1 as day_of_week, -- 0=Monday
+        extract(hour from start_date::timestamp) as hour_of_day,
         -- Add metadata
         source_file,
         'london' as location,
