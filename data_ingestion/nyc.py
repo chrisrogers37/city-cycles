@@ -6,11 +6,12 @@ import boto3
 from datetime import datetime
 import zipfile
 import shutil
-from data_ingestion.utils import upload_to_s3
+from data_ingestion.utils import upload_to_s3, file_exists_in_s3
 
 S3_BUCKET = os.environ.get("S3_BUCKET")
 NYC_PUBLIC_BUCKET = "tripdata"
-LOCAL_TMP_DIR = "/tmp/nyc_citibike/"
+LOCAL_TMP_DIR = "/tmp/extracted_bike_ride_zips/nyc/"
+RAW_ZIP_PREFIX = "extracted_bike_ride_zips/nyc"
 
 # Ensure local temp dir exists
 os.makedirs(LOCAL_TMP_DIR, exist_ok=True)
@@ -20,7 +21,7 @@ from botocore import UNSIGNED
 from botocore.client import Config
 public_s3 = boto3.client("s3", config=Config(signature_version=UNSIGNED))
 
-def list_nyc_citibike_files(start_year=2018, end_year=None):
+def list_nyc_citibike_files(start_year=2019, end_year=None):
     if end_year is None:
         end_year = datetime.now().year
     print(f"Listing files in s3://{NYC_PUBLIC_BUCKET}/ ...")
@@ -54,72 +55,66 @@ def is_valid_zip(path):
     except zipfile.BadZipFile:
         return False
 
-def process_path(path, s3_prefix):
+def download_and_store_zip(key):
     """
-    Recursively process a file or directory:
-    - If CSV, upload to S3
-    - If zip, extract and process contents
-    - If directory, process contents
+    Download a ZIP file and store it in the raw_zip_files folder in S3.
+    Returns True if the file was downloaded and stored, False if it already exists.
     """
+    fname = os.path.basename(key)
+    local_path = os.path.join(LOCAL_TMP_DIR, fname)
+    s3_key = f"{RAW_ZIP_PREFIX}/{fname}"
+    
+    # Check if we already have this ZIP file
+    if file_exists_in_s3(s3_key):
+        print(f"ZIP file already exists in S3: {s3_key}")
+        return False
+        
     try:
-        if os.path.isdir(path):
-            print(f"[DIR] {path}")
-            for entry in os.listdir(path):
-                process_path(os.path.join(path, entry), s3_prefix)
-            # Clean up directory after processing
-            if path != LOCAL_TMP_DIR:
-                shutil.rmtree(path)
-        elif path.endswith('.csv'):
-            print(f"[CSV] {path}")
-            s3_key = f"{s3_prefix}/{os.path.basename(path)}"
-            upload_to_s3(path, s3_key)
-            os.remove(path)
-            print(f"Uploaded and cleaned up CSV: {path}")
-        elif path.endswith('.zip'):
-            print(f"[ZIP] {path}")
-            if is_valid_zip(path):
-                extract_dir = path + "_extracted"
-                os.makedirs(extract_dir, exist_ok=True)
-                try:
-                    with zipfile.ZipFile(path, 'r') as zip_ref:
-                        zip_ref.extractall(extract_dir)
-                        print(f"Extracted zip: {path} to {extract_dir}")
-                except Exception as e:
-                    print(f"ERROR: Failed to extract zip {path}: {e}")
-                    os.remove(path)
-                    return
-                os.remove(path)
-                process_path(extract_dir, s3_prefix)
-            else:
-                print(f"ERROR: Skipping invalid zip file: {path}")
-                os.remove(path)
-        else:
-            print(f"[SKIP] Unsupported file: {path}")
-            os.remove(path)
+        # Download the ZIP file
+        download_file_from_s3(NYC_PUBLIC_BUCKET, key, local_path)
+        
+        # Validate the ZIP file
+        if not is_valid_zip(local_path):
+            print(f"ERROR: Invalid ZIP file: {local_path}")
+            os.remove(local_path)
+            return False
+            
+        # Upload to our S3 bucket
+        upload_to_s3(local_path, s3_key)
+        print(f"Stored ZIP file in S3: {s3_key}")
+        return True
+        
     except Exception as e:
-        print(f"ERROR: Unexpected error processing {path}: {e}")
-        if os.path.exists(path):
-            try:
-                os.remove(path)
-            except Exception:
-                pass
+        print(f"ERROR: Failed to process {key}: {e}")
+        if os.path.exists(local_path):
+            os.remove(local_path)
+        return False
+    finally:
+        # Clean up local file
+        if os.path.exists(local_path):
+            os.remove(local_path)
 
-def download_unzip_upload_all(start_year=2019, end_year=None):
+def download_all_zips(start_year=2019, end_year=None):
+    """
+    Download all ZIP files from NYC CitiBike and store them in S3.
+    """
     print(f"Using S3 bucket: {S3_BUCKET}")
     files = list_nyc_citibike_files(start_year, end_year)
     print(f"Found {len(files)} files to process.")
+    
+    downloaded_count = 0
+    skipped_count = 0
+    
     for key in files:
-        fname = os.path.basename(key)
-        local_path = os.path.join(LOCAL_TMP_DIR, fname)
-        try:
-            download_file_from_s3(NYC_PUBLIC_BUCKET, key, local_path)
-            try:
-                process_path(local_path, "nyc_csv")
-            except Exception as e:
-                print(f"ERROR: Failed to process {local_path}: {e}")
-        except Exception as e:
-            print(f"ERROR: Failed to download or process {key}: {e}")
-        print(f"Done: {fname}")
+        if download_and_store_zip(key):
+            downloaded_count += 1
+        else:
+            skipped_count += 1
+            
+    print(f"\nDownload Summary:")
+    print(f"Total files found: {len(files)}")
+    print(f"New files downloaded: {downloaded_count}")
+    print(f"Files already in S3: {skipped_count}")
 
 if __name__ == "__main__":
-    download_unzip_upload_all() 
+    download_all_zips() 
