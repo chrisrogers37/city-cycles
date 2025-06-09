@@ -8,4 +8,4 @@ select
     count(*) as ride_count
 from {{ ref('unified_rides') }}
 group by 1, 2
-order by 2 
+order by 1, 2 
