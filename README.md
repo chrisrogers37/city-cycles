@@ -17,10 +17,20 @@ I built an end-to-end, automatable flow that:
 
 ---
 
+## Dashboard
+
+🔗 [View the Dashboard (Streamlit Cloud)](https://city-cycles.streamlit.app/)
+
+---
+
 ## Infrastructure
 
 - **AWS S3:** Centralized storage for all raw and processed data.
-- **AWS RDS (PostgreSQL):** Scalable, cloud-hosted analytics database.
+- ~~**~~AWS RDS (PostgreSQL):~~** Scalable, cloud-hosted analytics database.~~ 
+  - Update - 7.2.2025: 
+    - Shut down AWS RDS due to carrying costs
+    - Hosting aggregated metrics marts in repo as parquet for now, and will reconnect dashboard via DuckDB or other solution asap.
+    - Marts available at ~/data
 - **AWS EC2 (Ubuntu):** Orchestration and processing environment.
 - **Streamlit Cloud:** Free public hosting for the dashboard.
 
