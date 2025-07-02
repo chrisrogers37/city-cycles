@@ -21,6 +21,8 @@ I built an end-to-end, automatable flow that:
 
 🔗 [View the Dashboard (Streamlit Cloud)](https://city-cycles.streamlit.app/)
 
+Note: The above dashboard will be offline until I replace Amazon RDS (PostgresSQL) implementation with solution hostable on Streamlit Cloud.
+
 ---
 
 ## Infrastructure
