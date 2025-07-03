@@ -1097,4 +1097,95 @@ class ExtractedFileManager:
     def _cleanup_memory(self):
         """Force garbage collection and cleanup"""
         gc.collect()
-        self._log_memory_usage("after cleanup") 
+        self._log_memory_usage("after cleanup")
+    
+    def list_failed_files(self, city: str = None, file_type: FileType = None, limit: int = None) -> List[Dict[str, Any]]:
+        """List failed files with optional filtering. Returns list of dicts for CLI display."""
+        failed_files = []
+        
+        for filename, meta in self._metadata_cache.items():
+            if meta.status != FileStatus.FAILED:
+                continue
+            
+            # Apply city filter
+            if city and city not in meta.s3_key:
+                continue
+            
+            # Apply file type filter
+            if file_type and meta.file_type != file_type:
+                continue
+            
+            # Convert to dict format for CLI
+            file_info = {
+                'key': meta.s3_key,
+                'filename': meta.filename,
+                'city': 'nyc' if 'nyc' in meta.s3_key else 'london',
+                'file_type': meta.file_type.value,
+                'status': meta.status.value,
+                'size_mb': meta.file_size_bytes / (1024 * 1024) if meta.file_size_bytes else 0,
+                'last_modified': meta.extracted_at.isoformat() if meta.extracted_at else None,
+                'error': meta.processing_errors[-1] if meta.processing_errors else 'Unknown error'
+            }
+            failed_files.append(file_info)
+        
+        # Sort by last modified (newest first)
+        failed_files.sort(key=lambda x: x['last_modified'] or '', reverse=True)
+        
+        # Apply limit
+        if limit:
+            failed_files = failed_files[:limit]
+        
+        return failed_files
+    
+    def reset_failed_files(self, city: str = None, file_type: FileType = None) -> int:
+        """Reset failed files to 'extracted' status. Returns number of files reset."""
+        reset_count = 0
+        
+        for filename, meta in self._metadata_cache.items():
+            if meta.status != FileStatus.FAILED:
+                continue
+            
+            # Apply city filter
+            if city and city not in meta.s3_key:
+                continue
+            
+            # Apply file type filter
+            if file_type and meta.file_type != file_type:
+                continue
+            
+            # Reset to extracted status
+            meta.status = FileStatus.EXTRACTED
+            meta.processing_errors = []  # Clear errors
+            reset_count += 1
+        
+        # Save updated metadata
+        if reset_count > 0:
+            self._save_metadata()
+        
+        return reset_count
+    
+    def run_pipeline(self, city: str = None, file_type: FileType = None) -> None:
+        """Run the full pipeline on files matching the filters."""
+        # Get files to process based on filters
+        files_to_process = []
+        
+        for filename, meta in self._metadata_cache.items():
+            # Apply city filter
+            if city and city not in meta.s3_key:
+                continue
+            
+            # Apply file type filter
+            if file_type and meta.file_type != file_type:
+                continue
+            
+            # Add files that need processing
+            if ((meta.file_type == FileType.NYC_ZIP and meta.status == FileStatus.EXTRACTED) or
+                (meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and meta.status == FileStatus.EXTRACTED)):
+                files_to_process.append(filename)
+        
+        print(f"Running pipeline on {len(files_to_process)} files...")
+        
+        # Process files
+        for filename in files_to_process:
+            print(f"Processing: {filename}")
+            self.process_single_file(filename) 

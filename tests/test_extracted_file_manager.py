@@ -795,6 +795,162 @@ class TestExtractedFileManager:
         assert files[1].extracted_at is not None
         assert files[2].extracted_at is None
 
+    def test_list_failed_files(self, manager):
+        """Test list_failed_files method"""
+        # Create test files with different statuses
+        failed_file1 = FileMetadata(
+            filename="failed1.csv",
+            s3_key="extracted_bike_ride_csvs/nyc/failed1.csv",
+            file_type=FileType.NYC_CSV,
+            status=FileStatus.FAILED,
+            processing_errors=["Test error 1"],
+            extracted_at=datetime.now()
+        )
+        
+        failed_file2 = FileMetadata(
+            filename="failed2.csv",
+            s3_key="extracted_bike_ride_csvs/london/failed2.csv",
+            file_type=FileType.LONDON_CSV,
+            status=FileStatus.FAILED,
+            processing_errors=["Test error 2"],
+            extracted_at=datetime.now()
+        )
+        
+        success_file = FileMetadata(
+            filename="success.csv",
+            s3_key="extracted_bike_ride_csvs/nyc/success.csv",
+            file_type=FileType.NYC_CSV,
+            status=FileStatus.VALIDATED
+        )
+        
+        manager._metadata_cache = {
+            "failed1.csv": failed_file1,
+            "failed2.csv": failed_file2,
+            "success.csv": success_file
+        }
+        
+        # Test listing all failed files
+        failed_files = manager.list_failed_files()
+        assert len(failed_files) == 2
+        assert any(f['filename'] == 'failed1.csv' for f in failed_files)
+        assert any(f['filename'] == 'failed2.csv' for f in failed_files)
+        
+        # Test filtering by city
+        nyc_failed = manager.list_failed_files(city='nyc')
+        assert len(nyc_failed) == 1
+        assert nyc_failed[0]['filename'] == 'failed1.csv'
+        
+        # Test filtering by file type
+        london_csv_failed = manager.list_failed_files(file_type=FileType.LONDON_CSV)
+        assert len(london_csv_failed) == 1
+        assert london_csv_failed[0]['filename'] == 'failed2.csv'
+        
+        # Test limit
+        limited_failed = manager.list_failed_files(limit=1)
+        assert len(limited_failed) == 1
+
+    def test_reset_failed_files(self, manager):
+        """Test reset_failed_files method"""
+        # Create test failed files
+        failed_file1 = FileMetadata(
+            filename="failed1.csv",
+            s3_key="extracted_bike_ride_csvs/nyc/failed1.csv",
+            file_type=FileType.NYC_CSV,
+            status=FileStatus.FAILED,
+            processing_errors=["Test error 1"]
+        )
+        
+        failed_file2 = FileMetadata(
+            filename="failed2.csv",
+            s3_key="extracted_bike_ride_csvs/london/failed2.csv",
+            file_type=FileType.LONDON_CSV,
+            status=FileStatus.FAILED,
+            processing_errors=["Test error 2"]
+        )
+        
+        success_file = FileMetadata(
+            filename="success.csv",
+            s3_key="extracted_bike_ride_csvs/nyc/success.csv",
+            file_type=FileType.NYC_CSV,
+            status=FileStatus.VALIDATED
+        )
+        
+        manager._metadata_cache = {
+            "failed1.csv": failed_file1,
+            "failed2.csv": failed_file2,
+            "success.csv": success_file
+        }
+        
+        # Mock save_metadata
+        manager._save_metadata = MagicMock()
+        
+        # Test reset all failed files
+        reset_count = manager.reset_failed_files()
+        assert reset_count == 2
+        assert failed_file1.status == FileStatus.EXTRACTED
+        assert failed_file2.status == FileStatus.EXTRACTED
+        assert failed_file1.processing_errors == []
+        assert failed_file2.processing_errors == []
+        assert success_file.status == FileStatus.VALIDATED  # Should not change
+        manager._save_metadata.assert_called_once()
+        
+        # Test reset with city filter
+        failed_file1.status = FileStatus.FAILED  # Reset for testing
+        failed_file1.processing_errors = ["Test error 1"]
+        failed_file2.status = FileStatus.FAILED
+        failed_file2.processing_errors = ["Test error 2"]
+        
+        reset_count = manager.reset_failed_files(city='nyc')
+        assert reset_count == 1
+        assert failed_file1.status == FileStatus.EXTRACTED
+        assert failed_file2.status == FileStatus.FAILED  # Should not change
+
+    def test_run_pipeline(self, manager):
+        """Test run_pipeline method"""
+        # Create test files
+        zip_file = FileMetadata(
+            filename="test.zip",
+            s3_key="extracted_bike_ride_zips/nyc/test.zip",
+            file_type=FileType.NYC_ZIP,
+            status=FileStatus.EXTRACTED
+        )
+        
+        csv_file = FileMetadata(
+            filename="test.csv",
+            s3_key="extracted_bike_ride_csvs/nyc/test.csv",
+            file_type=FileType.NYC_CSV,
+            status=FileStatus.EXTRACTED
+        )
+        
+        processed_file = FileMetadata(
+            filename="processed.csv",
+            s3_key="extracted_bike_ride_csvs/nyc/processed.csv",
+            file_type=FileType.NYC_CSV,
+            status=FileStatus.VALIDATED
+        )
+        
+        manager._metadata_cache = {
+            "test.zip": zip_file,
+            "test.csv": csv_file,
+            "processed.csv": processed_file
+        }
+        
+        # Mock process_single_file
+        manager.process_single_file = MagicMock()
+        
+        # Test run pipeline
+        manager.run_pipeline()
+        
+        # Should call process_single_file for files that need processing
+        assert manager.process_single_file.call_count == 2
+        manager.process_single_file.assert_any_call("test.zip")
+        manager.process_single_file.assert_any_call("test.csv")
+        
+        # Test with city filter
+        manager.process_single_file.reset_mock()
+        manager.run_pipeline(city='london')
+        assert manager.process_single_file.call_count == 0  # No London files
+
 
 class TestIntegration:
     """Integration tests with real data samples"""
