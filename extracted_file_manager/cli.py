@@ -13,7 +13,7 @@ from .models import FileStatus, FileType
 def main():
     parser = argparse.ArgumentParser(description="Extracted File Manager CLI")
     parser.add_argument("command", choices=[
-        "scan", "validate", "convert-zip", "convert-csv", "pipeline", "list", "summary", "reprocess"
+        "scan", "validate", "convert-zip", "convert-csv", "extract_zips", "convert_csvs", "pipeline", "list", "summary", "reprocess"
     ], help="Command to execute")
     
     parser.add_argument("--file", help="Specific filename to process")
@@ -60,35 +60,20 @@ def main():
             success = manager.convert_csv_to_parquet(args.file)
             print(f"CSV to Parquet conversion {'successful' if success else 'failed'} for {args.file}")
             
+        elif args.command == "extract_zips":
+            count = manager.extract_all_zips(limit=args.limit)
+            print(f"Extracted {count} ZIP files to CSVs.")
+        
+        elif args.command == "convert_csvs":
+            count = manager.convert_all_csvs(limit=args.limit)
+            print(f"Validated and converted {count} CSV files to Parquet.")
+        
         elif args.command == "pipeline":
-            if args.file:
-                success = manager.process_single_file(args.file)
-                print(f"Pipeline {'completed' if success else 'failed'} for {args.file}")
-            elif args.single_file:
-                # Process just one file that needs processing
-                files_to_process = [
-                    filename for filename, meta in manager._metadata_cache.items()
-                    if ((meta.file_type == FileType.NYC_ZIP and meta.status == FileStatus.EXTRACTED) or
-                        (meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and meta.status == FileStatus.VALIDATED))
-                ]
-                if files_to_process:
-                    filename = files_to_process[0]
-                    success = manager.process_single_file(filename)
-                    print(f"Pipeline {'completed' if success else 'failed'} for {filename}")
-                else:
-                    print("No files need processing")
-            else:
-                file_type = FileType(args.type) if args.type else None
-                if args.batch_size == 1:
-                    # Process one file at a time
-                    results = manager.process_files_batch(file_type, limit=1)
-                else:
-                    # Process in batches
-                    results = manager.process_files_batch(file_type, limit=args.batch_size)
-                print(f"Processed {len(results)} files through pipeline")
-                for filename, success in results.items():
-                    print(f"  {filename}: {'✓' if success else '✗'}")
-                    
+            print("Running full pipeline: extract_zips then convert_csvs...")
+            count_zips = manager.extract_all_zips(limit=args.limit)
+            count_csvs = manager.convert_all_csvs(limit=args.limit)
+            print(f"Pipeline complete. Extracted {count_zips} ZIPs, converted {count_csvs} CSVs.")
+        
         elif args.command == "list":
             status = FileStatus(args.status) if args.status else None
             file_type = FileType(args.type) if args.type else None

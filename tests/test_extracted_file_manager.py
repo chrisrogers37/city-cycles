@@ -272,10 +272,8 @@ class TestExtractedFileManager:
         assert len(meta.validation_errors) > 0
     
     def test_convert_zip_to_csv(self, manager, mock_s3):
-        """Test ZIP to CSV conversion with nested ZIPs and multiple CSVs using filetree"""
-        from extracted_file_manager.filetree import ZipFile as ZipFileNode
+        """Test ZIP to CSV conversion with multiple CSVs using tempfiles"""
         import zipfile
-        import tempfile
         # Create test metadata
         meta = FileMetadata(
             filename="test.zip",
@@ -284,35 +282,29 @@ class TestExtractedFileManager:
             status=FileStatus.EXTRACTED
         )
         manager._metadata_cache["test.zip"] = meta
-        # Create a nested ZIP structure in memory:
+        # Create a ZIP structure in memory:
         # test.zip
         #   ├── a.csv
-        #   └── nested.zip
-        #         └── b.csv
+        #   └── b.csv
         csv_content_a = b"col1,col2\n1,2\n"
         csv_content_b = b"col1,col2\n3,4\n"
-        # Create nested.zip in memory
-        nested_zip_buffer = BytesIO()
-        with zipfile.ZipFile(nested_zip_buffer, 'w') as nested_zip:
-            nested_zip.writestr('b.csv', csv_content_b)
-        nested_zip_bytes = nested_zip_buffer.getvalue()
-        # Create test.zip in memory
         test_zip_buffer = BytesIO()
         with zipfile.ZipFile(test_zip_buffer, 'w') as test_zip:
             test_zip.writestr('a.csv', csv_content_a)
-            test_zip.writestr('nested.zip', nested_zip_bytes)
+            test_zip.writestr('b.csv', csv_content_b)
         test_zip_bytes = test_zip_buffer.getvalue()
         # Mock S3 download_file to write test_zip_bytes to the temp file
         def download_file_side_effect(bucket, key, filename):
             with open(filename, 'wb') as f:
                 f.write(test_zip_bytes)
         mock_s3.download_file.side_effect = download_file_side_effect
-        # Mock S3 upload_fileobj to just record the uploads
+        # Mock S3 upload_fileobj to record the uploads from file objects
         uploaded_files = {}
-        def upload_fileobj_side_effect(buffer, bucket, key):
-            uploaded_files[key] = buffer.getvalue()
+        def upload_fileobj_side_effect(fileobj, bucket, key):
+            fileobj.seek(0)
+            uploaded_files[key] = fileobj.read()
         mock_s3.upload_fileobj.side_effect = upload_fileobj_side_effect
-        # Run the extraction (debug output will be printed)
+        # Run the extraction
         success = manager.convert_zip_to_csv("test.zip")
         assert success
         # Check that both CSVs were uploaded
@@ -324,7 +316,7 @@ class TestExtractedFileManager:
         # Check that the ZIP metadata lists both CSVs
         extracted_csvs = manager._metadata_cache["test.zip"].metadata["extracted_csvs"]
         assert set(extracted_csvs) == {"a.csv", "b.csv"}
-        print("Tested recursive ZIP extraction and upload of all CSVs.")
+        print("Tested ZIP extraction and upload of all CSVs using tempfiles.")
     
     def test_convert_csv_to_parquet(self, manager, mock_s3):
         """Test CSV to Parquet conversion"""

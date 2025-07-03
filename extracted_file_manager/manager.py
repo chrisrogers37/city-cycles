@@ -716,4 +716,38 @@ class ExtractedFileManager:
             # Add a small delay between files to allow memory cleanup
             time.sleep(1)
         
-        return results 
+        return results
+    
+    def extract_all_zips(self, limit: int = None) -> int:
+        """Extract all unprocessed ZIPs to CSVs. Returns the number of ZIPs processed."""
+        zip_files = [
+            meta for meta in self._metadata_cache.values()
+            if meta.file_type == FileType.NYC_ZIP and meta.status == FileStatus.EXTRACTED
+        ]
+        if limit:
+            zip_files = zip_files[:limit]
+        print(f"Found {len(zip_files)} ZIP files to extract.")
+        count = 0
+        for meta in zip_files:
+            if self.convert_zip_to_csv(meta.filename):
+                count += 1
+        print(f"Extracted {count} ZIP files to CSVs.")
+        return count
+
+    def convert_all_csvs(self, limit: int = None) -> int:
+        """Validate and convert all unprocessed CSVs to Parquet. Returns the number of CSVs processed."""
+        csv_files = [
+            meta for meta in self._metadata_cache.values()
+            if meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and meta.status == FileStatus.EXTRACTED
+        ]
+        if limit:
+            csv_files = csv_files[:limit]
+        print(f"Found {len(csv_files)} CSV files to validate and convert.")
+        count = 0
+        for meta in csv_files:
+            print(f"Processing {meta.filename}...")
+            if self.validate_file_schema(meta.filename):
+                if self.convert_csv_to_parquet(meta.filename):
+                    count += 1
+        print(f"Validated and converted {count} CSV files to Parquet.")
+        return count 
