@@ -46,6 +46,13 @@ class FileMetadata:
     validation_errors: List[str] = field(default_factory=list)
     processing_errors: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    schema_override: Optional[str] = None  # Manual schema override (e.g., "LondonLegacyBikeShareRecord")
+    
+    def __post_init__(self):
+        if self.validation_errors is None:
+            self.validation_errors = []
+        if self.processing_errors is None:
+            self.processing_errors = []
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization"""
@@ -63,7 +70,8 @@ class FileMetadata:
             "status": self.status.value,
             "validation_errors": self.validation_errors,
             "processing_errors": self.processing_errors,
-            "metadata": self.metadata
+            "metadata": self.metadata,
+            "schema_override": self.schema_override
         }
     
     @classmethod
@@ -83,7 +91,8 @@ class FileMetadata:
             status=FileStatus(data["status"]),
             validation_errors=data.get("validation_errors", []),
             processing_errors=data.get("processing_errors", []),
-            metadata=data.get("metadata", {})
+            metadata=data.get("metadata", {}),
+            schema_override=data.get("schema_override")
         )
 
 

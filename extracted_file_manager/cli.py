@@ -14,20 +14,27 @@ def main():
     parser = argparse.ArgumentParser(description="Extracted File Manager CLI")
     parser.add_argument("command", choices=[
         "scan", "validate", "extract_zips", "convert_csvs", "pipeline", "list", "summary", "reprocess",
-        "wipe-file", "wipe-type", "wipe-all", "reprocess-failed", "reset-failed", "cleanup-macos-files"
+        "wipe-file", "wipe-type", "wipe-all", "reprocess-failed", "reset-failed", "cleanup-macos-files",
+        "set-schema", "clear-schema", "fix-parquet-status"
     ], help="Command to execute")
     
     parser.add_argument("--file", help="Specific filename to process")
     parser.add_argument("--type", choices=["nyc_zip", "nyc_csv", "london_csv", "nyc_parquet", "london_parquet"], 
                        help="File type filter")
     parser.add_argument("--location", choices=["nyc", "london"], help="Location filter for wipe operations")
-    parser.add_argument("--schema", help="Schema filter for parquet wipe operations")
+    parser.add_argument("--schema", help="Schema filter for parquet wipe operations or schema name for override")
     parser.add_argument("--status", choices=["extracted", "csv_converted", "validated", "parquet_converted", "processed", "failed"], 
                        help="Status filter")
     parser.add_argument("--limit", type=int, help="Limit number of results")
     parser.add_argument("--confirm", action="store_true", help="Confirm destructive operations")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging for validation failures")
     
     args = parser.parse_args()
+    
+    # Set debug mode globally if requested
+    if args.debug:
+        import os
+        os.environ['EXTRACTED_FILE_MANAGER_DEBUG'] = '1'
     
     try:
         manager = ExtractedFileManager()
@@ -206,6 +213,68 @@ def main():
                 print(f"\nSuccessfully removed {removed_count} Mac OS hidden files from metadata.")
             else:
                 print("\nNo files were removed.")
+            
+        elif args.command == "set-schema":
+            if not args.file:
+                print("Error: --file required for set-schema")
+                sys.exit(1)
+            if not args.schema:
+                print("Error: --schema required for set-schema")
+                sys.exit(1)
+            success = manager.set_schema_override(args.file, args.schema)
+            print(f"Schema {'successfully' if success else 'failed'} set for {args.file}")
+        
+        elif args.command == "clear-schema":
+            if not args.file:
+                print("Error: --file required for clear-schema")
+                sys.exit(1)
+            success = manager.clear_schema_override(args.file)
+            print(f"Schema {'successfully' if success else 'failed'} cleared for {args.file}")
+            
+        elif args.command == "fix-parquet-status":
+            city = args.location
+            confirm = args.confirm
+            
+            # Find CSV files with parquet_converted status
+            csv_files_to_reset = []
+            for filename, meta in manager._metadata_cache.items():
+                if (meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and 
+                    meta.status == FileStatus.PARQUET_CONVERTED):
+                    
+                    # Apply city filter
+                    if city and city not in meta.s3_key:
+                        continue
+                    
+                    csv_files_to_reset.append(meta)
+            
+            if not csv_files_to_reset:
+                print("No CSV files with parquet_converted status found.")
+                return
+            
+            print(f"Found {len(csv_files_to_reset)} CSV files with parquet_converted status:")
+            for meta in csv_files_to_reset[:10]:  # Show first 10
+                print(f"  - {meta.filename}")
+            if len(csv_files_to_reset) > 10:
+                print(f"  ... and {len(csv_files_to_reset) - 10} more")
+            
+            if not confirm:
+                confirm_input = input(f"\nReset these {len(csv_files_to_reset)} CSV files to EXTRACTED status? (y/N): ")
+                if confirm_input.lower() != 'y':
+                    print("Operation cancelled.")
+                    return
+            
+            # Reset the files
+            reset_count = 0
+            for meta in csv_files_to_reset:
+                meta.status = FileStatus.EXTRACTED
+                meta.parquet_converted_at = None
+                meta.parquet_s3_key = None
+                meta.parquet_schema = None
+                reset_count += 1
+            
+            manager._save_metadata()
+            print(f"Reset {reset_count} CSV files to EXTRACTED status.")
+            print("You can now run 'convert_csvs' to reconvert them to Parquet.")
             
     except Exception as e:
         print(f"Error: {e}")

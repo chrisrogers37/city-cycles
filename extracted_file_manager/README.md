@@ -80,6 +80,35 @@ python -m extracted_file_manager.cli reprocess-failed --location nyc --confirm
 - `reset-failed`: Reset failed files to 'extracted' status (does not reprocess)
 - `reprocess-failed`: Reset failed files to 'extracted' status and reprocess them
 
+### Debug Logging
+
+When files fail validation, you can enable detailed debug logging to understand why:
+
+```bash
+# Enable debug logging to see why validation fails
+python -m extracted_file_manager.cli validate --file problematic-file.csv --debug
+
+# Debug output shows:
+# - Available columns in the file
+# - Which models are being tested
+# - Missing columns for each model
+# - Detailed validation failure reasons
+```
+
+Debug output example:
+```
+DEBUG: Found 2 models to test for FileType.LONDON_CSV
+DEBUG: Available columns in file: ['Rental Id', 'Duration', 'Bike Id', 'End Date', 'EndStation Name', 'Start Date', 'StartStation Id', 'StartStation Name']
+DEBUG: Testing model: LondonLegacyBikeShareRecord
+DEBUG: LondonLegacyBikeShareRecord validation failed - missing columns: ['EndStation Id']
+DEBUG: ✗ Model LondonLegacyBikeShareRecord failed - missing columns: ['EndStation Id']
+DEBUG: Testing model: LondonModernBikeShareRecord
+DEBUG: LondonModernBikeShareRecord validation failed - missing columns: ['Number', 'Bike model', 'Start date', 'End date', 'Start station number', 'Start station', 'End station number', 'End station', 'Total duration']
+DEBUG: ✗ No matching model found for FileType.LONDON_CSV
+```
+
+This helps identify data quality issues like missing columns or schema mismatches.
+
 ### Failed File Management
 
 Two commands are available for handling failed files:

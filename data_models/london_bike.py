@@ -4,6 +4,7 @@ from typing import Optional, Dict, Any
 import pandas as pd
 from data_models.base import BaseBikeShareRecord
 import re
+import os
 
 @dataclass
 class LondonLegacyBikeShareRecord(BaseBikeShareRecord):
@@ -22,21 +23,28 @@ class LondonLegacyBikeShareRecord(BaseBikeShareRecord):
     staging_table = "raw_london_legacy"
     s3_prefix = "london_csv/"
 
+    # Store required columns for detailed validation
+    _required_columns = [
+        "Rental Id",
+        "Bike Id",
+        "Start Date",
+        "End Date",
+        "StartStation Id",
+        "StartStation Name",
+        "EndStation Id",
+        "EndStation Name",
+        "Duration"
+    ]
+
     @classmethod
     def validate_schema(cls, df: pd.DataFrame) -> bool:
         """Validate if the dataframe contains all required columns for legacy London format."""
-        required_columns = [
-            "Rental Id",
-            "Bike Id",
-            "Start Date",
-            "End Date",
-            "StartStation Id",
-            "StartStation Name",
-            "EndStation Id",
-            "EndStation Name",
-            "Duration"
-        ]
-        missing_columns = [col for col in required_columns if col not in df.columns]
+        debug_mode = os.environ.get('EXTRACTED_FILE_MANAGER_DEBUG') == '1'
+        
+        missing_columns = [col for col in cls._required_columns if col not in df.columns]
+        if missing_columns and debug_mode:
+            print(f"DEBUG: LondonLegacyBikeShareRecord validation failed - missing columns: {missing_columns}")
+            print(f"DEBUG: Available columns: {list(df.columns)}")
         return not missing_columns
 
     @classmethod
@@ -76,21 +84,28 @@ class LondonModernBikeShareRecord(BaseBikeShareRecord):
     staging_table = "raw_london_modern"
     s3_prefix = "london_csv/"
 
+    # Store required columns for detailed validation
+    _required_columns = [
+        "Number",
+        "Bike model",
+        "Start date",
+        "End date",
+        "Start station number",
+        "Start station",
+        "End station number",
+        "End station",
+        "Total duration"
+    ]
+
     @classmethod
     def validate_schema(cls, df: pd.DataFrame) -> bool:
         """Validate if the dataframe contains all required columns for modern London format."""
-        required_columns = [
-            "Number",
-            "Bike model",
-            "Start date",
-            "End date",
-            "Start station number",
-            "Start station",
-            "End station number",
-            "End station",
-            "Total duration"
-        ]
-        missing_columns = [col for col in required_columns if col not in df.columns]
+        debug_mode = os.environ.get('EXTRACTED_FILE_MANAGER_DEBUG') == '1'
+        
+        missing_columns = [col for col in cls._required_columns if col not in df.columns]
+        if missing_columns and debug_mode:
+            print(f"DEBUG: LondonModernBikeShareRecord validation failed - missing columns: {missing_columns}")
+            print(f"DEBUG: Available columns: {list(df.columns)}")
         return not missing_columns
 
     @classmethod

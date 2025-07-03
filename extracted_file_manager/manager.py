@@ -147,78 +147,58 @@ class ExtractedFileManager:
         return new_files
     
     def validate_file_schema(self, filename: str) -> bool:
-        """Validate a file's schema using the appropriate data model"""
+        """Validate a single file's schema and update metadata"""
         if filename not in self._metadata_cache:
             print(f"File {filename} not found in metadata")
             return False
         
         file_meta = self._metadata_cache[filename]
         
-        # Skip validation for ZIP files (they need to be extracted first)
-        if file_meta.file_type == FileType.NYC_ZIP:
-            print(f"Skipping schema validation for ZIP file: {filename}")
-            return True
+        if file_meta.status != FileStatus.EXTRACTED:
+            print(f"File {filename} is not in EXTRACTED status")
+            return False
+        
+        print(f"Validating schema for {filename}...")
+        self._log_memory_usage("before validation")
         
         try:
-            print(f"Validating schema for {filename}...")
-            self._log_memory_usage("before validation")
+            # Download a sample of the CSV for validation
+            csv_sample = self._download_csv_sample(file_meta.s3_key)
+            df_sample = pd.read_csv(csv_sample, nrows=100)  # Read first 100 rows for validation
             
-            # Download a sample of the file for validation
-            csv_buffer = self._download_csv_sample(file_meta.s3_key)
-            df_sample = pd.read_csv(csv_buffer, nrows=100)
+            # Find matching model (use schema override if set)
+            model_class = self._find_matching_model(df_sample, file_meta.file_type, file_meta.schema_override)
             
-            # Determine the appropriate data model based on file type and schema
-            model = self._find_matching_model(df_sample, file_meta.file_type)
-            
-            # Clean up DataFrame immediately after use
-            del df_sample
-            csv_buffer.close()
-            del csv_buffer
-            self._cleanup_memory()
-            
-            if model is None:
-                error_msg = f"No matching data model found for {filename}"
-                file_meta.validation_errors.append(error_msg)
-                file_meta.status = FileStatus.FAILED
+            if model_class:
+                # Update metadata
+                file_meta.status = FileStatus.VALIDATED
+                file_meta.validated_at = datetime.now()
+                file_meta.validation_errors = []
+                file_meta.metadata["schema"] = model_class.__name__
                 self._save_metadata()
-                print(f"Validation failed: {error_msg}")
-                return False
-            
-            # Validate schema (re-read sample for validation)
-            csv_buffer = self._download_csv_sample(file_meta.s3_key)
-            df_sample = pd.read_csv(csv_buffer, nrows=100)
-            
-            if not model.validate_schema(df_sample):
-                error_msg = f"Schema validation failed for {filename}"
-                file_meta.validation_errors.append(error_msg)
+                
+                print(f"✓ Validation successful - matched schema: {model_class.__name__}")
+                return True
+            else:
+                # Update metadata with failure
                 file_meta.status = FileStatus.FAILED
+                file_meta.validation_errors = ["No matching data model found"]
                 self._save_metadata()
-                print(f"Validation failed: {error_msg}")
+                
+                print(f"✗ Validation failed: No matching data model found for {filename}")
                 return False
-            
-            # Clean up again
-            del df_sample
-            csv_buffer.close()
-            del csv_buffer
-            self._cleanup_memory()
-            
-            # Update metadata
-            file_meta.status = FileStatus.VALIDATED
-            file_meta.validated_at = datetime.now()
-            file_meta.validation_errors = []  # Clear any previous errors
-            file_meta.metadata["matched_model"] = model.__name__
-            self._save_metadata()
-            
-            print(f"Validation successful for {filename} (matched {model.__name__})")
-            return True
-            
+                
         except Exception as e:
-            error_msg = f"Validation error for {filename}: {str(e)}"
-            file_meta.validation_errors.append(error_msg)
+            # Update metadata with error
             file_meta.status = FileStatus.FAILED
+            file_meta.validation_errors = [str(e)]
             self._save_metadata()
-            print(f"Validation failed: {error_msg}")
+            
+            print(f"✗ Validation error for {filename}: {e}")
             return False
+        finally:
+            self._cleanup_memory()
+            self._log_memory_usage("after cleanup")
     
     def _download_csv_sample(self, s3_key: str, sample_size: int = 100) -> BytesIO:
         """Download a sample of a CSV file from S3 using range request"""
@@ -234,8 +214,28 @@ class ExtractedFileManager:
         csv_buffer.seek(0)
         return csv_buffer
     
-    def _find_matching_model(self, df_sample: pd.DataFrame, file_type: FileType) -> Optional[type]:
+    def _find_matching_model(self, df_sample: pd.DataFrame, file_type: FileType, schema_override: Optional[str] = None) -> Optional[type]:
         """Find the appropriate data model for a file"""
+        import os
+        debug_mode = os.environ.get('EXTRACTED_FILE_MANAGER_DEBUG') == '1'
+        
+        # If schema override is provided, use it directly
+        if schema_override:
+            if debug_mode:
+                print(f"DEBUG: Using schema override: {schema_override}")
+            
+            # Find the model by name
+            models = BaseBikeShareRecord._registry
+            for model in models:
+                if model.__name__ == schema_override:
+                    if debug_mode:
+                        print(f"DEBUG: ✓ Found override model: {model.__name__}")
+                    return model
+            
+            if debug_mode:
+                print(f"DEBUG: ✗ Override model '{schema_override}' not found in registry")
+            return None
+        
         # Get all registered models
         models = BaseBikeShareRecord._registry
         
@@ -245,16 +245,48 @@ class ExtractedFileManager:
         elif file_type == FileType.LONDON_CSV:
             models = [m for m in models if m.s3_prefix == "london_csv/"]
         else:
+            if debug_mode:
+                print(f"DEBUG: No models found for file type: {file_type}")
             return None
+        
+        if debug_mode:
+            print(f"DEBUG: Found {len(models)} models to test for {file_type}")
+            print(f"DEBUG: Available columns in file: {list(df_sample.columns)}")
         
         # Try each model's schema validation
         for model in models:
             try:
+                if debug_mode:
+                    print(f"DEBUG: Testing model: {model.__name__}")
                 if model.validate_schema(df_sample):
+                    if debug_mode:
+                        print(f"DEBUG: ✓ Matched model: {model.__name__}")
                     return model
-            except Exception:
+                else:
+                    # Get detailed validation info
+                    if hasattr(model, 'validate_schema'):
+                        # Try to get missing columns info
+                        try:
+                            required_columns = getattr(model, '_required_columns', None)
+                            if required_columns and debug_mode:
+                                missing_columns = [col for col in required_columns if col not in df_sample.columns]
+                                print(f"DEBUG: ✗ Model {model.__name__} failed - missing columns: {missing_columns}")
+                            elif debug_mode:
+                                print(f"DEBUG: ✗ Model {model.__name__} failed validation")
+                        except Exception as e:
+                            if debug_mode:
+                                print(f"DEBUG: ✗ Model {model.__name__} validation error: {e}")
+                    elif debug_mode:
+                        print(f"DEBUG: ✗ Model {model.__name__} has no validate_schema method")
+            except Exception as e:
+                if debug_mode:
+                    print(f"DEBUG: ✗ Model {model.__name__} exception: {e}")
                 continue
         
+        if debug_mode:
+            print(f"DEBUG: ✗ No matching model found for {file_type}")
+            print(f"DEBUG: File columns: {list(df_sample.columns)}")
+            print(f"DEBUG: Expected models for {file_type}: {[m.__name__ for m in models]}")
         return None
     
     def validate_all_files(self, file_type: Optional[FileType] = None) -> Dict[str, bool]:
@@ -592,7 +624,7 @@ class ExtractedFileManager:
             
             # Read a sample to determine schema/model
             sample_df = pd.read_csv(temp_csv_path, nrows=100)
-            model = self._find_matching_model(sample_df, file_meta.file_type)
+            model = self._find_matching_model(sample_df, file_meta.file_type, file_meta.schema_override)
             
             # Clean up sample DataFrame immediately
             del sample_df
@@ -630,6 +662,11 @@ class ExtractedFileManager:
                 for batch_num, batch in enumerate(reader):
                     # Convert to pandas DataFrame for model transformation
                     df_chunk = batch.to_pandas()
+                    
+                    # If using schema override, add missing columns with NULL values
+                    if file_meta.schema_override:
+                        df_chunk = self._add_missing_columns_for_model(df_chunk, model, chunk_num=batch_num+1)
+                    
                     df_transformed = model.to_dataframe(df_chunk, filename)
                     
                     # Convert back to pyarrow Table
@@ -1057,6 +1094,29 @@ class ExtractedFileManager:
             except Exception as e:
                 print(f"Failed to wipe file {file_meta.filename}: {e}")
         
+        # Special handling for Parquet files: reset status of CSV files that generated them
+        if file_type in ["nyc_parquet", "london_parquet"]:
+            reset_count = 0
+            for filename, meta in self._metadata_cache.items():
+                # Find CSV files that have parquet_converted status
+                if (meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and 
+                    meta.status == FileStatus.PARQUET_CONVERTED):
+                    
+                    # Apply location filter if specified
+                    if location and location not in meta.s3_key:
+                        continue
+                    
+                    # Reset to extracted status so they can be reconverted
+                    meta.status = FileStatus.EXTRACTED
+                    meta.parquet_converted_at = None
+                    meta.parquet_s3_key = None
+                    meta.parquet_schema = None
+                    reset_count += 1
+                    print(f"Reset CSV file status to EXTRACTED: {meta.filename}")
+            
+            if reset_count > 0:
+                print(f"Reset {reset_count} CSV files to EXTRACTED status for reconversion")
+        
         # Save updated metadata
         self._save_metadata()
         print(f"Wiped {wiped_count} files")
@@ -1081,6 +1141,23 @@ class ExtractedFileManager:
                 wiped_count += 1
             except Exception as e:
                 print(f"Failed to wipe file {file_meta.filename}: {e}")
+        
+        # Reset any remaining CSV files that had parquet_converted status
+        reset_count = 0
+        for filename, meta in list(self._metadata_cache.items()):
+            if (meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and 
+                meta.status == FileStatus.PARQUET_CONVERTED):
+                
+                # Reset to extracted status so they can be reconverted
+                meta.status = FileStatus.EXTRACTED
+                meta.parquet_converted_at = None
+                meta.parquet_s3_key = None
+                meta.parquet_schema = None
+                reset_count += 1
+                print(f"Reset CSV file status to EXTRACTED: {meta.filename}")
+        
+        if reset_count > 0:
+            print(f"Reset {reset_count} CSV files to EXTRACTED status for reconversion")
         
         # Save updated metadata
         self._save_metadata()
@@ -1188,4 +1265,77 @@ class ExtractedFileManager:
         # Process files
         for filename in files_to_process:
             print(f"Processing: {filename}")
-            self.process_single_file(filename) 
+            self.process_single_file(filename)
+    
+    def set_schema_override(self, filename: str, schema_name: str) -> bool:
+        """Set a manual schema override for a file"""
+        if filename not in self._metadata_cache:
+            print(f"File {filename} not found in metadata")
+            return False
+        
+        # Validate that the schema exists
+        models = BaseBikeShareRecord._registry
+        schema_exists = any(model.__name__ == schema_name for model in models)
+        
+        if not schema_exists:
+            print(f"Schema '{schema_name}' not found. Available schemas: {[m.__name__ for m in models]}")
+            return False
+        
+        file_meta = self._metadata_cache[filename]
+        file_meta.schema_override = schema_name
+        
+        # Reset status to allow reprocessing
+        file_meta.status = FileStatus.EXTRACTED
+        file_meta.validated_at = None
+        file_meta.validation_errors = []
+        
+        self._save_metadata()
+        print(f"Set schema override for {filename}: {schema_name}")
+        print(f"File status reset to EXTRACTED for reprocessing")
+        return True
+    
+    def clear_schema_override(self, filename: str) -> bool:
+        """Clear a manual schema override for a file"""
+        if filename not in self._metadata_cache:
+            print(f"File {filename} not found in metadata")
+            return False
+        
+        file_meta = self._metadata_cache[filename]
+        if file_meta.schema_override is None:
+            print(f"No schema override set for {filename}")
+            return False
+        
+        old_override = file_meta.schema_override
+        file_meta.schema_override = None
+        
+        # Reset status to allow reprocessing
+        file_meta.status = FileStatus.EXTRACTED
+        file_meta.validated_at = None
+        file_meta.validation_errors = []
+        
+        self._save_metadata()
+        print(f"Cleared schema override for {filename}: {old_override}")
+        print(f"File status reset to EXTRACTED for reprocessing")
+        return True
+    
+    def _add_missing_columns_for_model(self, df_chunk: pd.DataFrame, model_class, chunk_num: int = None) -> pd.DataFrame:
+        """Add missing columns to a DataFrame for a model with schema override, with chunk info"""
+        required_columns = getattr(model_class, '_required_columns', [])
+        if not required_columns:
+            print(f"WARNING: No _required_columns found for model {model_class.__name__}")
+            return df_chunk
+        df_chunk = df_chunk.copy()
+        for col in required_columns:
+            if col not in df_chunk.columns:
+                if any(keyword in col.lower() for keyword in ['id', 'name', 'date', 'time', 'duration', 'model', 'type']):
+                    default_val = ""
+                elif any(keyword in col.lower() for keyword in ['lat', 'lng', 'longitude', 'latitude']):
+                    default_val = 0.0
+                elif any(keyword in col.lower() for keyword in ['year', 'gender']):
+                    default_val = 0
+                else:
+                    default_val = ""
+                chunk_info = f" [chunk {chunk_num}]" if chunk_num is not None else ""
+                print(f"WARNING{chunk_info}: Adding missing column '{col}' with default value: {default_val}")
+                df_chunk[col] = default_val
+        return df_chunk 
