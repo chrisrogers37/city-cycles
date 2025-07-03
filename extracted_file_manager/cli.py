@@ -93,6 +93,7 @@ def main():
             if not args.confirm:
                 print("Error: --confirm required for destructive operation: wipe-all")
                 sys.exit(1)
+            print("WARNING: This will delete ALL files (ZIPs, CSVs, Parquets) from S3 and remove ALL metadata!")
             count = manager.wipe_all()
             print(f"Wiped {count} files total")
         
@@ -268,8 +269,9 @@ def main():
             for meta in csv_files_to_reset:
                 meta.status = FileStatus.EXTRACTED
                 meta.parquet_converted_at = None
-                meta.parquet_s3_key = None
-                meta.parquet_schema = None
+                # Remove Parquet-related metadata
+                if "converted_parquet" in meta.metadata:
+                    del meta.metadata["converted_parquet"]
                 reset_count += 1
             
             manager._save_metadata()

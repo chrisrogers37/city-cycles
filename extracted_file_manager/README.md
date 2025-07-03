@@ -126,6 +126,13 @@ Both commands support filtering by `--location` (nyc/london) and `--file-type` (
 - `wipe-type --type <type> [--location <location>] [--schema <schema>] --confirm` - Wipe files by type
 - `wipe-all --confirm` - Wipe all files
 
+#### Wipe Behavior:
+- **`wipe-file`**: Deletes specific file from S3 and removes from metadata
+- **`wipe-type`**: 
+  - For Parquet types: Deletes Parquet files AND resets CSV files that generated them back to `EXTRACTED` status
+  - For other types: Deletes files from S3 and removes from metadata
+- **`wipe-all`**: **NUCLEAR OPTION** - Deletes ALL files (ZIPs, CSVs, Parquets) from S3 and removes ALL metadata. This is a complete reset.
+
 #### Wipe Examples:
 ```bash
 # Wipe a specific file

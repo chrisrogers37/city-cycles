@@ -1109,8 +1109,9 @@ class ExtractedFileManager:
                     # Reset to extracted status so they can be reconverted
                     meta.status = FileStatus.EXTRACTED
                     meta.parquet_converted_at = None
-                    meta.parquet_s3_key = None
-                    meta.parquet_schema = None
+                    # Remove Parquet-related metadata
+                    if "converted_parquet" in meta.metadata:
+                        del meta.metadata["converted_parquet"]
                     reset_count += 1
                     print(f"Reset CSV file status to EXTRACTED: {meta.filename}")
             
@@ -1142,26 +1143,10 @@ class ExtractedFileManager:
             except Exception as e:
                 print(f"Failed to wipe file {file_meta.filename}: {e}")
         
-        # Reset any remaining CSV files that had parquet_converted status
-        reset_count = 0
-        for filename, meta in list(self._metadata_cache.items()):
-            if (meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and 
-                meta.status == FileStatus.PARQUET_CONVERTED):
-                
-                # Reset to extracted status so they can be reconverted
-                meta.status = FileStatus.EXTRACTED
-                meta.parquet_converted_at = None
-                meta.parquet_s3_key = None
-                meta.parquet_schema = None
-                reset_count += 1
-                print(f"Reset CSV file status to EXTRACTED: {meta.filename}")
-        
-        if reset_count > 0:
-            print(f"Reset {reset_count} CSV files to EXTRACTED status for reconversion")
-        
         # Save updated metadata
         self._save_metadata()
         print(f"Wiped {wiped_count} files total")
+        print("All files have been removed from S3 and metadata.")
         return wiped_count
     
     def _log_memory_usage(self, operation: str = ""):
