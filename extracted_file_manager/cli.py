@@ -22,6 +22,8 @@ def main():
     parser.add_argument("--status", choices=["extracted", "csv_converted", "validated", "parquet_converted", "processed", "failed"], 
                        help="Status filter")
     parser.add_argument("--limit", type=int, help="Limit number of results")
+    parser.add_argument("--batch-size", type=int, default=5, help="Number of files to process in batch (default: 5)")
+    parser.add_argument("--single-file", action="store_true", help="Process only one file at a time")
     
     args = parser.parse_args()
     
@@ -60,11 +62,29 @@ def main():
             
         elif args.command == "pipeline":
             if args.file:
-                success = manager.process_pipeline(args.file)
+                success = manager.process_single_file(args.file)
                 print(f"Pipeline {'completed' if success else 'failed'} for {args.file}")
+            elif args.single_file:
+                # Process just one file that needs processing
+                files_to_process = [
+                    filename for filename, meta in manager._metadata_cache.items()
+                    if ((meta.file_type == FileType.NYC_ZIP and meta.status == FileStatus.EXTRACTED) or
+                        (meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and meta.status == FileStatus.VALIDATED))
+                ]
+                if files_to_process:
+                    filename = files_to_process[0]
+                    success = manager.process_single_file(filename)
+                    print(f"Pipeline {'completed' if success else 'failed'} for {filename}")
+                else:
+                    print("No files need processing")
             else:
                 file_type = FileType(args.type) if args.type else None
-                results = manager.process_all_pipelines(file_type)
+                if args.batch_size == 1:
+                    # Process one file at a time
+                    results = manager.process_files_batch(file_type, limit=1)
+                else:
+                    # Process in batches
+                    results = manager.process_files_batch(file_type, limit=args.batch_size)
                 print(f"Processed {len(results)} files through pipeline")
                 for filename, success in results.items():
                     print(f"  {filename}: {'✓' if success else '✗'}")

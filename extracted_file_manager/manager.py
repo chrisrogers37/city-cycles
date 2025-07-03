@@ -13,6 +13,8 @@ import zipfile
 import logging
 from dotenv import load_dotenv
 import botocore
+import tempfile
+import time
 
 from .models import FileMetadata, FileStatus, FileType, FileSummary
 from data_models.base import BaseBikeShareRecord
@@ -378,56 +380,67 @@ class ExtractedFileManager:
         try:
             print(f"Converting ZIP to CSV: {filename}")
             
-            # Download ZIP file
-            zip_buffer = BytesIO()
-            self.s3_client.download_fileobj(self.s3_bucket, file_meta.s3_key, zip_buffer)
-            zip_buffer.seek(0)
+            # Download ZIP file to temporary file to avoid memory issues
+            with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as temp_zip:
+                temp_zip_path = temp_zip.name
+                
+            # Download ZIP file to temp file
+            self.s3_client.download_file(self.s3_bucket, file_meta.s3_key, temp_zip_path)
             
-            # Extract CSV from ZIP
-            with zipfile.ZipFile(zip_buffer) as zip_file:
+            # Extract CSV from ZIP using file operations
+            csv_filename = None
+            csv_content = None
+            
+            with zipfile.ZipFile(temp_zip_path, 'r') as zip_file:
                 csv_files = [f for f in zip_file.namelist() if f.endswith('.csv')]
                 if not csv_files:
                     raise ValueError(f"No CSV files found in ZIP: {filename}")
                 
                 # Use the first CSV file (NYC zips typically contain one CSV)
                 csv_filename = csv_files[0]
-                csv_content = zip_file.read(csv_filename)
                 
-                # Determine city from file type
-                city = "nyc" if file_meta.file_type == FileType.NYC_ZIP else "london"
-                
-                # Create new CSV filename
-                base_name = os.path.splitext(filename)[0]
-                csv_filename = f"{base_name}.csv"
-                csv_s3_key = f"extracted_bike_ride_csvs/{city}/{csv_filename}"
-                
-                # Upload CSV to S3
-                csv_buffer = BytesIO(csv_content)
-                self.s3_client.upload_fileobj(csv_buffer, self.s3_bucket, csv_s3_key)
-                
-                # Create metadata for the new CSV file
-                csv_file_meta = FileMetadata(
-                    filename=csv_filename,
-                    s3_key=csv_s3_key,
-                    file_type=FileType.NYC_CSV if city == "nyc" else FileType.LONDON_CSV,
-                    file_size_bytes=len(csv_content),
-                    extracted_at=datetime.now(),
-                    status=FileStatus.EXTRACTED,
-                    metadata={"source_zip": filename}
-                )
-                
-                self._metadata_cache[csv_filename] = csv_file_meta
-                
-                # Update ZIP file status
-                file_meta.status = FileStatus.CSV_CONVERTED
-                file_meta.csv_converted_at = datetime.now()
-                file_meta.metadata["converted_csv"] = csv_filename
-                
-                self._save_metadata()
-                
-                print(f"Successfully converted {filename} to {csv_filename}")
-                return True
-                
+                # Read CSV content in chunks to avoid memory issues
+                with zip_file.open(csv_filename) as csv_file:
+                    csv_content = csv_file.read()
+            
+            # Clean up temp ZIP file
+            os.unlink(temp_zip_path)
+            
+            # Determine city from file type
+            city = "nyc" if file_meta.file_type == FileType.NYC_ZIP else "london"
+            
+            # Create new CSV filename
+            base_name = os.path.splitext(filename)[0]
+            new_csv_filename = f"{base_name}.csv"
+            csv_s3_key = f"extracted_bike_ride_csvs/{city}/{new_csv_filename}"
+            
+            # Upload CSV to S3 using streaming
+            csv_buffer = BytesIO(csv_content)
+            self.s3_client.upload_fileobj(csv_buffer, self.s3_bucket, csv_s3_key)
+            
+            # Create metadata for the new CSV file
+            csv_file_meta = FileMetadata(
+                filename=new_csv_filename,
+                s3_key=csv_s3_key,
+                file_type=FileType.NYC_CSV if city == "nyc" else FileType.LONDON_CSV,
+                file_size_bytes=len(csv_content),
+                extracted_at=datetime.now(),
+                status=FileStatus.EXTRACTED,
+                metadata={"source_zip": filename}
+            )
+            
+            self._metadata_cache[new_csv_filename] = csv_file_meta
+            
+            # Update ZIP file status
+            file_meta.status = FileStatus.CSV_CONVERTED
+            file_meta.csv_converted_at = datetime.now()
+            file_meta.metadata["converted_csv"] = new_csv_filename
+            
+            self._save_metadata()
+            
+            print(f"Successfully converted {filename} to {new_csv_filename}")
+            return True
+            
         except Exception as e:
             error_msg = f"Failed to convert ZIP to CSV: {str(e)}"
             file_meta.processing_errors.append(error_msg)
@@ -580,5 +593,89 @@ class ExtractedFileManager:
         
         for filename in files_to_process:
             results[filename] = self.process_pipeline(filename)
+        
+        return results
+    
+    def process_single_file(self, filename: str) -> bool:
+        """Process a single file through the pipeline with memory management"""
+        if filename not in self._metadata_cache:
+            print(f"File {filename} not found in metadata")
+            return False
+        
+        file_meta = self._metadata_cache[filename]
+        print(f"\nProcessing {filename} ({file_meta.file_type.value})...")
+        
+        try:
+            # Step 1: Convert ZIP to CSV (if needed)
+            if file_meta.file_type == FileType.NYC_ZIP and file_meta.status == FileStatus.EXTRACTED:
+                print(f"  Step 1: Converting ZIP to CSV...")
+                if not self.convert_zip_to_csv(filename):
+                    return False
+                # Get the converted CSV filename
+                csv_filename = file_meta.metadata.get("converted_csv")
+                if not csv_filename:
+                    print(f"  ERROR: No CSV filename found in metadata for {filename}")
+                    return False
+                filename = csv_filename
+                file_meta = self._metadata_cache[filename]
+                print(f"  ✓ ZIP converted to {csv_filename}")
+            
+            # Step 2: Validate CSV
+            if file_meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and file_meta.status == FileStatus.EXTRACTED:
+                print(f"  Step 2: Validating schema...")
+                if not self.validate_file_schema(filename):
+                    return False
+                print(f"  ✓ Schema validated")
+            
+            # Step 3: Convert CSV to Parquet
+            if file_meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and file_meta.status == FileStatus.VALIDATED:
+                print(f"  Step 3: Converting to Parquet...")
+                if not self.convert_csv_to_parquet(filename):
+                    return False
+                print(f"  ✓ Converted to Parquet")
+            
+            print(f"  ✓ Pipeline completed successfully for {filename}")
+            return True
+            
+        except Exception as e:
+            print(f"  ✗ Pipeline failed for {filename}: {str(e)}")
+            return False
+    
+    def process_files_batch(self, file_type: Optional[FileType] = None, limit: int = 5) -> Dict[str, bool]:
+        """Process files in small batches to avoid memory issues"""
+        results = {}
+        
+        # Get files that need processing
+        files_to_process = []
+        
+        if file_type == FileType.NYC_ZIP:
+            files_to_process = [
+                filename for filename, meta in self._metadata_cache.items()
+                if meta.file_type == FileType.NYC_ZIP and meta.status == FileStatus.EXTRACTED
+            ]
+        elif file_type in [FileType.NYC_CSV, FileType.LONDON_CSV]:
+            files_to_process = [
+                filename for filename, meta in self._metadata_cache.items()
+                if meta.file_type == file_type and meta.status == FileStatus.VALIDATED
+            ]
+        else:
+            # Process all files that need pipeline processing
+            files_to_process = [
+                filename for filename, meta in self._metadata_cache.items()
+                if ((meta.file_type == FileType.NYC_ZIP and meta.status == FileStatus.EXTRACTED) or
+                    (meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and meta.status == FileStatus.VALIDATED))
+            ]
+        
+        # Limit the number of files to process
+        files_to_process = files_to_process[:limit]
+        
+        print(f"Processing {len(files_to_process)} files in batch (limit: {limit})...")
+        
+        for i, filename in enumerate(files_to_process, 1):
+            print(f"\n[{i}/{len(files_to_process)}] Processing {filename}")
+            results[filename] = self.process_single_file(filename)
+            
+            # Add a small delay between files to allow memory cleanup
+            time.sleep(1)
         
         return results 
