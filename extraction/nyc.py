@@ -5,8 +5,7 @@ import re
 import boto3
 from datetime import datetime
 import zipfile
-import shutil
-from data_ingestion.utils import upload_to_s3, file_exists_in_s3
+from extraction.utils import upload_to_s3, file_exists_in_s3
 
 S3_BUCKET = os.environ.get("S3_BUCKET")
 NYC_PUBLIC_BUCKET = "tripdata"

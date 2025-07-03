@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""
+CLI for Extracted File Manager
+"""
+
+import sys
+import argparse
+from typing import Optional
+from .manager import ExtractedFileManager
+from .models import FileStatus, FileType
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Extracted File Manager CLI")
+    parser.add_argument("command", choices=[
+        "scan", "validate", "extract_zips", "convert_csvs", "pipeline", "list", "summary", "reprocess",
+        "wipe-file", "wipe-type", "wipe-all"
+    ], help="Command to execute")
+    
+    parser.add_argument("--file", help="Specific filename to process")
+    parser.add_argument("--type", choices=["nyc_zip", "nyc_csv", "london_csv", "nyc_parquet", "london_parquet"], 
+                       help="File type filter")
+    parser.add_argument("--location", choices=["nyc", "london"], help="Location filter for wipe operations")
+    parser.add_argument("--schema", help="Schema filter for parquet wipe operations")
+    parser.add_argument("--status", choices=["extracted", "csv_converted", "validated", "parquet_converted", "processed", "failed"], 
+                       help="Status filter")
+    parser.add_argument("--limit", type=int, help="Limit number of results")
+    parser.add_argument("--confirm", action="store_true", help="Confirm destructive operations")
+    
+    args = parser.parse_args()
+    
+    try:
+        manager = ExtractedFileManager()
+        
+        if args.command == "scan":
+            print("Scanning S3 for new files...")
+            new_files = manager.scan_s3_files()
+            print(f"Found {len(new_files)} new files")
+            
+        elif args.command == "validate":
+            if args.file:
+                success = manager.validate_file_schema(args.file)
+                print(f"Validation {'successful' if success else 'failed'} for {args.file}")
+            else:
+                file_type = FileType(args.type) if args.type else None
+                results = manager.validate_all_files(file_type)
+                print(f"Validated {len(results)} files")
+                for filename, success in results.items():
+                    print(f"  {filename}: {'✓' if success else '✗'}")
+                    
+        elif args.command == "extract_zips":
+            count = manager.extract_all_zips(limit=args.limit)
+            print(f"Extracted {count} ZIP files to CSVs.")
+        
+        elif args.command == "convert_csvs":
+            count = manager.convert_all_csvs(limit=args.limit)
+            print(f"Validated and converted {count} CSV files to Parquet.")
+        
+        elif args.command == "pipeline":
+            print("Running full pipeline: extract_zips then convert_csvs...")
+            count_zips = manager.extract_all_zips(limit=args.limit)
+            count_csvs = manager.convert_all_csvs(limit=args.limit)
+            print(f"Pipeline complete. Extracted {count_zips} ZIPs, converted {count_csvs} CSVs.")
+        
+        elif args.command == "wipe-file":
+            if not args.file:
+                print("Error: --file required for wipe-file")
+                sys.exit(1)
+            if not args.confirm:
+                print(f"Error: --confirm required for destructive operation: wipe-file {args.file}")
+                sys.exit(1)
+            success = manager.wipe_file(args.file)
+            print(f"Wipe {'successful' if success else 'failed'} for {args.file}")
+        
+        elif args.command == "wipe-type":
+            if not args.type:
+                print("Error: --type required for wipe-type")
+                sys.exit(1)
+            if not args.confirm:
+                print(f"Error: --confirm required for destructive operation: wipe-type {args.type}")
+                sys.exit(1)
+            count = manager.wipe_file_type(args.type, args.location, args.schema)
+            print(f"Wiped {count} files of type {args.type}")
+        
+        elif args.command == "wipe-all":
+            if not args.confirm:
+                print("Error: --confirm required for destructive operation: wipe-all")
+                sys.exit(1)
+            count = manager.wipe_all()
+            print(f"Wiped {count} files total")
+        
+        elif args.command == "list":
+            status = FileStatus(args.status) if args.status else None
+            file_type = FileType(args.type) if args.type else None
+            
+            files = manager.list_files(status=status, file_type=file_type, limit=args.limit)
+            print(f"Found {len(files)} files:")
+            for file_meta in files:
+                print(f"  {file_meta.filename} ({file_meta.file_type.value}) - {file_meta.status.value}")
+                
+        elif args.command == "summary":
+            manager.print_summary()
+            
+        elif args.command == "reprocess":
+            if not args.file:
+                print("Error: --file required for reprocess")
+                sys.exit(1)
+            success = manager.reprocess_file(args.file)
+            print(f"Reprocess {'successful' if success else 'failed'} for {args.file}")
+            
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main() 

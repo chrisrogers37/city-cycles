@@ -1,0 +1,1006 @@
+"""
+Main manager class for extracted files
+"""
+
+import os
+import json
+import boto3
+import pandas as pd
+from datetime import datetime
+from typing import List, Dict, Optional, Any
+from io import BytesIO
+import zipfile
+import logging
+from dotenv import load_dotenv
+import botocore
+import tempfile
+import time
+import pyarrow.csv as pv
+import pyarrow.parquet as pq
+import pyarrow as pa
+import gc
+import psutil
+
+from .models import FileMetadata, FileStatus, FileType, FileSummary
+from data_models.base import BaseBikeShareRecord
+from .filetree import ZipFile as ZipFileNode, walk_folder
+
+# Load environment variables
+load_dotenv()
+
+class ExtractedFileManager:
+    """Manages extracted files on S3 with metadata tracking and validation"""
+    
+    def __init__(self, s3_bucket: Optional[str] = None):
+        self.s3_bucket = s3_bucket or os.environ.get("S3_BUCKET")
+        if not self.s3_bucket:
+            raise ValueError("S3_BUCKET environment variable is not set!")
+        
+        self.s3_client = boto3.client("s3")
+        self.metadata_key = "extracted_file_manager/metadata.json"
+        self._metadata_cache: Dict[str, FileMetadata] = {}
+        # Check if metadata.json exists; if not, run scan
+        try:
+            self.s3_client.head_object(Bucket=self.s3_bucket, Key=self.metadata_key)
+            self._load_metadata()
+        except self.s3_client.exceptions.NoSuchKey:
+            print("metadata.json not found in S3. Running initial scan...")
+            self.scan_s3_files()
+        except Exception as e:
+            # If any other error, try to load metadata, but print warning
+            print(f"Warning: error checking metadata.json: {e}. Attempting to load metadata anyway.")
+            self._load_metadata()
+    
+    def _load_metadata(self):
+        """Load metadata from S3"""
+        try:
+            response = self.s3_client.get_object(Bucket=self.s3_bucket, Key=self.metadata_key)
+            data = json.loads(response['Body'].read().decode('utf-8'))
+            self._metadata_cache = {
+                filename: FileMetadata.from_dict(meta_data)
+                for filename, meta_data in data.items()
+            }
+        except botocore.exceptions.ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code')
+            if error_code == 'NoSuchKey' or error_code == '404':
+                # No metadata file exists yet
+                self._metadata_cache = {}
+            else:
+                logging.error(f"Failed to load metadata: {e}")
+                self._metadata_cache = {}
+        except Exception as e:
+            logging.error(f"Failed to load metadata: {e}")
+            self._metadata_cache = {}
+    
+    def _save_metadata(self):
+        """Save metadata to S3"""
+        try:
+            data = {
+                filename: file_meta.to_dict()
+                for filename, file_meta in self._metadata_cache.items()
+            }
+            self.s3_client.put_object(
+                Bucket=self.s3_bucket,
+                Key=self.metadata_key,
+                Body=json.dumps(data, indent=2),
+                ContentType='application/json'
+            )
+        except Exception as e:
+            logging.error(f"Failed to save metadata: {e}")
+            raise
+    
+    def scan_s3_files(self) -> List[FileMetadata]:
+        """Scan S3 for extracted files and update metadata"""
+        print(f"Scanning S3 bucket {self.s3_bucket} for extracted files...")
+        
+        # Define prefixes to scan
+        prefixes = {
+            "extracted_bike_ride_zips/nyc/": FileType.NYC_ZIP,
+            "extracted_bike_ride_csvs/nyc/": FileType.NYC_CSV,
+            "extracted_bike_ride_csvs/london/": FileType.LONDON_CSV,
+            "extracted_bike_ride_parquet/nyc/": FileType.NYC_PARQUET,
+            "extracted_bike_ride_parquet/london/": FileType.LONDON_PARQUET,
+        }
+        
+        new_files = []
+        
+        for prefix, file_type in prefixes.items():
+            print(f"Scanning prefix: {prefix}")
+            paginator = self.s3_client.get_paginator("list_objects_v2")
+            
+            for page in paginator.paginate(Bucket=self.s3_bucket, Prefix=prefix):
+                for obj in page.get("Contents", []):
+                    key = obj["Key"]
+                    filename = os.path.basename(key)
+                    
+                    # Skip the metadata file itself
+                    if key == self.metadata_key:
+                        continue
+                    
+                    # Check if we already have metadata for this file
+                    if filename in self._metadata_cache:
+                        # Update file size if it changed
+                        existing_meta = self._metadata_cache[filename]
+                        if existing_meta.file_size_bytes != obj["Size"]:
+                            existing_meta.file_size_bytes = obj["Size"]
+                            print(f"Updated file size for {filename}")
+                        continue
+                    
+                    # Create new metadata
+                    file_meta = FileMetadata(
+                        filename=filename,
+                        s3_key=key,
+                        file_type=file_type,
+                        file_size_bytes=obj["Size"],
+                        extracted_at=obj["LastModified"],
+                        status=FileStatus.EXTRACTED
+                    )
+                    
+                    self._metadata_cache[filename] = file_meta
+                    new_files.append(file_meta)
+                    print(f"Found new file: {filename}")
+        
+        if new_files:
+            self._save_metadata()
+            print(f"Added {len(new_files)} new files to metadata")
+        
+        return new_files
+    
+    def validate_file_schema(self, filename: str) -> bool:
+        """Validate a file's schema using the appropriate data model"""
+        if filename not in self._metadata_cache:
+            print(f"File {filename} not found in metadata")
+            return False
+        
+        file_meta = self._metadata_cache[filename]
+        
+        # Skip validation for ZIP files (they need to be extracted first)
+        if file_meta.file_type == FileType.NYC_ZIP:
+            print(f"Skipping schema validation for ZIP file: {filename}")
+            return True
+        
+        try:
+            print(f"Validating schema for {filename}...")
+            self._log_memory_usage("before validation")
+            
+            # Download a sample of the file for validation
+            csv_buffer = self._download_csv_sample(file_meta.s3_key)
+            df_sample = pd.read_csv(csv_buffer, nrows=100)
+            
+            # Determine the appropriate data model based on file type and schema
+            model = self._find_matching_model(df_sample, file_meta.file_type)
+            
+            # Clean up DataFrame immediately after use
+            del df_sample
+            csv_buffer.close()
+            del csv_buffer
+            self._cleanup_memory()
+            
+            if model is None:
+                error_msg = f"No matching data model found for {filename}"
+                file_meta.validation_errors.append(error_msg)
+                file_meta.status = FileStatus.FAILED
+                self._save_metadata()
+                print(f"Validation failed: {error_msg}")
+                return False
+            
+            # Validate schema (re-read sample for validation)
+            csv_buffer = self._download_csv_sample(file_meta.s3_key)
+            df_sample = pd.read_csv(csv_buffer, nrows=100)
+            
+            if not model.validate_schema(df_sample):
+                error_msg = f"Schema validation failed for {filename}"
+                file_meta.validation_errors.append(error_msg)
+                file_meta.status = FileStatus.FAILED
+                self._save_metadata()
+                print(f"Validation failed: {error_msg}")
+                return False
+            
+            # Clean up again
+            del df_sample
+            csv_buffer.close()
+            del csv_buffer
+            self._cleanup_memory()
+            
+            # Update metadata
+            file_meta.status = FileStatus.VALIDATED
+            file_meta.validated_at = datetime.now()
+            file_meta.validation_errors = []  # Clear any previous errors
+            file_meta.metadata["matched_model"] = model.__name__
+            self._save_metadata()
+            
+            print(f"Validation successful for {filename} (matched {model.__name__})")
+            return True
+            
+        except Exception as e:
+            error_msg = f"Validation error for {filename}: {str(e)}"
+            file_meta.validation_errors.append(error_msg)
+            file_meta.status = FileStatus.FAILED
+            self._save_metadata()
+            print(f"Validation failed: {error_msg}")
+            return False
+    
+    def _download_csv_sample(self, s3_key: str, sample_size: int = 100) -> BytesIO:
+        """Download a sample of a CSV file from S3 using range request"""
+        # Request first 5MB (much safer than smaller ranges)
+        response = self.s3_client.get_object(
+            Bucket=self.s3_bucket, 
+            Key=s3_key,
+            Range='bytes=0-5242880'  # 5MB
+        )
+        
+        csv_buffer = BytesIO()
+        csv_buffer.write(response['Body'].read())
+        csv_buffer.seek(0)
+        return csv_buffer
+    
+    def _find_matching_model(self, df_sample: pd.DataFrame, file_type: FileType) -> Optional[type]:
+        """Find the appropriate data model for a file"""
+        # Get all registered models
+        models = BaseBikeShareRecord._registry
+        
+        # Filter models based on file type
+        if file_type == FileType.NYC_CSV:
+            models = [m for m in models if m.s3_prefix == "nyc_csv/"]
+        elif file_type == FileType.LONDON_CSV:
+            models = [m for m in models if m.s3_prefix == "london_csv/"]
+        else:
+            return None
+        
+        # Try each model's schema validation
+        for model in models:
+            try:
+                if model.validate_schema(df_sample):
+                    return model
+            except Exception:
+                continue
+        
+        return None
+    
+    def validate_all_files(self, file_type: Optional[FileType] = None) -> Dict[str, bool]:
+        """Validate all files or files of a specific type"""
+        results = {}
+        
+        files_to_validate = [
+            filename for filename, meta in self._metadata_cache.items()
+            if meta.status == FileStatus.EXTRACTED and 
+               (file_type is None or meta.file_type == file_type)
+        ]
+        
+        print(f"Validating {len(files_to_validate)} files...")
+        
+        for filename in files_to_validate:
+            results[filename] = self.validate_file_schema(filename)
+        
+        return results
+    
+    def get_file_summary(self) -> FileSummary:
+        """Get summary statistics for all files"""
+        summary = FileSummary()
+        
+        for file_meta in self._metadata_cache.values():
+            summary.update_from_file(file_meta)
+        
+        return summary
+    
+    def list_files(self, 
+                   status: Optional[FileStatus] = None,
+                   file_type: Optional[FileType] = None,
+                   limit: Optional[int] = None) -> List[FileMetadata]:
+        """List files with optional filtering"""
+        files = list(self._metadata_cache.values())
+        
+        if status:
+            files = [f for f in files if f.status == status]
+        
+        if file_type:
+            files = [f for f in files if f.file_type == file_type]
+        
+        # Sort by extracted_at (newest first)
+        files.sort(key=lambda f: f.extracted_at or datetime.min, reverse=True)
+        
+        if limit:
+            files = files[:limit]
+        
+        return files
+    
+    def get_file_metadata(self, filename: str) -> Optional[FileMetadata]:
+        """Get metadata for a specific file"""
+        return self._metadata_cache.get(filename)
+    
+    def delete_file(self, filename: str, delete_from_s3: bool = False) -> bool:
+        """Delete file metadata and optionally from S3"""
+        if filename not in self._metadata_cache:
+            print(f"File {filename} not found in metadata")
+            return False
+        
+        file_meta = self._metadata_cache[filename]
+        
+        if delete_from_s3:
+            try:
+                self.s3_client.delete_object(Bucket=self.s3_bucket, Key=file_meta.s3_key)
+                print(f"Deleted file from S3: {file_meta.s3_key}")
+            except Exception as e:
+                print(f"Failed to delete file from S3: {e}")
+                return False
+        
+        # Update metadata
+        file_meta.status = FileStatus.DELETED
+        self._save_metadata()
+        
+        print(f"Marked file as deleted: {filename}")
+        return True
+    
+    def reprocess_file(self, filename: str) -> bool:
+        """Reset a file's status to EXTRACTED for reprocessing"""
+        if filename not in self._metadata_cache:
+            print(f"File {filename} not found in metadata")
+            return False
+        
+        file_meta = self._metadata_cache[filename]
+        file_meta.status = FileStatus.EXTRACTED
+        file_meta.validated_at = None
+        file_meta.processed_at = None
+        file_meta.validation_errors = []
+        file_meta.processing_errors = []
+        self._save_metadata()
+        
+        print(f"Reset file status for reprocessing: {filename}")
+        return True
+    
+    def mark_as_processed(self, filename: str) -> bool:
+        """Mark a file as processed (loaded into database)"""
+        if filename not in self._metadata_cache:
+            print(f"File {filename} not found in metadata")
+            return False
+        
+        file_meta = self._metadata_cache[filename]
+        file_meta.status = FileStatus.PROCESSED
+        file_meta.processed_at = datetime.now()
+        file_meta.processing_errors = []  # Clear any previous errors
+        self._save_metadata()
+        
+        print(f"Marked file as processed: {filename}")
+        return True
+    
+    def get_files_for_processing(self, file_type: Optional[FileType] = None) -> List[FileMetadata]:
+        """Get files that are ready for processing (validated but not processed)"""
+        files = [
+            meta for meta in self._metadata_cache.values()
+            if meta.status == FileStatus.VALIDATED and
+               (file_type is None or meta.file_type == file_type)
+        ]
+        
+        # Sort by validated_at (oldest first for processing order)
+        files.sort(key=lambda f: f.validated_at or datetime.min)
+        
+        return files
+    
+    def print_summary(self):
+        """Print a formatted summary of all files"""
+        summary = self.get_file_summary()
+        
+        print("\n" + "="*60)
+        print("EXTRACTED FILE MANAGER SUMMARY")
+        print("="*60)
+        print(f"Total files: {summary.total_files}")
+        print(f"Total size: {summary.total_size_bytes / (1024**3):.2f} GB")
+        print()
+        print("By Status:")
+        print(f"  Extracted: {summary.extracted_files}")
+        print(f"  CSV Converted: {summary.csv_converted_files}")
+        print(f"  Validated: {summary.validated_files}")
+        print(f"  Parquet Converted: {summary.parquet_converted_files}")
+        print(f"  Processed: {summary.processed_files}")
+        print(f"  Failed: {summary.failed_files}")
+        print(f"  Deleted: {summary.deleted_files}")
+        print()
+        print("By File Type:")
+        for file_type, count in summary.by_file_type.items():
+            print(f"  {file_type.value}: {count}")
+        print("="*60)
+    
+    def convert_zip_to_csv(self, filename: str) -> bool:
+        """Extract all CSVs from a ZIP using tempfiles, upload to S3, and track metadata."""
+        if filename not in self._metadata_cache:
+            print(f"File {filename} not found in metadata")
+            return False
+        file_meta = self._metadata_cache[filename]
+        if file_meta.file_type != FileType.NYC_ZIP:
+            print(f"File {filename} is not a ZIP file")
+            return False
+        if file_meta.status != FileStatus.EXTRACTED:
+            print(f"File {filename} is not in EXTRACTED status")
+            return False
+        try:
+            print(f"Extracting all CSVs from ZIP (using tempfiles): {filename}")
+            # Download ZIP file to temp file
+            with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as temp_zip:
+                temp_zip_path = temp_zip.name
+            self.s3_client.download_file(self.s3_bucket, file_meta.s3_key, temp_zip_path)
+            extracted_csvs = []
+            city = "nyc"  # This method is only for NYC ZIPs
+            with zipfile.ZipFile(temp_zip_path, 'r') as zf:
+                csv_infos = [info for info in zf.infolist() if info.filename.lower().endswith('.csv')]
+                print(f"  Found {len(csv_infos)} CSV files in ZIP")
+                for info in csv_infos:
+                    new_csv_filename = os.path.basename(info.filename)
+                    csv_s3_key = f"extracted_bike_ride_csvs/{city}/{new_csv_filename}"
+                    print(f"  Extracting: {info.filename}")
+                    # Extract to temp file
+                    with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_csv:
+                        with zf.open(info) as source:
+                            while True:
+                                chunk = source.read(1024 * 1024)  # 1MB chunks
+                                if not chunk:
+                                    break
+                                temp_csv.write(chunk)
+                        temp_csv_path = temp_csv.name
+                    # Upload to S3
+                    with open(temp_csv_path, 'rb') as f:
+                        self.s3_client.upload_fileobj(f, self.s3_bucket, csv_s3_key)
+                    file_size = os.path.getsize(temp_csv_path)
+                    os.unlink(temp_csv_path)
+                    # Create metadata for the new CSV file
+                    csv_file_meta = FileMetadata(
+                        filename=new_csv_filename,
+                        s3_key=csv_s3_key,
+                        file_type=FileType.NYC_CSV,
+                        file_size_bytes=file_size,
+                        extracted_at=datetime.now(),
+                        status=FileStatus.EXTRACTED,
+                        metadata={"source_zip": filename}
+                    )
+                    self._metadata_cache[new_csv_filename] = csv_file_meta
+                    extracted_csvs.append(new_csv_filename)
+                    print(f"  ✓ Uploaded {new_csv_filename} to S3")
+            os.unlink(temp_zip_path)
+            # Update ZIP file status and metadata
+            file_meta.status = FileStatus.CSV_CONVERTED
+            file_meta.csv_converted_at = datetime.now()
+            file_meta.metadata["extracted_csvs"] = extracted_csvs
+            file_meta.metadata["csv_count"] = len(extracted_csvs)
+            self._save_metadata()
+            print(f"Successfully extracted and uploaded {len(extracted_csvs)} CSV files from {filename}")
+            return True
+        except Exception as e:
+            error_msg = f"Failed to extract ZIP with tempfiles: {str(e)}"
+            file_meta.processing_errors.append(error_msg)
+            file_meta.status = FileStatus.FAILED
+            self._save_metadata()
+            print(f"Conversion failed: {error_msg}")
+            return False
+    
+    def convert_csv_to_parquet(self, filename: str) -> bool:
+        """Convert a CSV file to Parquet with schema-based organization using pyarrow streaming."""
+        if filename not in self._metadata_cache:
+            print(f"File {filename} not found in metadata")
+            return False
+        
+        file_meta = self._metadata_cache[filename]
+        
+        if file_meta.file_type not in [FileType.NYC_CSV, FileType.LONDON_CSV]:
+            print(f"File {filename} is not a CSV file")
+            return False
+        
+        if file_meta.status != FileStatus.VALIDATED:
+            print(f"File {filename} is not validated")
+            return False
+        
+        temp_csv_path = None
+        temp_parquet_path = None
+        writer = None
+        
+        try:
+            print(f"Converting CSV to Parquet (streaming): {filename}")
+            self._log_memory_usage("before conversion")
+            
+            # Download CSV to a temp file
+            temp_csv = tempfile.NamedTemporaryFile(suffix='.csv', delete=False)
+            temp_csv_path = temp_csv.name
+            temp_csv.close()
+            self.s3_client.download_file(self.s3_bucket, file_meta.s3_key, temp_csv_path)
+            
+            # Read a sample to determine schema/model
+            sample_df = pd.read_csv(temp_csv_path, nrows=100)
+            model = self._find_matching_model(sample_df, file_meta.file_type)
+            
+            # Clean up sample DataFrame immediately
+            del sample_df
+            self._cleanup_memory()
+            
+            if model is None:
+                raise ValueError(f"No matching data model found for {filename}")
+            
+            # Determine city and schema
+            city = "nyc" if file_meta.file_type == FileType.NYC_CSV else "london"
+            schema = model.__name__.lower()
+            
+            # Create Parquet filename and S3 key
+            base_name = os.path.splitext(filename)[0]
+            parquet_filename = f"{base_name}.parquet"
+            parquet_s3_key = f"extracted_bike_ride_parquet/{city}/{schema}/{parquet_filename}"
+            
+            # Prepare temp Parquet file
+            temp_parquet = tempfile.NamedTemporaryFile(suffix='.parquet', delete=False)
+            temp_parquet_path = temp_parquet.name
+            temp_parquet.close()
+            
+            # Stream CSV to Parquet using pyarrow with smaller blocks
+            read_options = pv.ReadOptions(block_size=5_000_000)  # 5MB blocks (reduced from 10MB)
+            convert_options = pv.ConvertOptions()
+            
+            with open(temp_csv_path, 'rb') as f:
+                reader = pv.open_csv(f, read_options=read_options, convert_options=convert_options)
+                
+                for batch_num, batch in enumerate(reader):
+                    # Convert to pandas DataFrame for model transformation
+                    df_chunk = batch.to_pandas()
+                    df_transformed = model.to_dataframe(df_chunk, filename)
+                    
+                    # Convert back to pyarrow Table
+                    table_transformed = pa.Table.from_pandas(df_transformed)
+                    
+                    if writer is None:
+                        writer = pq.ParquetWriter(temp_parquet_path, table_transformed.schema)
+                    
+                    writer.write_table(table_transformed)
+                    
+                    # Clean up chunk data immediately
+                    del df_chunk
+                    del df_transformed
+                    del table_transformed
+                    
+                    # Force cleanup every 10 batches
+                    if batch_num % 10 == 0:
+                        self._cleanup_memory()
+                
+                if writer:
+                    writer.close()
+                    writer = None
+            
+            # Upload Parquet to S3
+            with open(temp_parquet_path, 'rb') as f:
+                self.s3_client.upload_fileobj(f, self.s3_bucket, parquet_s3_key)
+            
+            file_size = os.path.getsize(temp_parquet_path)
+            
+            # Create metadata for the new Parquet file
+            parquet_file_meta = FileMetadata(
+                filename=parquet_filename,
+                s3_key=parquet_s3_key,
+                file_type=FileType.NYC_PARQUET if city == "nyc" else FileType.LONDON_PARQUET,
+                file_size_bytes=file_size,
+                extracted_at=datetime.now(),
+                status=FileStatus.EXTRACTED,
+                metadata={
+                    "source_csv": filename,
+                    "schema": schema,
+                    "model": model.__name__
+                }
+            )
+            self._metadata_cache[parquet_filename] = parquet_file_meta
+            
+            # Update CSV file status
+            file_meta.status = FileStatus.PARQUET_CONVERTED
+            file_meta.parquet_converted_at = datetime.now()
+            file_meta.metadata["converted_parquet"] = parquet_filename
+            self._save_metadata()
+            
+            print(f"Successfully converted {filename} to {parquet_filename} (schema: {schema})")
+            self._log_memory_usage("after conversion")
+            return True
+            
+        except Exception as e:
+            error_msg = f"Failed to convert CSV to Parquet: {str(e)}"
+            file_meta.processing_errors.append(error_msg)
+            file_meta.status = FileStatus.FAILED
+            self._save_metadata()
+            print(f"Conversion failed: {error_msg}")
+            return False
+            
+        finally:
+            # Clean up temp files and resources
+            if temp_csv_path and os.path.exists(temp_csv_path):
+                try:
+                    os.unlink(temp_csv_path)
+                except Exception as e:
+                    print(f"Warning: Failed to delete temp CSV file: {e}")
+            
+            if temp_parquet_path and os.path.exists(temp_parquet_path):
+                try:
+                    os.unlink(temp_parquet_path)
+                except Exception as e:
+                    print(f"Warning: Failed to delete temp Parquet file: {e}")
+            
+            if writer:
+                try:
+                    writer.close()
+                except Exception as e:
+                    print(f"Warning: Failed to close Parquet writer: {e}")
+            
+            # Final memory cleanup
+            self._cleanup_memory()
+    
+    def process_pipeline(self, filename: str) -> bool:
+        """Process a file through the entire pipeline: ZIP → CSV → Validate → Parquet"""
+        if filename not in self._metadata_cache:
+            print(f"File {filename} not found in metadata")
+            return False
+        
+        file_meta = self._metadata_cache[filename]
+        
+        # Step 1: Convert ZIP to CSV (if needed)
+        if file_meta.file_type == FileType.NYC_ZIP and file_meta.status == FileStatus.EXTRACTED:
+            if not self.convert_zip_to_csv(filename):
+                return False
+            
+            # Get all the extracted CSV filenames
+            extracted_csvs = file_meta.metadata.get("extracted_csvs", [])
+            if not extracted_csvs:
+                print(f"No CSV files found in metadata for {filename}")
+                return False
+            
+            # Process each extracted CSV through the rest of the pipeline
+            csv_success_count = 0
+            for csv_filename in extracted_csvs:
+                if csv_filename in self._metadata_cache:
+                    csv_meta = self._metadata_cache[csv_filename]
+                    
+                    # Step 2: Validate CSV
+                    if csv_meta.status == FileStatus.EXTRACTED:
+                        if not self.validate_file_schema(csv_filename):
+                            continue
+                    
+                    # Step 3: Convert CSV to Parquet
+                    if csv_meta.status == FileStatus.VALIDATED:
+                        if not self.convert_csv_to_parquet(csv_filename):
+                            continue
+                        csv_success_count += 1
+            
+            print(f"Pipeline completed for {csv_success_count}/{len(extracted_csvs)} CSV files from {filename}")
+            return csv_success_count > 0
+        
+        # Handle individual CSV files (not from ZIP)
+        elif file_meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV]:
+            # Step 2: Validate CSV
+            if file_meta.status == FileStatus.EXTRACTED:
+                if not self.validate_file_schema(filename):
+                    return False
+            
+            # Step 3: Convert CSV to Parquet
+            if file_meta.status == FileStatus.VALIDATED:
+                if not self.convert_csv_to_parquet(filename):
+                    return False
+            
+            print(f"Pipeline completed successfully for {filename}")
+            return True
+        
+        print(f"Pipeline completed successfully for {filename}")
+        return True
+    
+    def process_all_pipelines(self, file_type: Optional[FileType] = None) -> Dict[str, bool]:
+        """Process all files through the pipeline"""
+        results = {}
+        
+        # Get files that need processing
+        files_to_process = []
+        
+        if file_type == FileType.NYC_ZIP:
+            files_to_process = [
+                filename for filename, meta in self._metadata_cache.items()
+                if meta.file_type == FileType.NYC_ZIP and meta.status == FileStatus.EXTRACTED
+            ]
+        elif file_type in [FileType.NYC_CSV, FileType.LONDON_CSV]:
+            files_to_process = [
+                filename for filename, meta in self._metadata_cache.items()
+                if meta.file_type == file_type and meta.status == FileStatus.VALIDATED
+            ]
+        else:
+            # Process all files that need pipeline processing
+            files_to_process = [
+                filename for filename, meta in self._metadata_cache.items()
+                if ((meta.file_type == FileType.NYC_ZIP and meta.status == FileStatus.EXTRACTED) or
+                    (meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and meta.status == FileStatus.VALIDATED))
+            ]
+        
+        print(f"Processing {len(files_to_process)} files through pipeline...")
+        
+        for filename in files_to_process:
+            results[filename] = self.process_pipeline(filename)
+        
+        return results
+    
+    def process_single_file(self, filename: str) -> bool:
+        """Process a single file through the pipeline with memory management"""
+        if filename not in self._metadata_cache:
+            print(f"File {filename} not found in metadata")
+            return False
+        
+        file_meta = self._metadata_cache[filename]
+        print(f"\nProcessing {filename} ({file_meta.file_type.value})...")
+        
+        try:
+            # Step 1: Convert ZIP to CSV (if needed)
+            if file_meta.file_type == FileType.NYC_ZIP and file_meta.status == FileStatus.EXTRACTED:
+                print(f"  Step 1: Converting ZIP to CSV...")
+                if not self.convert_zip_to_csv(filename):
+                    return False
+                
+                # Get all the converted CSV filenames
+                extracted_csvs = file_meta.metadata.get("extracted_csvs", [])
+                if not extracted_csvs:
+                    print(f"  ERROR: No CSV files found in metadata for {filename}")
+                    return False
+                
+                print(f"  ✓ ZIP converted to {len(extracted_csvs)} CSV files")
+                
+                # Process each extracted CSV through the rest of the pipeline
+                csv_success_count = 0
+                for csv_filename in extracted_csvs:
+                    if csv_filename in self._metadata_cache:
+                        csv_meta = self._metadata_cache[csv_filename]
+                        print(f"  Processing extracted CSV: {csv_filename}")
+                        
+                        # Step 2: Validate CSV
+                        if csv_meta.status == FileStatus.EXTRACTED:
+                            print(f"    Step 2: Validating schema...")
+                            if not self.validate_file_schema(csv_filename):
+                                continue
+                            print(f"    ✓ Schema validated")
+                        
+                        # Step 3: Convert CSV to Parquet
+                        if csv_meta.status == FileStatus.VALIDATED:
+                            print(f"    Step 3: Converting to Parquet...")
+                            if not self.convert_csv_to_parquet(csv_filename):
+                                continue
+                            print(f"    ✓ Converted to Parquet")
+                            csv_success_count += 1
+                
+                print(f"  ✓ Pipeline completed for {csv_success_count}/{len(extracted_csvs)} CSV files from {filename}")
+                return csv_success_count > 0
+            
+            # Handle individual CSV files (not from ZIP)
+            elif file_meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV]:
+                # Step 2: Validate CSV
+                if file_meta.status == FileStatus.EXTRACTED:
+                    print(f"  Step 2: Validating schema...")
+                    if not self.validate_file_schema(filename):
+                        return False
+                    print(f"  ✓ Schema validated")
+                
+                # Step 3: Convert CSV to Parquet
+                if file_meta.status == FileStatus.VALIDATED:
+                    print(f"  Step 3: Converting to Parquet...")
+                    if not self.convert_csv_to_parquet(filename):
+                        return False
+                    print(f"  ✓ Converted to Parquet")
+                
+                print(f"  ✓ Pipeline completed successfully for {filename}")
+                return True
+            
+            print(f"  ✓ Pipeline completed successfully for {filename}")
+            return True
+            
+        except Exception as e:
+            print(f"  ✗ Pipeline failed for {filename}: {str(e)}")
+            return False
+    
+    def process_files_batch(self, file_type: Optional[FileType] = None, limit: int = 5) -> Dict[str, bool]:
+        """Process files in small batches to avoid memory issues"""
+        results = {}
+        
+        # Get files that need processing
+        files_to_process = []
+        
+        if file_type == FileType.NYC_ZIP:
+            files_to_process = [
+                filename for filename, meta in self._metadata_cache.items()
+                if meta.file_type == FileType.NYC_ZIP and meta.status == FileStatus.EXTRACTED
+            ]
+        elif file_type in [FileType.NYC_CSV, FileType.LONDON_CSV]:
+            files_to_process = [
+                filename for filename, meta in self._metadata_cache.items()
+                if meta.file_type == file_type and meta.status == FileStatus.VALIDATED
+            ]
+        else:
+            # Process all files that need pipeline processing
+            files_to_process = [
+                filename for filename, meta in self._metadata_cache.items()
+                if ((meta.file_type == FileType.NYC_ZIP and meta.status == FileStatus.EXTRACTED) or
+                    (meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and meta.status == FileStatus.VALIDATED))
+            ]
+        
+        # Limit the number of files to process
+        files_to_process = files_to_process[:limit]
+        
+        print(f"Processing {len(files_to_process)} files in batch (limit: {limit})...")
+        self._log_memory_usage("before batch processing")
+        
+        for i, filename in enumerate(files_to_process, 1):
+            print(f"\n[{i}/{len(files_to_process)}] Processing {filename}")
+            results[filename] = self.process_single_file(filename)
+            
+            # Force memory cleanup after each file
+            self._cleanup_memory()
+            
+            # Add a small delay between files to allow memory cleanup
+            time.sleep(1)
+        
+        self._log_memory_usage("after batch processing")
+        return results
+    
+    def extract_all_zips(self, limit: int = None) -> int:
+        """Extract all unprocessed ZIPs to CSVs with memory management. Returns the number of ZIPs processed."""
+        zip_files = [
+            meta for meta in self._metadata_cache.values()
+            if meta.file_type == FileType.NYC_ZIP and meta.status == FileStatus.EXTRACTED
+        ]
+        if limit:
+            zip_files = zip_files[:limit]
+        print(f"Found {len(zip_files)} ZIP files to extract.")
+        self._log_memory_usage("before ZIP extraction batch")
+        
+        count = 0
+        for i, meta in enumerate(zip_files, 1):
+            print(f"Processing ZIP {i}/{len(zip_files)}: {meta.filename}")
+            if self.convert_zip_to_csv(meta.filename):
+                count += 1
+            
+            # Force memory cleanup after each ZIP
+            self._cleanup_memory()
+        
+        print(f"Extracted {count} ZIP files to CSVs.")
+        self._log_memory_usage("after ZIP extraction batch")
+        return count
+
+    def convert_all_csvs(self, limit: int = None) -> int:
+        """Validate and convert all unprocessed CSVs to Parquet with memory management. Returns the number of CSVs processed."""
+        csv_files = [
+            meta for meta in self._metadata_cache.values()
+            if meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and meta.status == FileStatus.EXTRACTED
+        ]
+        if limit:
+            csv_files = csv_files[:limit]
+        print(f"Found {len(csv_files)} CSV files to validate and convert.")
+        self._log_memory_usage("before CSV conversion batch")
+        
+        count = 0
+        for i, meta in enumerate(csv_files, 1):
+            print(f"Processing CSV {i}/{len(csv_files)}: {meta.filename}")
+            if self.validate_file_schema(meta.filename):
+                if self.convert_csv_to_parquet(meta.filename):
+                    count += 1
+            
+            # Force memory cleanup after each CSV
+            self._cleanup_memory()
+        
+        print(f"Validated and converted {count} CSV files to Parquet.")
+        self._log_memory_usage("after CSV conversion batch")
+        return count
+
+    def wipe_file(self, filename: str) -> bool:
+        """Wipe a specific file from S3 and metadata"""
+        if filename not in self._metadata_cache:
+            print(f"File {filename} not found in metadata")
+            return False
+        
+        file_meta = self._metadata_cache[filename]
+        try:
+            # Delete from S3
+            self.s3_client.delete_object(Bucket=self.s3_bucket, Key=file_meta.s3_key)
+            print(f"Deleted from S3: {file_meta.s3_key}")
+            
+            # Remove from metadata
+            del self._metadata_cache[filename]
+            self._save_metadata()
+            
+            print(f"Wiped file: {filename}")
+            return True
+        except Exception as e:
+            print(f"Failed to wipe file {filename}: {e}")
+            return False
+    
+    def wipe_file_type(self, file_type: str, location: str = None, schema: str = None) -> int:
+        """Wipe files by type, location, and/or schema"""
+        wiped_count = 0
+        
+        # Determine which files to wipe based on type and filters
+        files_to_wipe = []
+        
+        if file_type == "nyc_zip":
+            files_to_wipe = [
+                meta for meta in self._metadata_cache.values()
+                if meta.file_type == FileType.NYC_ZIP
+            ]
+        elif file_type == "nyc_csv":
+            files_to_wipe = [
+                meta for meta in self._metadata_cache.values()
+                if meta.file_type == FileType.NYC_CSV
+            ]
+        elif file_type == "london_csv":
+            files_to_wipe = [
+                meta for meta in self._metadata_cache.values()
+                if meta.file_type == FileType.LONDON_CSV
+            ]
+        elif file_type == "nyc_parquet":
+            files_to_wipe = [
+                meta for meta in self._metadata_cache.values()
+                if meta.file_type == FileType.NYC_PARQUET
+            ]
+        elif file_type == "london_parquet":
+            files_to_wipe = [
+                meta for meta in self._metadata_cache.values()
+                if meta.file_type == FileType.LONDON_PARQUET
+            ]
+        
+        # Apply location filter if specified
+        if location:
+            files_to_wipe = [
+                meta for meta in files_to_wipe
+                if location in meta.s3_key
+            ]
+        
+        # Apply schema filter if specified (for parquet files)
+        if schema:
+            files_to_wipe = [
+                meta for meta in files_to_wipe
+                if schema in meta.s3_key
+            ]
+        
+        print(f"Found {len(files_to_wipe)} files to wipe")
+        
+        # Wipe each file
+        for file_meta in files_to_wipe:
+            try:
+                # Delete from S3
+                self.s3_client.delete_object(Bucket=self.s3_bucket, Key=file_meta.s3_key)
+                print(f"Deleted from S3: {file_meta.s3_key}")
+                
+                # Remove from metadata
+                del self._metadata_cache[file_meta.filename]
+                wiped_count += 1
+            except Exception as e:
+                print(f"Failed to wipe file {file_meta.filename}: {e}")
+        
+        # Save updated metadata
+        self._save_metadata()
+        print(f"Wiped {wiped_count} files")
+        return wiped_count
+    
+    def wipe_all(self) -> int:
+        """Wipe all files from S3 and metadata"""
+        total_files = len(self._metadata_cache)
+        wiped_count = 0
+        
+        print(f"Found {total_files} files to wipe")
+        
+        # Wipe each file
+        for file_meta in list(self._metadata_cache.values()):
+            try:
+                # Delete from S3
+                self.s3_client.delete_object(Bucket=self.s3_bucket, Key=file_meta.s3_key)
+                print(f"Deleted from S3: {file_meta.s3_key}")
+                
+                # Remove from metadata
+                del self._metadata_cache[file_meta.filename]
+                wiped_count += 1
+            except Exception as e:
+                print(f"Failed to wipe file {file_meta.filename}: {e}")
+        
+        # Save updated metadata
+        self._save_metadata()
+        print(f"Wiped {wiped_count} files total")
+        return wiped_count
+    
+    def _log_memory_usage(self, operation: str = ""):
+        """Log current memory usage for debugging"""
+        process = psutil.Process()
+        memory_info = process.memory_info()
+        memory_mb = memory_info.rss / 1024 / 1024
+        print(f"Memory usage {operation}: {memory_mb:.1f} MB")
+    
+    def _cleanup_memory(self):
+        """Force garbage collection and cleanup"""
+        gc.collect()
+        self._log_memory_usage("after cleanup") 

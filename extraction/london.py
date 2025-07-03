@@ -5,8 +5,7 @@ import re
 import asyncio
 from datetime import datetime
 from urllib.parse import urljoin
-import shutil
-from data_ingestion.utils import upload_to_s3, file_exists_in_s3
+from extraction.utils import upload_to_s3, file_exists_in_s3
 from playwright.async_api import async_playwright
 import time
 import requests
