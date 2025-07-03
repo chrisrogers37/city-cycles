@@ -14,7 +14,7 @@ def main():
     parser = argparse.ArgumentParser(description="Extracted File Manager CLI")
     parser.add_argument("command", choices=[
         "scan", "validate", "extract_zips", "convert_csvs", "pipeline", "list", "summary", "reprocess",
-        "wipe-file", "wipe-type", "wipe-all"
+        "wipe-file", "wipe-type", "wipe-all", "reprocess-failed"
     ], help="Command to execute")
     
     parser.add_argument("--file", help="Specific filename to process")
@@ -107,6 +107,14 @@ def main():
                 sys.exit(1)
             success = manager.reprocess_file(args.file)
             print(f"Reprocess {'successful' if success else 'failed'} for {args.file}")
+            
+        elif args.command == "reprocess-failed":
+            failed_files = manager.list_files(status=FileStatus.FAILED)
+            count = 0
+            for file_meta in failed_files:
+                if manager.reprocess_file(file_meta.filename):
+                    count += 1
+            print(f"Reprocessed {count} failed files.")
             
     except Exception as e:
         print(f"Error: {e}")

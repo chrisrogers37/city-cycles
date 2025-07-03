@@ -10,7 +10,7 @@ import pandas as pd
 from unittest.mock import Mock, patch, MagicMock
 from io import BytesIO
 import zipfile
-from datetime import datetime
+from datetime import datetime, timezone
 import botocore
 
 from extracted_file_manager import ExtractedFileManager
@@ -645,6 +645,52 @@ class TestExtractedFileManager:
         
         # Both methods should not raise exceptions
         assert True  # If we get here, the methods work
+
+    def test_list_files_timezone_handling(self, manager):
+        """Test that list_files handles timezone-aware and timezone-naive datetimes"""
+        from datetime import timezone
+        
+        # Create test files with different datetime types
+        file1 = FileMetadata(
+            filename="test1.csv",
+            s3_key="test1.csv",
+            file_type=FileType.NYC_CSV,
+            extracted_at=datetime.now(),  # timezone-naive
+            status=FileStatus.EXTRACTED
+        )
+        
+        file2 = FileMetadata(
+            filename="test2.csv",
+            s3_key="test2.csv",
+            file_type=FileType.NYC_CSV,
+            extracted_at=datetime.now(timezone.utc),  # timezone-aware
+            status=FileStatus.EXTRACTED
+        )
+        
+        file3 = FileMetadata(
+            filename="test3.csv",
+            s3_key="test3.csv",
+            file_type=FileType.NYC_CSV,
+            extracted_at=None,  # no datetime
+            status=FileStatus.EXTRACTED
+        )
+        
+        manager._metadata_cache = {
+            "test1.csv": file1,
+            "test2.csv": file2,
+            "test3.csv": file3
+        }
+        
+        # This should not raise a timezone comparison error
+        files = manager.list_files()
+        
+        # Should return all files
+        assert len(files) == 3
+        
+        # Should be sorted (newest first, None at the end)
+        assert files[0].extracted_at is not None
+        assert files[1].extracted_at is not None
+        assert files[2].extracted_at is None
 
 
 class TestIntegration:

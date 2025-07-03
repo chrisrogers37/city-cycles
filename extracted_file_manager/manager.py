@@ -296,8 +296,17 @@ class ExtractedFileManager:
         if file_type:
             files = [f for f in files if f.file_type == file_type]
         
-        # Sort by extracted_at (newest first)
-        files.sort(key=lambda f: f.extracted_at or datetime.min, reverse=True)
+        # Sort by extracted_at (newest first) - handle timezone-aware datetimes
+        def get_sort_key(f):
+            if f.extracted_at is None:
+                return datetime.min
+            # Convert to timezone-naive if it's timezone-aware
+            dt = f.extracted_at
+            if dt.tzinfo is not None:
+                dt = dt.replace(tzinfo=None)
+            return dt
+        
+        files.sort(key=get_sort_key, reverse=True)
         
         if limit:
             files = files[:limit]
@@ -371,8 +380,17 @@ class ExtractedFileManager:
                (file_type is None or meta.file_type == file_type)
         ]
         
-        # Sort by validated_at (oldest first for processing order)
-        files.sort(key=lambda f: f.validated_at or datetime.min)
+        # Sort by validated_at (oldest first for processing order) - handle timezone-aware datetimes
+        def get_sort_key(f):
+            if f.validated_at is None:
+                return datetime.min
+            # Convert to timezone-naive if it's timezone-aware
+            dt = f.validated_at
+            if dt.tzinfo is not None:
+                dt = dt.replace(tzinfo=None)
+            return dt
+        
+        files.sort(key=get_sort_key)
         
         return files
     
