@@ -296,7 +296,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
 
         # --- Time of Day Analysis ---
         st.subheader("Time of Day Analysis")
-        hour_query = f"SELECT hour_of_day, ride_count FROM {MART_SCHEMA}.mart_{page.lower()}_hourly_patterns ORDER BY hour_of_day"
+        hour_query = f"SELECT hour_of_day, ride_count FROM {MART_SCHEMA}.mart_hourly_patterns WHERE location = '{page.lower()}' ORDER BY hour_of_day"
         hour_df = pd.read_sql(hour_query, conn)
         fig_hour = px.bar(hour_df, x='hour_of_day', y='ride_count', title=f"{page} Rides by Hour of Day")
         st.plotly_chart(fig_hour, use_container_width=True)
@@ -313,8 +313,9 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         st.subheader("Station Growth")
         station_query = f"""
         SELECT year, station_count as metric_value
-        FROM {MART_SCHEMA}.mart_{page.lower()}_station_growth
-        WHERE year BETWEEN EXTRACT(YEAR FROM DATE '{start_date}') AND EXTRACT(YEAR FROM DATE '{end_date}')
+        FROM {MART_SCHEMA}.mart_station_growth
+        WHERE location = '{page.lower()}'
+        AND year BETWEEN EXTRACT(YEAR FROM DATE '{start_date}') AND EXTRACT(YEAR FROM DATE '{end_date}')
         ORDER BY year
         """
         station_df = pd.read_sql(station_query, conn)
@@ -397,11 +398,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         st.markdown("<h2 style='font-size:2.2rem; margin-top:2em;'>Comparative Station Growth</h2>", unsafe_allow_html=True)
         station_query = f"""
             SELECT year, location, station_count
-            FROM (
-                SELECT year, location, station_count FROM {MART_SCHEMA}.mart_nyc_station_growth
-                UNION ALL
-                SELECT year, location, station_count FROM {MART_SCHEMA}.mart_london_station_growth
-            ) t
+            FROM {MART_SCHEMA}.mart_station_growth
             WHERE year BETWEEN EXTRACT(YEAR FROM DATE '{applied_start_date}') AND EXTRACT(YEAR FROM DATE '{applied_end_date}')
             ORDER BY year, location
         """

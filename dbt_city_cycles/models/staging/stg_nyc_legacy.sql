@@ -44,6 +44,13 @@ renamed as (
         end as user_type,
         birth_year::integer,
         gender::integer,
+        -- Date-derived fields
+        date_trunc('day', starttime::timestamp) as date,
+        extract(month from starttime::timestamp) as month,
+        extract(year from starttime::timestamp) as year,
+        CASE WHEN extract(isodow from starttime::timestamp) < 6 THEN 'weekday' ELSE 'weekend' END AS day_type,
+        extract(isodow from starttime::timestamp) - 1 as day_of_week, -- 0=Monday
+        extract(hour from starttime::timestamp) as hour_of_day,
         -- Add metadata
         source_file,
         'nyc' as location,

@@ -4,10 +4,7 @@
 
 with combined_daily as (
     select date, location, year, day_type, total_rides, avg_duration_minutes, member_rides, casual_rides, total_minutes_biked, population, rides_per_1000
-    from {{ ref('mart_nyc_daily_metrics') }}
-    union all
-    select date, location, year, day_type, total_rides, avg_duration_minutes, null as member_rides, null as casual_rides, total_minutes_biked, population, rides_per_1000
-    from {{ ref('mart_london_daily_metrics') }}
+    from {{ ref('mart_daily_metrics') }}
 )
 
 select
