@@ -2,7 +2,7 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
-import psycopg2
+import duckdb
 from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
@@ -10,17 +10,33 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Define mart schema for maintainability
-MART_SCHEMA = "dbt_models_marts"
+# Define data directory path
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
 
 # Database connection
 def get_db_connection():
-    return psycopg2.connect(
-        host=os.getenv('DB_HOST'),
-        dbname=os.getenv('DB_NAME'),
-        user=os.getenv('DB_USER'),
-        password=os.getenv('DB_PASSWORD')
-    )
+    # Create an in-memory DuckDB connection
+    conn = duckdb.connect(':memory:')
+    
+    # Load all parquet files as tables
+    parquet_files = {
+        'mart_daily_metrics_long': 'mart_daily_metrics_long.parquet',
+        'mart_london_daily_metrics': 'mart_london_daily_metrics.parquet',
+        'mart_nyc_daily_metrics': 'mart_nyc_daily_metrics.parquet',
+        'mart_london_hourly_patterns': 'mart_london_hourly_patterns.parquet',
+        'mart_nyc_hourly_patterns': 'mart_nyc_hourly_patterns.parquet',
+        'mart_london_station_growth': 'mart_london_station_growth.parquet',
+        'mart_nyc_station_growth': 'mart_nyc_station_growth.parquet',
+        'mart_nyc_member_analysis': 'mart_nyc_member_analysis.parquet'
+    }
+    
+    for table_name, file_name in parquet_files.items():
+        file_path = os.path.join(DATA_DIR, file_name)
+        if os.path.exists(file_path):
+            # Create table from parquet file
+            conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM read_parquet('{file_path}')")
+    
+    return conn
 
 # Page config
 st.set_page_config(
@@ -44,10 +60,10 @@ conn = get_db_connection()
 
 # --- Get max available date for each city ---
 nyc_max_date = pd.read_sql(
-    f"""SELECT MAX(date) as max_date FROM {MART_SCHEMA}.mart_daily_metrics_long WHERE location = 'nyc' AND date <= '2024-12-31'""", conn
+    f"""SELECT MAX(date) as max_date FROM mart_daily_metrics_long WHERE location = 'nyc' AND date <= '2024-12-31'""", conn
 )['max_date'][0]
 london_max_date = pd.read_sql(
-    f"""SELECT MAX(date) as max_date FROM {MART_SCHEMA}.mart_daily_metrics_long WHERE location = 'london'""", conn
+    f"""SELECT MAX(date) as max_date FROM mart_daily_metrics_long WHERE location = 'london'""", conn
 )['max_date'][0]
 nyc_max_date = pd.to_datetime(nyc_max_date).date() if nyc_max_date else dashboard_max_date
 london_max_date = pd.to_datetime(london_max_date).date() if london_max_date else dashboard_max_date
@@ -55,17 +71,17 @@ london_max_date = pd.to_datetime(london_max_date).date() if london_max_date else
 # --- Date Range Picker with Apply Button ---
 if page == "Comparison":
     comparison_max_date = min(nyc_max_date, london_max_date)
-    date_query = f"SELECT MIN(date) as min_date FROM {MART_SCHEMA}.mart_daily_metrics_long WHERE date >= '{dashboard_min_date}' AND date <= '{comparison_max_date}'"
+    date_query = f"SELECT MIN(date) as min_date FROM mart_daily_metrics_long WHERE date >= '{dashboard_min_date}' AND date <= '{comparison_max_date}'"
     date_df = pd.read_sql(date_query, conn)
     min_date = max(pd.to_datetime(date_df['min_date'][0]).date(), dashboard_min_date)
     max_date = comparison_max_date
 elif page == "NYC":
-    date_query = f"SELECT MIN(date) as min_date FROM {MART_SCHEMA}.mart_daily_metrics_long WHERE location = 'nyc' AND date >= '{dashboard_min_date}' AND date <= '{nyc_max_date}'"
+    date_query = f"SELECT MIN(date) as min_date FROM mart_daily_metrics_long WHERE location = 'nyc' AND date >= '{dashboard_min_date}' AND date <= '{nyc_max_date}'"
     date_df = pd.read_sql(date_query, conn)
     min_date = max(pd.to_datetime(date_df['min_date'][0]).date(), dashboard_min_date)
     max_date = nyc_max_date
 elif page == "London":
-    date_query = f"SELECT MIN(date) as min_date FROM {MART_SCHEMA}.mart_daily_metrics_long WHERE location = 'london' AND date >= '{dashboard_min_date}' AND date <= '{london_max_date}'"
+    date_query = f"SELECT MIN(date) as min_date FROM mart_daily_metrics_long WHERE location = 'london' AND date >= '{dashboard_min_date}' AND date <= '{london_max_date}'"
     date_df = pd.read_sql(date_query, conn)
     min_date = max(pd.to_datetime(date_df['min_date'][0]).date(), dashboard_min_date)
     max_date = london_max_date
@@ -115,7 +131,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
 
         # Get latest year in filter
         year_query = f"""
-            SELECT MAX(year) as latest_year FROM {MART_SCHEMA}.mart_nyc_station_growth
+            SELECT MAX(year) as latest_year FROM mart_nyc_station_growth
             WHERE year BETWEEN EXTRACT(YEAR FROM DATE '{applied_start_date}') AND EXTRACT(YEAR FROM DATE '{applied_end_date}')
         """
         latest_year = pd.read_sql(year_query, conn)['latest_year'][0]
@@ -123,7 +139,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         # Get population for latest year for each city
         pop_query = f"""
             SELECT location, MAX(metric_value) as population
-            FROM {MART_SCHEMA}.mart_daily_metrics_long
+            FROM mart_daily_metrics_long
             WHERE metric_name = 'population' AND year = {latest_year}
             GROUP BY location
         """
@@ -134,7 +150,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         # Calculate rides per 1000 in period for each city
         rides_query = f"""
             SELECT location, SUM(metric_value) as total_rides
-            FROM {MART_SCHEMA}.mart_daily_metrics_long
+            FROM mart_daily_metrics_long
             WHERE metric_name = 'total_rides' AND {date_filter}
             GROUP BY location
         """
@@ -146,14 +162,16 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
 
         # Average Ride Duration (global, not average of daily averages)
         nyc_duration_query = f"""
-            SELECT SUM(metric_value) FILTER (WHERE metric_name = 'total_minutes_biked') / NULLIF(SUM(metric_value) FILTER (WHERE metric_name = 'total_rides'), 0) AS avg_ride_duration_minutes
-            FROM {MART_SCHEMA}.mart_daily_metrics_long
+            SELECT SUM(CASE WHEN metric_name = 'total_minutes_biked' THEN metric_value ELSE 0 END) / 
+                   NULLIF(SUM(CASE WHEN metric_name = 'total_rides' THEN metric_value ELSE 0 END), 0) AS avg_ride_duration_minutes
+            FROM mart_daily_metrics_long
             WHERE location = 'nyc' AND {date_filter}
         """
         nyc_avg_duration = pd.read_sql(nyc_duration_query, conn)['avg_ride_duration_minutes'][0]
         london_duration_query = f"""
-            SELECT SUM(metric_value) FILTER (WHERE metric_name = 'total_minutes_biked') / NULLIF(SUM(metric_value) FILTER (WHERE metric_name = 'total_rides'), 0) AS avg_ride_duration_minutes
-            FROM {MART_SCHEMA}.mart_daily_metrics_long
+            SELECT SUM(CASE WHEN metric_name = 'total_minutes_biked' THEN metric_value ELSE 0 END) / 
+                   NULLIF(SUM(CASE WHEN metric_name = 'total_rides' THEN metric_value ELSE 0 END), 0) AS avg_ride_duration_minutes
+            FROM mart_daily_metrics_long
             WHERE location = 'london' AND {date_filter}
         """
         london_avg_duration = pd.read_sql(london_duration_query, conn)['avg_ride_duration_minutes'][0]
@@ -174,7 +192,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         # Total rides in period
         total_rides_query = f"""
         SELECT SUM(metric_value) as total_rides
-        FROM {MART_SCHEMA}.mart_daily_metrics_long
+        FROM mart_daily_metrics_long
         WHERE location = '{page.lower()}'
           AND {date_filter}
           AND metric_name = 'total_rides'
@@ -186,7 +204,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         SELECT AVG(daily_rides) as avg_daily_rides
         FROM (
             SELECT date, SUM(metric_value) as daily_rides
-            FROM {MART_SCHEMA}.mart_daily_metrics_long
+            FROM mart_daily_metrics_long
             WHERE location = '{page.lower()}'
               AND {date_filter}
               AND metric_name = 'total_rides'
@@ -197,8 +215,9 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
 
         # Average ride duration (global, not average of daily averages)
         avg_duration_query = f"""
-            SELECT SUM(metric_value) FILTER (WHERE metric_name = 'total_minutes_biked') / NULLIF(SUM(metric_value) FILTER (WHERE metric_name = 'total_rides'), 0) AS avg_ride_duration_minutes
-            FROM {MART_SCHEMA}.mart_daily_metrics_long
+            SELECT SUM(CASE WHEN metric_name = 'total_minutes_biked' THEN metric_value ELSE 0 END) / 
+                   NULLIF(SUM(CASE WHEN metric_name = 'total_rides' THEN metric_value ELSE 0 END), 0) AS avg_ride_duration_minutes
+            FROM mart_daily_metrics_long
             WHERE location = '{page.lower()}' AND {date_filter}
         """
         avg_duration = pd.read_sql(avg_duration_query, conn)['avg_ride_duration_minutes'][0]
@@ -224,7 +243,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         if rides_agg_type == "Average Daily Rides":
             rides_trend_query = f"""
             SELECT EXTRACT(MONTH FROM date) AS month, year, AVG(metric_value) as metric_value
-            FROM {MART_SCHEMA}.mart_daily_metrics_long
+            FROM mart_daily_metrics_long
             WHERE location = '{page.lower()}'
               AND {date_filter}
               AND metric_name = 'total_rides'
@@ -236,7 +255,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         else:
             rides_trend_query = f"""
             SELECT EXTRACT(MONTH FROM date) AS month, year, SUM(metric_value) as metric_value
-            FROM {MART_SCHEMA}.mart_daily_metrics_long
+            FROM mart_daily_metrics_long
             WHERE location = '{page.lower()}'
               AND {date_filter}
               AND metric_name = 'total_rides'
@@ -270,7 +289,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
           year,
           SUM(CASE WHEN metric_name = 'total_minutes_biked' THEN metric_value ELSE 0 END) /
             NULLIF(SUM(CASE WHEN metric_name = 'total_rides' THEN metric_value ELSE 0 END), 0) AS avg_duration
-        FROM {MART_SCHEMA}.mart_daily_metrics_long
+        FROM mart_daily_metrics_long
         WHERE location = '{page.lower()}'
           AND {date_filter}
           AND metric_name IN ('total_minutes_biked', 'total_rides')
@@ -296,7 +315,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
 
         # --- Time of Day Analysis ---
         st.subheader("Time of Day Analysis")
-        hour_query = f"SELECT hour_of_day, ride_count FROM {MART_SCHEMA}.mart_hourly_patterns WHERE location = '{page.lower()}' ORDER BY hour_of_day"
+        hour_query = f"SELECT hour_of_day, ride_count FROM mart_hourly_patterns WHERE location = '{page.lower()}' ORDER BY hour_of_day"
         hour_df = pd.read_sql(hour_query, conn)
         fig_hour = px.bar(hour_df, x='hour_of_day', y='ride_count', title=f"{page} Rides by Hour of Day")
         st.plotly_chart(fig_hour, use_container_width=True)
@@ -304,7 +323,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         # --- Member % (NYC only) ---
         if page == "NYC":
             st.subheader("Member Percentage Trend")
-            member_query = f"SELECT month, member_percentage FROM {MART_SCHEMA}.mart_nyc_member_analysis WHERE month BETWEEN '{start_date}' AND '{end_date}' ORDER BY month"
+            member_query = f"SELECT month, member_percentage FROM mart_nyc_member_analysis WHERE month BETWEEN '{start_date}' AND '{end_date}' ORDER BY month"
             member_df = pd.read_sql(member_query, conn)
             fig_member = px.line(member_df, x='month', y='member_percentage', title="NYC Member Percentage Over Time")
             st.plotly_chart(fig_member, use_container_width=True)
@@ -313,7 +332,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         st.subheader("Station Growth")
         station_query = f"""
         SELECT year, station_count as metric_value
-        FROM {MART_SCHEMA}.mart_station_growth
+        FROM mart_station_growth
         WHERE location = '{page.lower()}'
         AND year BETWEEN EXTRACT(YEAR FROM DATE '{start_date}') AND EXTRACT(YEAR FROM DATE '{end_date}')
         ORDER BY year
@@ -341,7 +360,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         if comparison_metric == "Overall Rides":
             comparison_query = f"""
             SELECT {date_expr} as period, location, SUM(metric_value) as metric_value
-            FROM {MART_SCHEMA}.mart_daily_metrics_long
+            FROM mart_daily_metrics_long
             WHERE {date_filter}
               AND metric_name = 'total_rides'
             GROUP BY period, location
@@ -352,7 +371,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         else:
             comparison_query = f"""
             SELECT {date_expr} as period, location, SUM(metric_value) as metric_value
-            FROM {MART_SCHEMA}.mart_daily_metrics_long
+            FROM mart_daily_metrics_long
             WHERE {date_filter}
               AND metric_name = 'rides_per_1000'
             GROUP BY period, location
@@ -377,7 +396,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
             SELECT {date_expr} as period, location,
               SUM(CASE WHEN metric_name = 'total_minutes_biked' THEN metric_value ELSE 0 END) /
                 NULLIF(SUM(CASE WHEN metric_name = 'total_rides' THEN metric_value ELSE 0 END), 0) AS avg_duration
-            FROM {MART_SCHEMA}.mart_daily_metrics_long
+            FROM mart_daily_metrics_long
             WHERE {date_filter}
               AND metric_name IN ('total_minutes_biked', 'total_rides')
             GROUP BY period, location
@@ -398,7 +417,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         st.markdown("<h2 style='font-size:2.2rem; margin-top:2em;'>Comparative Station Growth</h2>", unsafe_allow_html=True)
         station_query = f"""
             SELECT year, location, station_count
-            FROM {MART_SCHEMA}.mart_station_growth
+            FROM mart_station_growth
             WHERE year BETWEEN EXTRACT(YEAR FROM DATE '{applied_start_date}') AND EXTRACT(YEAR FROM DATE '{applied_end_date}')
             ORDER BY year, location
         """
