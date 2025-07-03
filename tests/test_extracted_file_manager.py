@@ -234,12 +234,13 @@ class TestExtractedFileManager:
         )
         manager._metadata_cache["test.csv"] = meta
         
-        # Mock CSV download using download_fileobj
+        # Mock CSV download using get_object (for _download_csv_sample)
         csv_content = """tripduration,bikeid,starttime,stoptime,start station id,start station name,start station latitude,start station longitude,end station id,end station name,end station latitude,end station longitude,usertype,birth year,gender\n60,12345,2019-06-01 00:00:00,2019-06-01 00:01:00,1,Test Station,40.0,-74.0,2,Test Station 2,40.1,-74.1,Subscriber,1990,1"""
-        def download_fileobj_side_effect(bucket, key, buffer):
-            buffer.write(csv_content.encode())
-            buffer.seek(0)
-        mock_s3.download_fileobj.side_effect = download_fileobj_side_effect
+        
+        mock_body = Mock()
+        mock_body.read.return_value = csv_content.encode()
+        mock_response = {'Body': mock_body}
+        mock_s3.get_object.return_value = mock_response
         
         success = manager.validate_file_schema("test.csv")
         
@@ -258,12 +259,12 @@ class TestExtractedFileManager:
         )
         manager._metadata_cache["test.csv"] = meta
         
-        # Mock CSV download with invalid schema using download_fileobj
+        # Mock CSV download with invalid schema using get_object
         csv_content = "invalid_column,another_invalid_column\nvalue1,value2"
-        def download_fileobj_side_effect(bucket, key, buffer):
-            buffer.write(csv_content.encode())
-            buffer.seek(0)
-        mock_s3.download_fileobj.side_effect = download_fileobj_side_effect
+        mock_body = Mock()
+        mock_body.read.return_value = csv_content.encode()
+        mock_response = {'Body': mock_body}
+        mock_s3.get_object.return_value = mock_response
         
         success = manager.validate_file_schema("test.csv")
         
@@ -332,11 +333,16 @@ class TestExtractedFileManager:
         # Create test CSV content
         csv_content = """tripduration,bikeid,starttime,stoptime,start station id,start station name,start station latitude,start station longitude,end station id,end station name,end station latitude,end station longitude,usertype,birth year,gender\n60,12345,2019-06-01 00:00:00,2019-06-01 00:01:00,1,Test Station,40.0,-74.0,2,Test Station 2,40.1,-74.1,Subscriber,1990,1"""
         
-        # Mock CSV download
-        def download_fileobj_side_effect(bucket, key, buffer):
-            buffer.write(csv_content.encode())
-            buffer.seek(0)
-        mock_s3.download_fileobj.side_effect = download_fileobj_side_effect
+        # Mock CSV download using download_file (for temp file)
+        def download_file_side_effect(bucket, key, filename):
+            with open(filename, 'w') as f:
+                f.write(csv_content)
+        mock_s3.download_file.side_effect = download_file_side_effect
+        
+        # Mock Parquet upload
+        def upload_fileobj_side_effect(fileobj, bucket, key):
+            pass  # Just record the upload
+        mock_s3.upload_fileobj.side_effect = upload_fileobj_side_effect
         
         success = manager.convert_csv_to_parquet("test.csv")
         
@@ -370,19 +376,24 @@ class TestExtractedFileManager:
         
         # Mock S3 operations for ZIP and CSV
         def download_file_side_effect(bucket, key, filename):
-            with open(filename, 'wb') as f:
-                f.write(zip_buffer.getvalue())
+            if key.endswith('.zip'):
+                with open(filename, 'wb') as f:
+                    f.write(zip_buffer.getvalue())
+            else:
+                with open(filename, 'w') as f:
+                    f.write(csv_content)
         
-        def download_fileobj_side_effect(bucket, key, buffer):
-            buffer.write(csv_content.encode())
-            buffer.seek(0)
+        # Mock get_object for validation (used by _download_csv_sample)
+        mock_body = Mock()
+        mock_body.read.return_value = csv_content.encode()
+        mock_response = {'Body': mock_body}
+        mock_s3.get_object.return_value = mock_response
         
-        # Mock S3 upload_fileobj for CSV uploads
-        def upload_fileobj_side_effect(buffer, bucket, key):
+        # Mock S3 upload_fileobj for CSV and Parquet uploads
+        def upload_fileobj_side_effect(fileobj, bucket, key):
             pass  # Just record the upload
         
         mock_s3.download_file.side_effect = download_file_side_effect
-        mock_s3.download_fileobj.side_effect = download_fileobj_side_effect
         mock_s3.upload_fileobj.side_effect = upload_fileobj_side_effect
         
         success = manager.process_pipeline("test.zip")
@@ -429,6 +440,211 @@ class TestExtractedFileManager:
         assert summary.total_size_bytes == 3072
         assert summary.by_file_type[FileType.NYC_CSV] == 1
         assert summary.by_file_type[FileType.LONDON_CSV] == 1
+    
+    def test_wipe_file(self, manager):
+        """Test wiping a specific file"""
+        # Setup
+        file_meta = FileMetadata(
+            filename="test.zip",
+            s3_key="extracted_bike_ride_zips/nyc/test.zip",
+            file_type=FileType.NYC_ZIP,
+            status=FileStatus.EXTRACTED,
+            file_size_bytes=1000,
+            extracted_at=datetime.now()
+        )
+        manager._metadata_cache["test.zip"] = file_meta
+        
+        # Mock S3 delete and save_metadata
+        manager.s3_client.delete_object = MagicMock()
+        manager._save_metadata = MagicMock()
+        
+        # Test
+        result = manager.wipe_file("test.zip")
+        
+        # Assert
+        assert result is True
+        manager.s3_client.delete_object.assert_called_once_with(
+            Bucket="test-bucket", Key="extracted_bike_ride_zips/nyc/test.zip"
+        )
+        assert "test.zip" not in manager._metadata_cache
+        manager._save_metadata.assert_called_once()
+    
+    def test_wipe_file_not_found(self, manager):
+        """Test wiping a file that doesn't exist"""
+        result = manager.wipe_file("nonexistent.zip")
+        assert result is False
+    
+    def test_wipe_file_type_nyc_zip(self, manager):
+        """Test wiping files by type"""
+        # Setup
+        file1 = FileMetadata(
+            filename="test1.zip",
+            s3_key="extracted_bike_ride_zips/nyc/test1.zip",
+            file_type=FileType.NYC_ZIP,
+            status=FileStatus.EXTRACTED,
+            file_size_bytes=1000,
+            extracted_at=datetime.now()
+        )
+        file2 = FileMetadata(
+            filename="test2.zip", 
+            s3_key="extracted_bike_ride_zips/nyc/test2.zip",
+            file_type=FileType.NYC_ZIP,
+            status=FileStatus.EXTRACTED,
+            file_size_bytes=2000,
+            extracted_at=datetime.now()
+        )
+        file3 = FileMetadata(
+            filename="test3.csv",
+            s3_key="extracted_bike_ride_csvs/nyc/test3.csv", 
+            file_type=FileType.NYC_CSV,
+            status=FileStatus.CSV_CONVERTED,
+            file_size_bytes=3000,
+            extracted_at=datetime.now()
+        )
+        
+        manager._metadata_cache = {
+            "test1.zip": file1,
+            "test2.zip": file2,
+            "test3.csv": file3
+        }
+        
+        # Mock S3 delete and save_metadata
+        manager.s3_client.delete_object = MagicMock()
+        manager._save_metadata = MagicMock()
+        
+        # Test
+        result = manager.wipe_file_type("nyc_zip")
+        
+        # Assert
+        assert result == 2
+        assert manager.s3_client.delete_object.call_count == 2
+        assert "test1.zip" not in manager._metadata_cache
+        assert "test2.zip" not in manager._metadata_cache
+        assert "test3.csv" in manager._metadata_cache  # Should remain
+        manager._save_metadata.assert_called_once()
+    
+    def test_wipe_file_type_with_location_filter(self, manager):
+        """Test wiping files by type with location filter"""
+        # Setup
+        file1 = FileMetadata(
+            filename="test1.zip",
+            s3_key="extracted_bike_ride_zips/nyc/test1.zip",
+            file_type=FileType.NYC_ZIP,
+            status=FileStatus.EXTRACTED,
+            file_size_bytes=1000,
+            extracted_at=datetime.now()
+        )
+        file2 = FileMetadata(
+            filename="test2.zip",
+            s3_key="extracted_bike_ride_zips/london/test2.zip", 
+            file_type=FileType.NYC_ZIP,
+            status=FileStatus.EXTRACTED,
+            file_size_bytes=2000,
+            extracted_at=datetime.now()
+        )
+        
+        manager._metadata_cache = {
+            "test1.zip": file1,
+            "test2.zip": file2
+        }
+        
+        # Mock S3 delete and save_metadata
+        manager.s3_client.delete_object = MagicMock()
+        manager._save_metadata = MagicMock()
+        
+        # Test
+        result = manager.wipe_file_type("nyc_zip", location="nyc")
+        
+        # Assert
+        assert result == 1
+        assert "test1.zip" not in manager._metadata_cache
+        assert "test2.zip" in manager._metadata_cache  # Should remain
+    
+    def test_wipe_file_type_with_schema_filter(self, manager):
+        """Test wiping parquet files with schema filter"""
+        # Setup
+        file1 = FileMetadata(
+            filename="test1.parquet",
+            s3_key="extracted_bike_ride_parquet/nyc/modern/test1.parquet",
+            file_type=FileType.NYC_PARQUET,
+            status=FileStatus.PARQUET_CONVERTED,
+            file_size_bytes=1000,
+            parquet_converted_at=datetime.now()
+        )
+        file2 = FileMetadata(
+            filename="test2.parquet",
+            s3_key="extracted_bike_ride_parquet/nyc/legacy/test2.parquet",
+            file_type=FileType.NYC_PARQUET,
+            status=FileStatus.PARQUET_CONVERTED,
+            file_size_bytes=2000,
+            parquet_converted_at=datetime.now()
+        )
+        
+        manager._metadata_cache = {
+            "test1.parquet": file1,
+            "test2.parquet": file2
+        }
+        
+        # Mock S3 delete and save_metadata
+        manager.s3_client.delete_object = MagicMock()
+        manager._save_metadata = MagicMock()
+        
+        # Test
+        result = manager.wipe_file_type("nyc_parquet", schema="modern")
+        
+        # Assert
+        assert result == 1
+        assert "test1.parquet" not in manager._metadata_cache
+        assert "test2.parquet" in manager._metadata_cache  # Should remain
+    
+    def test_wipe_all(self, manager):
+        """Test wiping all files"""
+        # Setup
+        file1 = FileMetadata(
+            filename="test1.zip",
+            s3_key="extracted_bike_ride_zips/nyc/test1.zip",
+            file_type=FileType.NYC_ZIP,
+            status=FileStatus.EXTRACTED,
+            file_size_bytes=1000,
+            extracted_at=datetime.now()
+        )
+        file2 = FileMetadata(
+            filename="test2.csv",
+            s3_key="extracted_bike_ride_csvs/nyc/test2.csv",
+            file_type=FileType.NYC_CSV,
+            status=FileStatus.CSV_CONVERTED,
+            file_size_bytes=2000,
+            csv_converted_at=datetime.now()
+        )
+        
+        manager._metadata_cache = {
+            "test1.zip": file1,
+            "test2.csv": file2
+        }
+        
+        # Mock S3 delete and save_metadata
+        manager.s3_client.delete_object = MagicMock()
+        manager._save_metadata = MagicMock()
+        
+        # Test
+        result = manager.wipe_all()
+        
+        # Assert
+        assert result == 2
+        assert manager.s3_client.delete_object.call_count == 2
+        assert len(manager._metadata_cache) == 0
+        manager._save_metadata.assert_called_once()
+
+    def test_memory_management_methods(self, manager):
+        """Test memory management utility methods"""
+        # Test memory logging
+        manager._log_memory_usage("test")
+        
+        # Test memory cleanup
+        manager._cleanup_memory()
+        
+        # Both methods should not raise exceptions
+        assert True  # If we get here, the methods work
 
 
 class TestIntegration:

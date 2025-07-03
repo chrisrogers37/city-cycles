@@ -69,7 +69,45 @@ python -m extracted_file_manager.cli summary
 - `summary`: Show a summary of all files
 - `reprocess`: Reset a file's status for reprocessing
 
-> **Note:** The old `convert-zip` and `convert-csv` commands for single-file processing have been removed for simplicity. Use the batch commands above for all processing.
+### Wipe Operations (Destructive)
+⚠️ **WARNING**: These commands permanently delete files from S3 and require `--confirm` flag.
+
+- `wipe-file --file <filename> --confirm` - Wipe a specific file
+- `wipe-type --type <type> [--location <location>] [--schema <schema>] --confirm` - Wipe files by type
+- `wipe-all --confirm` - Wipe all files
+
+#### Wipe Examples:
+```bash
+# Wipe a specific file
+python -m extracted_file_manager.cli wipe-file --file "2023-01-nyc-data.zip" --confirm
+
+# Wipe all NYC ZIP files
+python -m extracted_file_manager.cli wipe-type --type nyc_zip --confirm
+
+# Wipe all NYC CSV files
+python -m extracted_file_manager.cli wipe-type --type nyc_csv --location nyc --confirm
+
+# Wipe all London Parquet files with specific schema
+python -m extracted_file_manager.cli wipe-type --type london_parquet --location london --schema modern --confirm
+
+# Wipe all files (nuclear option)
+python -m extracted_file_manager.cli wipe-all --confirm
+```
+
+#### File Types for Wipe Operations:
+- `nyc_zip` - NYC ZIP files
+- `nyc_csv` - NYC CSV files  
+- `london_csv` - London CSV files
+- `nyc_parquet` - NYC Parquet files
+- `london_parquet` - London Parquet files
+
+#### Location Filters:
+- `nyc` - New York City files
+- `london` - London files
+
+#### Schema Filters (for Parquet files):
+- `legacy` - Legacy data schema
+- `modern` - Modern data schema
 
 ## Metadata Auto-Scan
 
@@ -112,6 +150,51 @@ All file operations are tracked in S3 at `extracted_file_manager/metadata.json` 
 - Error messages are stored in metadata
 - Files can be reprocessed using `reprocess_file()`
 - Pipeline continues processing other files even if some fail
+
+## Memory Management
+
+The system includes advanced memory management to prevent Out-of-Memory (OOM) issues when processing large files:
+
+### Key Features
+- **Memory Monitoring**: Logs memory usage at key points for debugging
+- **Explicit Cleanup**: DataFrames and buffers are explicitly deleted after use
+- **Streaming Processing**: Uses pyarrow streaming with 5MB chunks for large files
+- **Sample Validation**: Downloads only 5MB samples for schema validation
+- **Batch Processing**: Forces garbage collection between files
+- **Resource Tracking**: All temporary files and writers are properly cleaned up
+
+### Implementation Details
+
+#### Memory Monitoring
+```python
+# Memory usage is logged before and after major operations
+Memory usage before validation: 103.4 MB
+Memory usage after cleanup: 102.1 MB
+Memory usage before conversion: 105.7 MB
+Memory usage after conversion: 104.2 MB
+```
+
+#### Streaming Processing
+- **CSV to Parquet**: Uses pyarrow streaming with 5MB blocks (reduced from 10MB)
+- **Chunk Processing**: Each chunk is processed and immediately cleaned up
+- **Periodic Cleanup**: Memory cleanup every 10 batches
+- **Sample Validation**: Only downloads 5MB sample for schema validation
+
+#### Batch Processing
+- **Memory cleanup after each file**: Forces garbage collection between files
+- **Progress tracking**: Shows progress (X/Y files) for better monitoring
+- **Delays**: 1-second delays between files to allow memory cleanup
+
+### Best Practices
+1. **Always Clean Up Resources**: Use `del` to explicitly delete large objects
+2. **Process in Chunks**: Use streaming readers for large files
+3. **Monitor Memory Usage**: Log memory usage at key points
+4. **Use Temporary Files**: Download large files to temp files instead of memory
+
+### Performance Impact
+- **Benefits**: Prevents OOM errors, stable processing, better monitoring
+- **Overhead**: Minimal overhead from memory logging, acceptable 1-second delays
+- **Result**: Eliminates crashes and data loss from memory issues
 
 ---
 

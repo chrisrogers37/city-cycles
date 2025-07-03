@@ -13,15 +13,19 @@ from .models import FileStatus, FileType
 def main():
     parser = argparse.ArgumentParser(description="Extracted File Manager CLI")
     parser.add_argument("command", choices=[
-        "scan", "validate", "extract_zips", "convert_csvs", "pipeline", "list", "summary", "reprocess"
+        "scan", "validate", "extract_zips", "convert_csvs", "pipeline", "list", "summary", "reprocess",
+        "wipe-file", "wipe-type", "wipe-all"
     ], help="Command to execute")
     
     parser.add_argument("--file", help="Specific filename to process")
-    parser.add_argument("--type", choices=["nyc_zip", "nyc_csv", "london_csv"], 
+    parser.add_argument("--type", choices=["nyc_zip", "nyc_csv", "london_csv", "nyc_parquet", "london_parquet"], 
                        help="File type filter")
+    parser.add_argument("--location", choices=["nyc", "london"], help="Location filter for wipe operations")
+    parser.add_argument("--schema", help="Schema filter for parquet wipe operations")
     parser.add_argument("--status", choices=["extracted", "csv_converted", "validated", "parquet_converted", "processed", "failed"], 
                        help="Status filter")
     parser.add_argument("--limit", type=int, help="Limit number of results")
+    parser.add_argument("--confirm", action="store_true", help="Confirm destructive operations")
     
     args = parser.parse_args()
     
@@ -57,6 +61,33 @@ def main():
             count_zips = manager.extract_all_zips(limit=args.limit)
             count_csvs = manager.convert_all_csvs(limit=args.limit)
             print(f"Pipeline complete. Extracted {count_zips} ZIPs, converted {count_csvs} CSVs.")
+        
+        elif args.command == "wipe-file":
+            if not args.file:
+                print("Error: --file required for wipe-file")
+                sys.exit(1)
+            if not args.confirm:
+                print(f"Error: --confirm required for destructive operation: wipe-file {args.file}")
+                sys.exit(1)
+            success = manager.wipe_file(args.file)
+            print(f"Wipe {'successful' if success else 'failed'} for {args.file}")
+        
+        elif args.command == "wipe-type":
+            if not args.type:
+                print("Error: --type required for wipe-type")
+                sys.exit(1)
+            if not args.confirm:
+                print(f"Error: --confirm required for destructive operation: wipe-type {args.type}")
+                sys.exit(1)
+            count = manager.wipe_file_type(args.type, args.location, args.schema)
+            print(f"Wiped {count} files of type {args.type}")
+        
+        elif args.command == "wipe-all":
+            if not args.confirm:
+                print("Error: --confirm required for destructive operation: wipe-all")
+                sys.exit(1)
+            count = manager.wipe_all()
+            print(f"Wiped {count} files total")
         
         elif args.command == "list":
             status = FileStatus(args.status) if args.status else None
