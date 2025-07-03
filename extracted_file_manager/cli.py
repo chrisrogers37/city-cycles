@@ -13,7 +13,7 @@ from .models import FileStatus, FileType
 def main():
     parser = argparse.ArgumentParser(description="Extracted File Manager CLI")
     parser.add_argument("command", choices=[
-        "scan", "validate", "convert-zip", "convert-csv", "extract_zips", "convert_csvs", "pipeline", "list", "summary", "reprocess"
+        "scan", "validate", "extract_zips", "convert_csvs", "pipeline", "list", "summary", "reprocess"
     ], help="Command to execute")
     
     parser.add_argument("--file", help="Specific filename to process")
@@ -22,8 +22,6 @@ def main():
     parser.add_argument("--status", choices=["extracted", "csv_converted", "validated", "parquet_converted", "processed", "failed"], 
                        help="Status filter")
     parser.add_argument("--limit", type=int, help="Limit number of results")
-    parser.add_argument("--batch-size", type=int, default=5, help="Number of files to process in batch (default: 5)")
-    parser.add_argument("--single-file", action="store_true", help="Process only one file at a time")
     
     args = parser.parse_args()
     
@@ -46,20 +44,6 @@ def main():
                 for filename, success in results.items():
                     print(f"  {filename}: {'✓' if success else '✗'}")
                     
-        elif args.command == "convert-zip":
-            if not args.file:
-                print("Error: --file required for convert-zip")
-                sys.exit(1)
-            success = manager.convert_zip_to_csv(args.file)
-            print(f"ZIP to CSV conversion {'successful' if success else 'failed'} for {args.file}")
-            
-        elif args.command == "convert-csv":
-            if not args.file:
-                print("Error: --file required for convert-csv")
-                sys.exit(1)
-            success = manager.convert_csv_to_parquet(args.file)
-            print(f"CSV to Parquet conversion {'successful' if success else 'failed'} for {args.file}")
-            
         elif args.command == "extract_zips":
             count = manager.extract_all_zips(limit=args.limit)
             print(f"Extracted {count} ZIP files to CSVs.")

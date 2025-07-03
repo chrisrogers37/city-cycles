@@ -15,6 +15,8 @@ from dotenv import load_dotenv
 import botocore
 import tempfile
 import time
+import pyarrow.csv as pv
+import pyarrow.parquet as pq
 
 from .models import FileMetadata, FileStatus, FileType, FileSummary
 from data_models.base import BaseBikeShareRecord
@@ -34,7 +36,17 @@ class ExtractedFileManager:
         self.s3_client = boto3.client("s3")
         self.metadata_key = "extracted_file_manager/metadata.json"
         self._metadata_cache: Dict[str, FileMetadata] = {}
-        self._load_metadata()
+        # Check if metadata.json exists; if not, run scan
+        try:
+            self.s3_client.head_object(Bucket=self.s3_bucket, Key=self.metadata_key)
+            self._load_metadata()
+        except self.s3_client.exceptions.NoSuchKey:
+            print("metadata.json not found in S3. Running initial scan...")
+            self.scan_s3_files()
+        except Exception as e:
+            # If any other error, try to load metadata, but print warning
+            print(f"Warning: error checking metadata.json: {e}. Attempting to load metadata anyway.")
+            self._load_metadata()
     
     def _load_metadata(self):
         """Load metadata from S3"""
@@ -434,7 +446,7 @@ class ExtractedFileManager:
             return False
     
     def convert_csv_to_parquet(self, filename: str) -> bool:
-        """Convert a CSV file to Parquet with schema-based organization"""
+        """Convert a CSV file to Parquet with schema-based organization using pyarrow streaming."""
         if filename not in self._metadata_cache:
             print(f"File {filename} not found in metadata")
             return False
@@ -450,42 +462,60 @@ class ExtractedFileManager:
             return False
         
         try:
-            print(f"Converting CSV to Parquet: {filename}")
-            
-            # Download CSV file
-            csv_buffer = self._download_csv_sample(file_meta.s3_key, sample_size=None)  # Download full file
-            df = pd.read_csv(csv_buffer)
-            
-            # Determine schema using data model validation
-            model = self._find_matching_model(df.head(100), file_meta.file_type)
+            print(f"Converting CSV to Parquet (streaming): {filename}")
+            # Download CSV to a temp file
+            temp_csv = tempfile.NamedTemporaryFile(suffix='.csv', delete=False)
+            temp_csv_path = temp_csv.name
+            temp_csv.close()
+            self.s3_client.download_file(self.s3_bucket, file_meta.s3_key, temp_csv_path)
+            # Read a sample to determine schema/model
+            sample_df = pd.read_csv(temp_csv_path, nrows=100)
+            model = self._find_matching_model(sample_df, file_meta.file_type)
             if model is None:
+                os.unlink(temp_csv_path)
                 raise ValueError(f"No matching data model found for {filename}")
-            
-            # Transform data using the model
-            df_transformed = model.to_dataframe(df, filename)
-            
             # Determine city and schema
             city = "nyc" if file_meta.file_type == FileType.NYC_CSV else "london"
             schema = model.__name__.lower()
-            
             # Create Parquet filename and S3 key
             base_name = os.path.splitext(filename)[0]
             parquet_filename = f"{base_name}.parquet"
             parquet_s3_key = f"extracted_bike_ride_parquet/{city}/{schema}/{parquet_filename}"
-            
-            # Convert to Parquet and upload
-            parquet_buffer = BytesIO()
-            df_transformed.to_parquet(parquet_buffer, index=False)
-            parquet_buffer.seek(0)
-            
-            self.s3_client.upload_fileobj(parquet_buffer, self.s3_bucket, parquet_s3_key)
-            
+            # Prepare temp Parquet file
+            temp_parquet = tempfile.NamedTemporaryFile(suffix='.parquet', delete=False)
+            temp_parquet_path = temp_parquet.name
+            temp_parquet.close()
+            # Stream CSV to Parquet using pyarrow
+            read_options = pv.ReadOptions(block_size=10_000_000)  # 10MB blocks
+            convert_options = pv.ConvertOptions()
+            with open(temp_csv_path, 'rb') as f:
+                reader = pv.open_csv(f, read_options=read_options, convert_options=convert_options)
+                writer = None
+                for batch in reader:
+                    table = batch.to_table()
+                    # Convert to pandas DataFrame for model transformation
+                    df_chunk = table.to_pandas()
+                    df_transformed = model.to_dataframe(df_chunk, filename)
+                    # Convert back to pyarrow Table
+                    table_transformed = pq.Table.from_pandas(df_transformed)
+                    if writer is None:
+                        writer = pq.ParquetWriter(temp_parquet_path, table_transformed.schema)
+                    writer.write_table(table_transformed)
+                if writer:
+                    writer.close()
+            # Upload Parquet to S3
+            with open(temp_parquet_path, 'rb') as f:
+                self.s3_client.upload_fileobj(f, self.s3_bucket, parquet_s3_key)
+            file_size = os.path.getsize(temp_parquet_path)
+            # Clean up temp files
+            os.unlink(temp_csv_path)
+            os.unlink(temp_parquet_path)
             # Create metadata for the new Parquet file
             parquet_file_meta = FileMetadata(
                 filename=parquet_filename,
                 s3_key=parquet_s3_key,
                 file_type=FileType.NYC_PARQUET if city == "nyc" else FileType.LONDON_PARQUET,
-                file_size_bytes=parquet_buffer.tell(),
+                file_size_bytes=file_size,
                 extracted_at=datetime.now(),
                 status=FileStatus.EXTRACTED,
                 metadata={
@@ -494,19 +524,14 @@ class ExtractedFileManager:
                     "model": model.__name__
                 }
             )
-            
             self._metadata_cache[parquet_filename] = parquet_file_meta
-            
             # Update CSV file status
             file_meta.status = FileStatus.PARQUET_CONVERTED
             file_meta.parquet_converted_at = datetime.now()
             file_meta.metadata["converted_parquet"] = parquet_filename
-            
             self._save_metadata()
-            
             print(f"Successfully converted {filename} to {parquet_filename} (schema: {schema})")
             return True
-            
         except Exception as e:
             error_msg = f"Failed to convert CSV to Parquet: {str(e)}"
             file_meta.processing_errors.append(error_msg)
