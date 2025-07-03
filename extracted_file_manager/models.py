@@ -12,7 +12,9 @@ import json
 class FileStatus(Enum):
     """Status of extracted files"""
     EXTRACTED = "extracted"  # File has been downloaded to S3
+    CSV_CONVERTED = "csv_converted"  # ZIP has been converted to CSV
     VALIDATED = "validated"  # File has been schema validated
+    PARQUET_CONVERTED = "parquet_converted"  # CSV has been converted to Parquet
     PROCESSED = "processed"  # File has been loaded into database
     FAILED = "failed"  # File processing failed
     DELETED = "deleted"  # File has been deleted
@@ -23,6 +25,8 @@ class FileType(Enum):
     NYC_ZIP = "nyc_zip"
     NYC_CSV = "nyc_csv"
     LONDON_CSV = "london_csv"
+    NYC_PARQUET = "nyc_parquet"
+    LONDON_PARQUET = "london_parquet"
 
 
 @dataclass
@@ -34,7 +38,9 @@ class FileMetadata:
     source_url: Optional[str] = None
     file_size_bytes: Optional[int] = None
     extracted_at: Optional[datetime] = None
+    csv_converted_at: Optional[datetime] = None
     validated_at: Optional[datetime] = None
+    parquet_converted_at: Optional[datetime] = None
     processed_at: Optional[datetime] = None
     status: FileStatus = FileStatus.EXTRACTED
     validation_errors: List[str] = field(default_factory=list)
@@ -50,7 +56,9 @@ class FileMetadata:
             "source_url": self.source_url,
             "file_size_bytes": self.file_size_bytes,
             "extracted_at": self.extracted_at.isoformat() if self.extracted_at else None,
+            "csv_converted_at": self.csv_converted_at.isoformat() if self.csv_converted_at else None,
             "validated_at": self.validated_at.isoformat() if self.validated_at else None,
+            "parquet_converted_at": self.parquet_converted_at.isoformat() if self.parquet_converted_at else None,
             "processed_at": self.processed_at.isoformat() if self.processed_at else None,
             "status": self.status.value,
             "validation_errors": self.validation_errors,
@@ -68,7 +76,9 @@ class FileMetadata:
             source_url=data.get("source_url"),
             file_size_bytes=data.get("file_size_bytes"),
             extracted_at=datetime.fromisoformat(data["extracted_at"]) if data.get("extracted_at") else None,
+            csv_converted_at=datetime.fromisoformat(data["csv_converted_at"]) if data.get("csv_converted_at") else None,
             validated_at=datetime.fromisoformat(data["validated_at"]) if data.get("validated_at") else None,
+            parquet_converted_at=datetime.fromisoformat(data["parquet_converted_at"]) if data.get("parquet_converted_at") else None,
             processed_at=datetime.fromisoformat(data["processed_at"]) if data.get("processed_at") else None,
             status=FileStatus(data["status"]),
             validation_errors=data.get("validation_errors", []),
@@ -82,7 +92,9 @@ class FileSummary:
     """Summary statistics for files"""
     total_files: int = 0
     extracted_files: int = 0
+    csv_converted_files: int = 0
     validated_files: int = 0
+    parquet_converted_files: int = 0
     processed_files: int = 0
     failed_files: int = 0
     deleted_files: int = 0
@@ -97,8 +109,12 @@ class FileSummary:
         # Update status counts
         if file_meta.status == FileStatus.EXTRACTED:
             self.extracted_files += 1
+        elif file_meta.status == FileStatus.CSV_CONVERTED:
+            self.csv_converted_files += 1
         elif file_meta.status == FileStatus.VALIDATED:
             self.validated_files += 1
+        elif file_meta.status == FileStatus.PARQUET_CONVERTED:
+            self.parquet_converted_files += 1
         elif file_meta.status == FileStatus.PROCESSED:
             self.processed_files += 1
         elif file_meta.status == FileStatus.FAILED:

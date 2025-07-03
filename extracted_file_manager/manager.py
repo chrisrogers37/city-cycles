@@ -72,8 +72,10 @@ class ExtractedFileManager:
         # Define prefixes to scan
         prefixes = {
             "extracted_bike_ride_zips/nyc/": FileType.NYC_ZIP,
+            "extracted_bike_ride_csvs/nyc/": FileType.NYC_CSV,
             "extracted_bike_ride_csvs/london/": FileType.LONDON_CSV,
-            "nyc_csv/": FileType.NYC_CSV,
+            "extracted_bike_ride_parquet/nyc/": FileType.NYC_PARQUET,
+            "extracted_bike_ride_parquet/london/": FileType.LONDON_PARQUET,
         }
         
         new_files = []
@@ -339,7 +341,9 @@ class ExtractedFileManager:
         print()
         print("By Status:")
         print(f"  Extracted: {summary.extracted_files}")
+        print(f"  CSV Converted: {summary.csv_converted_files}")
         print(f"  Validated: {summary.validated_files}")
+        print(f"  Parquet Converted: {summary.parquet_converted_files}")
         print(f"  Processed: {summary.processed_files}")
         print(f"  Failed: {summary.failed_files}")
         print(f"  Deleted: {summary.deleted_files}")
@@ -347,4 +351,228 @@ class ExtractedFileManager:
         print("By File Type:")
         for file_type, count in summary.by_file_type.items():
             print(f"  {file_type.value}: {count}")
-        print("="*60) 
+        print("="*60)
+    
+    def convert_zip_to_csv(self, filename: str) -> bool:
+        """Convert a ZIP file to CSV and store in extracted_bike_ride_csvs/{city}/"""
+        if filename not in self._metadata_cache:
+            print(f"File {filename} not found in metadata")
+            return False
+        
+        file_meta = self._metadata_cache[filename]
+        
+        if file_meta.file_type != FileType.NYC_ZIP:
+            print(f"File {filename} is not a ZIP file")
+            return False
+        
+        if file_meta.status != FileStatus.EXTRACTED:
+            print(f"File {filename} is not in EXTRACTED status")
+            return False
+        
+        try:
+            print(f"Converting ZIP to CSV: {filename}")
+            
+            # Download ZIP file
+            zip_buffer = BytesIO()
+            self.s3_client.download_fileobj(self.s3_bucket, file_meta.s3_key, zip_buffer)
+            zip_buffer.seek(0)
+            
+            # Extract CSV from ZIP
+            with zipfile.ZipFile(zip_buffer) as zip_file:
+                csv_files = [f for f in zip_file.namelist() if f.endswith('.csv')]
+                if not csv_files:
+                    raise ValueError(f"No CSV files found in ZIP: {filename}")
+                
+                # Use the first CSV file (NYC zips typically contain one CSV)
+                csv_filename = csv_files[0]
+                csv_content = zip_file.read(csv_filename)
+                
+                # Determine city from file type
+                city = "nyc" if file_meta.file_type == FileType.NYC_ZIP else "london"
+                
+                # Create new CSV filename
+                base_name = os.path.splitext(filename)[0]
+                csv_filename = f"{base_name}.csv"
+                csv_s3_key = f"extracted_bike_ride_csvs/{city}/{csv_filename}"
+                
+                # Upload CSV to S3
+                csv_buffer = BytesIO(csv_content)
+                self.s3_client.upload_fileobj(csv_buffer, self.s3_bucket, csv_s3_key)
+                
+                # Create metadata for the new CSV file
+                csv_file_meta = FileMetadata(
+                    filename=csv_filename,
+                    s3_key=csv_s3_key,
+                    file_type=FileType.NYC_CSV if city == "nyc" else FileType.LONDON_CSV,
+                    file_size_bytes=len(csv_content),
+                    extracted_at=datetime.now(),
+                    status=FileStatus.EXTRACTED,
+                    metadata={"source_zip": filename}
+                )
+                
+                self._metadata_cache[csv_filename] = csv_file_meta
+                
+                # Update ZIP file status
+                file_meta.status = FileStatus.CSV_CONVERTED
+                file_meta.csv_converted_at = datetime.now()
+                file_meta.metadata["converted_csv"] = csv_filename
+                
+                self._save_metadata()
+                
+                print(f"Successfully converted {filename} to {csv_filename}")
+                return True
+                
+        except Exception as e:
+            error_msg = f"Failed to convert ZIP to CSV: {str(e)}"
+            file_meta.processing_errors.append(error_msg)
+            file_meta.status = FileStatus.FAILED
+            self._save_metadata()
+            print(f"Conversion failed: {error_msg}")
+            return False
+    
+    def convert_csv_to_parquet(self, filename: str) -> bool:
+        """Convert a CSV file to Parquet with schema-based organization"""
+        if filename not in self._metadata_cache:
+            print(f"File {filename} not found in metadata")
+            return False
+        
+        file_meta = self._metadata_cache[filename]
+        
+        if file_meta.file_type not in [FileType.NYC_CSV, FileType.LONDON_CSV]:
+            print(f"File {filename} is not a CSV file")
+            return False
+        
+        if file_meta.status != FileStatus.VALIDATED:
+            print(f"File {filename} is not validated")
+            return False
+        
+        try:
+            print(f"Converting CSV to Parquet: {filename}")
+            
+            # Download CSV file
+            csv_buffer = self._download_csv_sample(file_meta.s3_key, sample_size=None)  # Download full file
+            df = pd.read_csv(csv_buffer)
+            
+            # Determine schema using data model validation
+            model = self._find_matching_model(df.head(100), file_meta.file_type)
+            if model is None:
+                raise ValueError(f"No matching data model found for {filename}")
+            
+            # Transform data using the model
+            df_transformed = model.to_dataframe(df, filename)
+            
+            # Determine city and schema
+            city = "nyc" if file_meta.file_type == FileType.NYC_CSV else "london"
+            schema = model.__name__.lower()
+            
+            # Create Parquet filename and S3 key
+            base_name = os.path.splitext(filename)[0]
+            parquet_filename = f"{base_name}.parquet"
+            parquet_s3_key = f"extracted_bike_ride_parquet/{city}/{schema}/{parquet_filename}"
+            
+            # Convert to Parquet and upload
+            parquet_buffer = BytesIO()
+            df_transformed.to_parquet(parquet_buffer, index=False)
+            parquet_buffer.seek(0)
+            
+            self.s3_client.upload_fileobj(parquet_buffer, self.s3_bucket, parquet_s3_key)
+            
+            # Create metadata for the new Parquet file
+            parquet_file_meta = FileMetadata(
+                filename=parquet_filename,
+                s3_key=parquet_s3_key,
+                file_type=FileType.NYC_PARQUET if city == "nyc" else FileType.LONDON_PARQUET,
+                file_size_bytes=parquet_buffer.tell(),
+                extracted_at=datetime.now(),
+                status=FileStatus.EXTRACTED,
+                metadata={
+                    "source_csv": filename,
+                    "schema": schema,
+                    "model": model.__name__
+                }
+            )
+            
+            self._metadata_cache[parquet_filename] = parquet_file_meta
+            
+            # Update CSV file status
+            file_meta.status = FileStatus.PARQUET_CONVERTED
+            file_meta.parquet_converted_at = datetime.now()
+            file_meta.metadata["converted_parquet"] = parquet_filename
+            
+            self._save_metadata()
+            
+            print(f"Successfully converted {filename} to {parquet_filename} (schema: {schema})")
+            return True
+            
+        except Exception as e:
+            error_msg = f"Failed to convert CSV to Parquet: {str(e)}"
+            file_meta.processing_errors.append(error_msg)
+            file_meta.status = FileStatus.FAILED
+            self._save_metadata()
+            print(f"Conversion failed: {error_msg}")
+            return False
+    
+    def process_pipeline(self, filename: str) -> bool:
+        """Process a file through the entire pipeline: ZIP → CSV → Validate → Parquet"""
+        if filename not in self._metadata_cache:
+            print(f"File {filename} not found in metadata")
+            return False
+        
+        file_meta = self._metadata_cache[filename]
+        
+        # Step 1: Convert ZIP to CSV (if needed)
+        if file_meta.file_type == FileType.NYC_ZIP and file_meta.status == FileStatus.EXTRACTED:
+            if not self.convert_zip_to_csv(filename):
+                return False
+            # Get the converted CSV filename
+            csv_filename = file_meta.metadata.get("converted_csv")
+            if not csv_filename:
+                print(f"No CSV filename found in metadata for {filename}")
+                return False
+            filename = csv_filename
+            file_meta = self._metadata_cache[filename]
+        
+        # Step 2: Validate CSV
+        if file_meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and file_meta.status == FileStatus.EXTRACTED:
+            if not self.validate_file_schema(filename):
+                return False
+        
+        # Step 3: Convert CSV to Parquet
+        if file_meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and file_meta.status == FileStatus.VALIDATED:
+            if not self.convert_csv_to_parquet(filename):
+                return False
+        
+        print(f"Pipeline completed successfully for {filename}")
+        return True
+    
+    def process_all_pipelines(self, file_type: Optional[FileType] = None) -> Dict[str, bool]:
+        """Process all files through the pipeline"""
+        results = {}
+        
+        # Get files that need processing
+        files_to_process = []
+        
+        if file_type == FileType.NYC_ZIP:
+            files_to_process = [
+                filename for filename, meta in self._metadata_cache.items()
+                if meta.file_type == FileType.NYC_ZIP and meta.status == FileStatus.EXTRACTED
+            ]
+        elif file_type in [FileType.NYC_CSV, FileType.LONDON_CSV]:
+            files_to_process = [
+                filename for filename, meta in self._metadata_cache.items()
+                if meta.file_type == file_type and meta.status == FileStatus.VALIDATED
+            ]
+        else:
+            # Process all files that need pipeline processing
+            files_to_process = [
+                filename for filename, meta in self._metadata_cache.items()
+                if ((meta.file_type == FileType.NYC_ZIP and meta.status == FileStatus.EXTRACTED) or
+                    (meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and meta.status == FileStatus.VALIDATED))
+            ]
+        
+        print(f"Processing {len(files_to_process)} files through pipeline...")
+        
+        for filename in files_to_process:
+            results[filename] = self.process_pipeline(filename)
+        
+        return results 
