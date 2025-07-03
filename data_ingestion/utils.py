@@ -21,4 +21,24 @@ def check_s3_bucket():
 def upload_to_s3(local_path, s3_key):
     check_s3_bucket()
     print(f"Uploading CSV: {local_path} to s3://{S3_BUCKET}/{s3_key} ...")
-    private_s3.upload_file(local_path, S3_BUCKET, s3_key) 
+    private_s3.upload_file(local_path, S3_BUCKET, s3_key)
+
+def file_exists_in_s3(s3_key: str) -> bool:
+    """
+    Check if a file exists in S3 bucket.
+    
+    Args:
+        s3_key (str): The S3 key (path) to check
+        
+    Returns:
+        bool: True if file exists, False otherwise
+    """
+    try:
+        private_s3.head_object(Bucket=S3_BUCKET, Key=s3_key)
+        return True
+    except private_s3.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == '404':
+            return False
+        else:
+            # Something else went wrong
+            raise 
