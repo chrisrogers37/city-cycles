@@ -1,0 +1,472 @@
+"""
+Tests for Extracted File Manager
+"""
+
+import pytest
+import tempfile
+import os
+import json
+import pandas as pd
+from unittest.mock import Mock, patch, MagicMock
+from io import BytesIO
+import zipfile
+from datetime import datetime
+import botocore
+
+from extracted_file_manager import ExtractedFileManager
+from extracted_file_manager.models import FileMetadata, FileStatus, FileType, FileSummary
+from data_models.nyc_bike import NYCLegacyBikeShareRecord, NYCModernBikeShareRecord
+
+
+class TestFileMetadata:
+    """Test FileMetadata serialization/deserialization"""
+    
+    def test_to_dict(self):
+        """Test FileMetadata.to_dict()"""
+        meta = FileMetadata(
+            filename="test.csv",
+            s3_key="test/path/test.csv",
+            file_type=FileType.NYC_CSV,
+            source_url="http://example.com/test.csv",
+            file_size_bytes=1024,
+            extracted_at=datetime(2023, 1, 1, 12, 0, 0),
+            status=FileStatus.VALIDATED,
+            validation_errors=["error1"],
+            processing_errors=["error2"],
+            metadata={"key": "value"}
+        )
+        
+        data = meta.to_dict()
+        
+        assert data["filename"] == "test.csv"
+        assert data["s3_key"] == "test/path/test.csv"
+        assert data["file_type"] == "nyc_csv"
+        assert data["source_url"] == "http://example.com/test.csv"
+        assert data["file_size_bytes"] == 1024
+        assert data["status"] == "validated"
+        assert data["validation_errors"] == ["error1"]
+        assert data["processing_errors"] == ["error2"]
+        assert data["metadata"] == {"key": "value"}
+    
+    def test_from_dict(self):
+        """Test FileMetadata.from_dict()"""
+        data = {
+            "filename": "test.csv",
+            "s3_key": "test/path/test.csv",
+            "file_type": "nyc_csv",
+            "source_url": "http://example.com/test.csv",
+            "file_size_bytes": 1024,
+            "extracted_at": "2023-01-01T12:00:00",
+            "status": "validated",
+            "validation_errors": ["error1"],
+            "processing_errors": ["error2"],
+            "metadata": {"key": "value"}
+        }
+        
+        meta = FileMetadata.from_dict(data)
+        
+        assert meta.filename == "test.csv"
+        assert meta.s3_key == "test/path/test.csv"
+        assert meta.file_type == FileType.NYC_CSV
+        assert meta.source_url == "http://example.com/test.csv"
+        assert meta.file_size_bytes == 1024
+        assert meta.status == FileStatus.VALIDATED
+        assert meta.validation_errors == ["error1"]
+        assert meta.processing_errors == ["error2"]
+        assert meta.metadata == {"key": "value"}
+
+
+class TestFileSummary:
+    """Test FileSummary statistics"""
+    
+    def test_update_from_file(self):
+        """Test FileSummary.update_from_file()"""
+        summary = FileSummary()
+        
+        # Test extracted file
+        meta1 = FileMetadata(
+            filename="test1.csv",
+            s3_key="test1.csv",
+            file_type=FileType.NYC_CSV,
+            file_size_bytes=1024,
+            status=FileStatus.EXTRACTED
+        )
+        summary.update_from_file(meta1)
+        
+        assert summary.total_files == 1
+        assert summary.extracted_files == 1
+        assert summary.total_size_bytes == 1024
+        assert summary.by_file_type[FileType.NYC_CSV] == 1
+        
+        # Test validated file
+        meta2 = FileMetadata(
+            filename="test2.csv",
+            s3_key="test2.csv",
+            file_type=FileType.LONDON_CSV,
+            file_size_bytes=2048,
+            status=FileStatus.VALIDATED
+        )
+        summary.update_from_file(meta2)
+        
+        assert summary.total_files == 2
+        assert summary.extracted_files == 1
+        assert summary.validated_files == 1
+        assert summary.total_size_bytes == 3072
+        assert summary.by_file_type[FileType.LONDON_CSV] == 1
+
+
+class TestExtractedFileManager:
+    """Test ExtractedFileManager functionality"""
+    
+    @pytest.fixture
+    def mock_s3(self):
+        """Mock S3 client"""
+        with patch('extracted_file_manager.manager.boto3.client') as mock_client:
+            mock_s3 = Mock()
+            mock_client.return_value = mock_s3
+            yield mock_s3
+    
+    @pytest.fixture
+    def manager(self, mock_s3):
+        """Create ExtractedFileManager with mocked S3"""
+        with patch.dict(os.environ, {'S3_BUCKET': 'test-bucket'}):
+            manager = ExtractedFileManager()
+            return manager
+    
+    def test_init(self, mock_s3):
+        """Test ExtractedFileManager initialization"""
+        with patch.dict(os.environ, {'S3_BUCKET': 'test-bucket'}):
+            manager = ExtractedFileManager()
+            assert manager.s3_bucket == 'test-bucket'
+            assert manager.metadata_key == 'extracted_file_manager/metadata.json'
+    
+    def test_init_no_bucket(self):
+        """Test initialization without S3_BUCKET"""
+        with patch.dict(os.environ, {}, clear=True):
+            with pytest.raises(ValueError, match="S3_BUCKET environment variable is not set"):
+                ExtractedFileManager()
+    
+    def test_load_metadata_empty(self, manager, mock_s3):
+        """Test loading metadata when no file exists"""
+        error_response = {'Error': {'Code': 'NoSuchKey'}}
+        mock_s3.get_object.side_effect = botocore.exceptions.ClientError(error_response, 'GetObject')
+        
+        manager._load_metadata()
+        assert manager._metadata_cache == {}
+    
+    def test_load_metadata_existing(self, manager, mock_s3):
+        """Test loading existing metadata"""
+        metadata_data = {
+            "test.csv": {
+                "filename": "test.csv",
+                "s3_key": "test/test.csv",
+                "file_type": "nyc_csv",
+                "status": "extracted"
+            }
+        }
+        
+        mock_body = Mock()
+        mock_body.read.return_value = json.dumps(metadata_data).encode()
+        mock_response = {'Body': mock_body}
+        mock_s3.get_object.return_value = mock_response
+        
+        manager._load_metadata()
+        
+        assert len(manager._metadata_cache) == 1
+        assert "test.csv" in manager._metadata_cache
+        assert manager._metadata_cache["test.csv"].filename == "test.csv"
+    
+    def test_save_metadata(self, manager, mock_s3):
+        """Test saving metadata to S3"""
+        meta = FileMetadata(
+            filename="test.csv",
+            s3_key="test/test.csv",
+            file_type=FileType.NYC_CSV
+        )
+        manager._metadata_cache["test.csv"] = meta
+        
+        manager._save_metadata()
+        
+        # Verify S3 put_object was called with correct data
+        mock_s3.put_object.assert_called_once()
+        call_args = mock_s3.put_object.call_args
+        assert call_args[1]['Bucket'] == 'test-bucket'
+        assert call_args[1]['Key'] == 'extracted_file_manager/metadata.json'
+        
+        # Verify JSON content
+        body = call_args[1]['Body']
+        data = json.loads(body)
+        assert "test.csv" in data
+        assert data["test.csv"]["filename"] == "test.csv"
+    
+    def test_scan_s3_files_new(self, manager, mock_s3):
+        """Test scanning S3 for new files"""
+        # Mock S3 list_objects_v2 response
+        mock_paginator = Mock()
+        mock_s3.get_paginator.return_value = mock_paginator
+        
+        mock_page = {
+            'Contents': [
+                {
+                    'Key': 'extracted_bike_ride_zips/nyc/test.zip',
+                    'Size': 1024,
+                    'LastModified': datetime(2023, 1, 1, 12, 0, 0)
+                }
+            ]
+        }
+        mock_paginator.paginate.return_value = [mock_page]
+        
+        new_files = manager.scan_s3_files()
+        
+        assert len(new_files) == 1
+        assert new_files[0].filename == "test.zip"
+        assert new_files[0].file_type == FileType.NYC_ZIP
+        assert new_files[0].status == FileStatus.EXTRACTED
+    
+    def test_validate_file_schema_success(self, manager, mock_s3):
+        """Test successful schema validation"""
+        # Create test metadata
+        meta = FileMetadata(
+            filename="test.csv",
+            s3_key="test/test.csv",
+            file_type=FileType.NYC_CSV,
+            status=FileStatus.EXTRACTED
+        )
+        manager._metadata_cache["test.csv"] = meta
+        
+        # Mock CSV download using download_fileobj
+        csv_content = """tripduration,bikeid,starttime,stoptime,start station id,start station name,start station latitude,start station longitude,end station id,end station name,end station latitude,end station longitude,usertype,birth year,gender\n60,12345,2019-06-01 00:00:00,2019-06-01 00:01:00,1,Test Station,40.0,-74.0,2,Test Station 2,40.1,-74.1,Subscriber,1990,1"""
+        def download_fileobj_side_effect(bucket, key, buffer):
+            buffer.write(csv_content.encode())
+            buffer.seek(0)
+        mock_s3.download_fileobj.side_effect = download_fileobj_side_effect
+        
+        success = manager.validate_file_schema("test.csv")
+        
+        assert success
+        assert meta.status == FileStatus.VALIDATED
+        assert meta.metadata["matched_model"] == "NYCLegacyBikeShareRecord"
+    
+    def test_validate_file_schema_failure(self, manager, mock_s3):
+        """Test schema validation failure"""
+        # Create test metadata
+        meta = FileMetadata(
+            filename="test.csv",
+            s3_key="test/test.csv",
+            file_type=FileType.NYC_CSV,
+            status=FileStatus.EXTRACTED
+        )
+        manager._metadata_cache["test.csv"] = meta
+        
+        # Mock CSV download with invalid schema using download_fileobj
+        csv_content = "invalid_column,another_invalid_column\nvalue1,value2"
+        def download_fileobj_side_effect(bucket, key, buffer):
+            buffer.write(csv_content.encode())
+            buffer.seek(0)
+        mock_s3.download_fileobj.side_effect = download_fileobj_side_effect
+        
+        success = manager.validate_file_schema("test.csv")
+        
+        assert not success
+        assert meta.status == FileStatus.FAILED
+        assert len(meta.validation_errors) > 0
+    
+    def test_convert_zip_to_csv(self, manager, mock_s3):
+        """Test ZIP to CSV conversion"""
+        # Create test metadata
+        meta = FileMetadata(
+            filename="test.zip",
+            s3_key="extracted_bike_ride_zips/nyc/test.zip",
+            file_type=FileType.NYC_ZIP,
+            status=FileStatus.EXTRACTED
+        )
+        manager._metadata_cache["test.zip"] = meta
+        
+        # Create test ZIP content
+        csv_content = "tripduration,bikeid,starttime\n60,12345,2019-06-01 00:00:00"
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
+            zip_file.writestr('test.csv', csv_content)
+        zip_buffer.seek(0)
+        
+        # Mock ZIP download
+        mock_s3.download_fileobj.side_effect = lambda bucket, key, buffer: buffer.write(zip_buffer.getvalue())
+        
+        success = manager.convert_zip_to_csv("test.zip")
+        
+        assert success
+        assert meta.status == FileStatus.CSV_CONVERTED
+        assert meta.metadata["converted_csv"] == "test.csv"
+        
+        # Verify CSV was uploaded
+        mock_s3.upload_fileobj.assert_called_once()
+    
+    def test_convert_csv_to_parquet(self, manager, mock_s3):
+        """Test CSV to Parquet conversion"""
+        # Create test metadata
+        meta = FileMetadata(
+            filename="test.csv",
+            s3_key="extracted_bike_ride_csvs/nyc/test.csv",
+            file_type=FileType.NYC_CSV,
+            status=FileStatus.VALIDATED
+        )
+        manager._metadata_cache["test.csv"] = meta
+        
+        # Create test CSV content
+        csv_content = """tripduration,bikeid,starttime,stoptime,start station id,start station name,start station latitude,start station longitude,end station id,end station name,end station latitude,end station longitude,usertype,birth year,gender\n60,12345,2019-06-01 00:00:00,2019-06-01 00:01:00,1,Test Station,40.0,-74.0,2,Test Station 2,40.1,-74.1,Subscriber,1990,1"""
+        
+        # Mock CSV download
+        def download_fileobj_side_effect(bucket, key, buffer):
+            buffer.write(csv_content.encode())
+            buffer.seek(0)
+        mock_s3.download_fileobj.side_effect = download_fileobj_side_effect
+        
+        success = manager.convert_csv_to_parquet("test.csv")
+        
+        assert success
+        assert meta.status == FileStatus.PARQUET_CONVERTED
+        # Find the new parquet file metadata
+        parquet_filename = meta.metadata["converted_parquet"]
+        parquet_meta = manager._metadata_cache[parquet_filename]
+        assert parquet_meta.metadata["schema"] == "nyclegacybikesharerecord"
+        
+        # Verify Parquet was uploaded
+        mock_s3.upload_fileobj.assert_called()
+    
+    def test_process_pipeline(self, manager, mock_s3):
+        """Test complete pipeline processing"""
+        # Create test ZIP metadata
+        meta = FileMetadata(
+            filename="test.zip",
+            s3_key="extracted_bike_ride_zips/nyc/test.zip",
+            file_type=FileType.NYC_ZIP,
+            status=FileStatus.EXTRACTED
+        )
+        manager._metadata_cache["test.zip"] = meta
+        
+        # Create test ZIP content
+        csv_content = """tripduration,bikeid,starttime,stoptime,start station id,start station name,start station latitude,start station longitude,end station id,end station name,end station latitude,end station longitude,usertype,birth year,gender\n60,12345,2019-06-01 00:00:00,2019-06-01 00:01:00,1,Test Station,40.0,-74.0,2,Test Station 2,40.1,-74.1,Subscriber,1990,1"""
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
+            zip_file.writestr('test.csv', csv_content)
+        zip_buffer.seek(0)
+        
+        # Mock S3 operations for ZIP and CSV
+        def download_fileobj_side_effect(bucket, key, buffer):
+            if key.endswith('.zip'):
+                buffer.write(zip_buffer.getvalue())
+                buffer.seek(0)
+            else:
+                buffer.write(csv_content.encode())
+                buffer.seek(0)
+        mock_s3.download_fileobj.side_effect = download_fileobj_side_effect
+        
+        success = manager.process_pipeline("test.zip")
+        
+        assert success
+        # After pipeline, the original ZIP should be CSV_CONVERTED, the CSV should be PARQUET_CONVERTED
+        assert meta.status == FileStatus.CSV_CONVERTED
+        csv_filename = meta.metadata["converted_csv"]
+        csv_meta = manager._metadata_cache[csv_filename]
+        assert csv_meta.status == FileStatus.PARQUET_CONVERTED
+        parquet_filename = csv_meta.metadata["converted_parquet"]
+        parquet_meta = manager._metadata_cache[parquet_filename]
+        assert parquet_meta.metadata["schema"] == "nyclegacybikesharerecord"
+    
+    def test_get_file_summary(self, manager):
+        """Test file summary generation"""
+        # Add test files
+        meta1 = FileMetadata(
+            filename="test1.csv",
+            s3_key="test1.csv",
+            file_type=FileType.NYC_CSV,
+            file_size_bytes=1024,
+            status=FileStatus.EXTRACTED
+        )
+        meta2 = FileMetadata(
+            filename="test2.csv",
+            s3_key="test2.csv",
+            file_type=FileType.LONDON_CSV,
+            file_size_bytes=2048,
+            status=FileStatus.VALIDATED
+        )
+        
+        manager._metadata_cache["test1.csv"] = meta1
+        manager._metadata_cache["test2.csv"] = meta2
+        
+        summary = manager.get_file_summary()
+        
+        assert summary.total_files == 2
+        assert summary.extracted_files == 1
+        assert summary.validated_files == 1
+        assert summary.total_size_bytes == 3072
+        assert summary.by_file_type[FileType.NYC_CSV] == 1
+        assert summary.by_file_type[FileType.LONDON_CSV] == 1
+
+
+class TestIntegration:
+    """Integration tests with real data samples"""
+    
+    def test_nyc_legacy_schema_validation(self):
+        """Test NYC legacy schema validation with real data"""
+        # Create sample NYC legacy data
+        data = {
+            'tripduration': [60, 120],
+            'bikeid': ['12345', '67890'],
+            'starttime': ['2019-06-01 00:00:00', '2019-06-01 00:01:00'],
+            'stoptime': ['2019-06-01 00:01:00', '2019-06-01 00:03:00'],
+            'start station id': ['1', '2'],
+            'start station name': ['Station A', 'Station B'],
+            'start station latitude': [40.0, 40.1],
+            'start station longitude': [-74.0, -74.1],
+            'end station id': ['2', '3'],
+            'end station name': ['Station B', 'Station C'],
+            'end station latitude': [40.1, 40.2],
+            'end station longitude': [-74.1, -74.2],
+            'usertype': ['Subscriber', 'Customer'],
+            'birth year': [1990, 1985],
+            'gender': [1, 2]
+        }
+        
+        df = pd.DataFrame(data)
+        
+        # Test validation
+        assert NYCLegacyBikeShareRecord.validate_schema(df)
+        
+        # Test transformation
+        transformed = NYCLegacyBikeShareRecord.to_dataframe(df, "test.csv")
+        assert "source_file" in transformed.columns
+        assert len(transformed) == 2
+    
+    def test_nyc_modern_schema_validation(self):
+        """Test NYC modern schema validation with real data"""
+        # Create sample NYC modern data
+        data = {
+            'ride_id': ['ride1', 'ride2'],
+            'rideable_type': ['classic_bike', 'electric_bike'],
+            'started_at': ['2023-12-01 00:00:00', '2023-12-01 00:01:00'],
+            'ended_at': ['2023-12-01 00:01:00', '2023-12-01 00:03:00'],
+            'start_station_name': ['Station A', 'Station B'],
+            'start_station_id': ['1', '2'],
+            'end_station_name': ['Station B', 'Station C'],
+            'end_station_id': ['2', '3'],
+            'start_lat': [40.0, 40.1],
+            'start_lng': [-74.0, -74.1],
+            'end_lat': [40.1, 40.2],
+            'end_lng': [-74.1, -74.2],
+            'member_casual': ['member', 'casual']
+        }
+        
+        df = pd.DataFrame(data)
+        
+        # Test validation
+        assert NYCModernBikeShareRecord.validate_schema(df)
+        
+        # Test transformation
+        transformed = NYCModernBikeShareRecord.to_dataframe(df, "test.csv")
+        assert "source_file" in transformed.columns
+        assert len(transformed) == 2
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"]) 

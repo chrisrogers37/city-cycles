@@ -12,6 +12,7 @@ from io import BytesIO
 import zipfile
 import logging
 from dotenv import load_dotenv
+import botocore
 
 from .models import FileMetadata, FileStatus, FileType, FileSummary
 from data_models.base import BaseBikeShareRecord
@@ -41,9 +42,14 @@ class ExtractedFileManager:
                 filename: FileMetadata.from_dict(meta_data)
                 for filename, meta_data in data.items()
             }
-        except self.s3_client.exceptions.NoSuchKey:
-            # No metadata file exists yet
-            self._metadata_cache = {}
+        except botocore.exceptions.ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code')
+            if error_code == 'NoSuchKey' or error_code == '404':
+                # No metadata file exists yet
+                self._metadata_cache = {}
+            else:
+                logging.error(f"Failed to load metadata: {e}")
+                self._metadata_cache = {}
         except Exception as e:
             logging.error(f"Failed to load metadata: {e}")
             self._metadata_cache = {}
