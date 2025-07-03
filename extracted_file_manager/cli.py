@@ -14,7 +14,7 @@ def main():
     parser = argparse.ArgumentParser(description="Extracted File Manager CLI")
     parser.add_argument("command", choices=[
         "scan", "validate", "extract_zips", "convert_csvs", "pipeline", "list", "summary", "reprocess",
-        "wipe-file", "wipe-type", "wipe-all", "reprocess-failed", "reset-failed"
+        "wipe-file", "wipe-type", "wipe-all", "reprocess-failed", "reset-failed", "cleanup-macos-files"
     ], help="Command to execute")
     
     parser.add_argument("--file", help="Specific filename to process")
@@ -161,6 +161,51 @@ def main():
             print("Starting reprocessing...")
             manager.run_pipeline(city=city, file_type=file_type)
             print("Reprocessing completed.")
+            
+        elif args.command == "cleanup-macos-files":
+            if not args.confirm:
+                print("Error: --confirm required for cleanup-macos-files")
+                sys.exit(1)
+            
+            # Find all Mac OS hidden files in metadata
+            macos_files = []
+            for filename, meta in manager._metadata_cache.items():
+                if filename.startswith('._'):
+                    macos_files.append((filename, meta))
+            
+            if not macos_files:
+                print("No Mac OS hidden files found in metadata.")
+                return
+            
+            print(f"Found {len(macos_files)} Mac OS hidden files in metadata:")
+            for filename, meta in macos_files:
+                print(f"  - {filename} ({meta.s3_key})")
+            
+            # Remove from metadata
+            removed_count = 0
+            for filename, meta in macos_files:
+                try:
+                    # Try to delete from S3 (will fail if file doesn't exist, but that's OK)
+                    try:
+                        manager.s3_client.delete_object(Bucket=manager.s3_bucket, Key=meta.s3_key)
+                        print(f"Deleted from S3: {meta.s3_key}")
+                    except Exception as e:
+                        print(f"File not found in S3 (expected): {meta.s3_key}")
+                    
+                    # Remove from metadata
+                    del manager._metadata_cache[filename]
+                    removed_count += 1
+                    print(f"Removed from metadata: {filename}")
+                    
+                except Exception as e:
+                    print(f"Error removing {filename}: {e}")
+            
+            # Save updated metadata
+            if removed_count > 0:
+                manager._save_metadata()
+                print(f"\nSuccessfully removed {removed_count} Mac OS hidden files from metadata.")
+            else:
+                print("\nNo files were removed.")
             
     except Exception as e:
         print(f"Error: {e}")
