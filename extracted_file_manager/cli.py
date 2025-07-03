@@ -14,7 +14,7 @@ def main():
     parser = argparse.ArgumentParser(description="Extracted File Manager CLI")
     parser.add_argument("command", choices=[
         "scan", "validate", "extract_zips", "convert_csvs", "pipeline", "list", "summary", "reprocess",
-        "wipe-file", "wipe-type", "wipe-all", "reprocess-failed"
+        "wipe-file", "wipe-type", "wipe-all", "reprocess-failed", "reset-failed"
     ], help="Command to execute")
     
     parser.add_argument("--file", help="Specific filename to process")
@@ -108,13 +108,59 @@ def main():
             success = manager.reprocess_file(args.file)
             print(f"Reprocess {'successful' if success else 'failed'} for {args.file}")
             
+        elif args.command == "reset-failed":
+            city = args.location
+            file_type = FileType(args.type) if args.type else None
+            yes = args.confirm
+            
+            failed_files = manager.list_failed_files(city=city, file_type=file_type)
+            
+            if not failed_files:
+                print("No failed files found to reset.")
+                return
+            
+            print(f"Found {len(failed_files)} failed files to reset:")
+            for file_info in failed_files:
+                print(f"  - {file_info['key']}")
+            
+            if not yes:
+                confirm = input(f"\nReset {len(failed_files)} failed files to 'extracted' status? (y/N): ")
+                if confirm.lower() != 'y':
+                    print("Operation cancelled.")
+                    return
+            
+            reset_count = manager.reset_failed_files(city=city, file_type=file_type)
+            print(f"Successfully reset {reset_count} failed files to 'extracted' status.")
+            
         elif args.command == "reprocess-failed":
-            failed_files = manager.list_files(status=FileStatus.FAILED)
-            count = 0
-            for file_meta in failed_files:
-                if manager.reprocess_file(file_meta.filename):
-                    count += 1
-            print(f"Reprocessed {count} failed files.")
+            city = args.location
+            file_type = FileType(args.type) if args.type else None
+            yes = args.confirm
+            
+            failed_files = manager.list_failed_files(city=city, file_type=file_type)
+            
+            if not failed_files:
+                print("No failed files found to reprocess.")
+                return
+            
+            print(f"Found {len(failed_files)} failed files to reprocess:")
+            for file_info in failed_files:
+                print(f"  - {file_info['key']}")
+            
+            if not yes:
+                confirm = input(f"\nReset and reprocess {len(failed_files)} failed files? (y/N): ")
+                if confirm.lower() != 'y':
+                    print("Operation cancelled.")
+                    return
+            
+            # Reset failed files
+            reset_count = manager.reset_failed_files(city=city, file_type=file_type)
+            print(f"Reset {reset_count} failed files to 'extracted' status.")
+            
+            # Reprocess the files
+            print("Starting reprocessing...")
+            manager.run_pipeline(city=city, file_type=file_type)
+            print("Reprocessing completed.")
             
     except Exception as e:
         print(f"Error: {e}")

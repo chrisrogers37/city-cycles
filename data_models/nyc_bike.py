@@ -131,4 +131,16 @@ class NYCModernBikeShareRecord(BaseBikeShareRecord):
             "member_casual": "member_casual"
         })
         df["source_file"] = source_file
+        
+        # Ensure station IDs are treated as strings (handle alphanumeric values)
+        for col in ["start_station_id", "end_station_id"]:
+            if col in df.columns:
+                df[col] = df[col].astype(str)
+        
+        # Handle potential data quality issues in coordinates
+        for col in ["start_lat", "start_lng", "end_lat", "end_lng"]:
+            if col in df.columns:
+                # Convert to numeric, coercing errors to NaN
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        
         return df[list(cls.__dataclass_fields__.keys())] 

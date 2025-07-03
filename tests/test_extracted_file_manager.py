@@ -319,6 +319,109 @@ class TestExtractedFileManager:
         assert set(extracted_csvs) == {"a.csv", "b.csv"}
         print("Tested ZIP extraction and upload of all CSVs using tempfiles.")
     
+    def test_convert_zip_to_csv_filters_macos_hidden_files(self, manager, mock_s3):
+        """Test that Mac OS hidden files (._*) are filtered out during ZIP extraction"""
+        import zipfile
+        # Create test metadata
+        meta = FileMetadata(
+            filename="test.zip",
+            s3_key="extracted_bike_ride_zips/nyc/test.zip",
+            file_type=FileType.NYC_ZIP,
+            status=FileStatus.EXTRACTED
+        )
+        manager._metadata_cache["test.zip"] = meta
+        
+        # Create a ZIP structure with Mac OS hidden files:
+        # test.zip
+        #   ├── a.csv
+        #   ├── ._a.csv (Mac OS hidden file - should be filtered out)
+        #   ├── b.csv
+        #   └── ._b.csv (Mac OS hidden file - should be filtered out)
+        csv_content_a = b"col1,col2\n1,2\n"
+        csv_content_b = b"col1,col2\n3,4\n"
+        hidden_content = b"Mac OS hidden file content"
+        
+        test_zip_buffer = BytesIO()
+        with zipfile.ZipFile(test_zip_buffer, 'w') as test_zip:
+            test_zip.writestr('a.csv', csv_content_a)
+            test_zip.writestr('._a.csv', hidden_content)  # Mac OS hidden file
+            test_zip.writestr('b.csv', csv_content_b)
+            test_zip.writestr('._b.csv', hidden_content)  # Mac OS hidden file
+        
+        test_zip_bytes = test_zip_buffer.getvalue()
+        
+        # Mock S3 download_file to write test_zip_bytes to the temp file
+        def download_file_side_effect(bucket, key, filename):
+            with open(filename, 'wb') as f:
+                f.write(test_zip_bytes)
+        mock_s3.download_file.side_effect = download_file_side_effect
+        
+        # Mock S3 upload_fileobj to record the uploads from file objects
+        uploaded_files = {}
+        def upload_fileobj_side_effect(fileobj, bucket, key):
+            fileobj.seek(0)
+            uploaded_files[key] = fileobj.read()
+        mock_s3.upload_fileobj.side_effect = upload_fileobj_side_effect
+        
+        # Run the extraction
+        success = manager.convert_zip_to_csv("test.zip")
+        assert success
+        
+        # Check that only the regular CSV files were uploaded (not the hidden ones)
+        assert "extracted_bike_ride_csvs/nyc/a.csv" in uploaded_files
+        assert "extracted_bike_ride_csvs/nyc/b.csv" in uploaded_files
+        assert "extracted_bike_ride_csvs/nyc/._a.csv" not in uploaded_files
+        assert "extracted_bike_ride_csvs/nyc/._b.csv" not in uploaded_files
+        
+        # Check that only the regular CSVs are in metadata
+        assert "a.csv" in manager._metadata_cache
+        assert "b.csv" in manager._metadata_cache
+        assert "._a.csv" not in manager._metadata_cache
+        assert "._b.csv" not in manager._metadata_cache
+        
+        # Check that the ZIP metadata lists only the regular CSVs
+        extracted_csvs = manager._metadata_cache["test.zip"].metadata["extracted_csvs"]
+        assert set(extracted_csvs) == {"a.csv", "b.csv"}
+        assert len(extracted_csvs) == 2
+        
+        print("Tested ZIP extraction filtering out Mac OS hidden files.")
+    
+    def test_filetree_zipfile_filters_macos_hidden_files(self):
+        """Test that filetree ZipFile.extract also filters Mac OS hidden files"""
+        import zipfile
+        from extracted_file_manager.filetree import ZipFile, walk_folder
+        
+        # Create a ZIP structure with Mac OS hidden files
+        csv_content_a = b"col1,col2\n1,2\n"
+        csv_content_b = b"col1,col2\n3,4\n"
+        hidden_content = b"Mac OS hidden file content"
+        
+        test_zip_buffer = BytesIO()
+        with zipfile.ZipFile(test_zip_buffer, 'w') as test_zip:
+            test_zip.writestr('a.csv', csv_content_a)
+            test_zip.writestr('._a.csv', hidden_content)  # Mac OS hidden file
+            test_zip.writestr('b.csv', csv_content_b)
+            test_zip.writestr('._b.csv', hidden_content)  # Mac OS hidden file
+        
+        test_zip_bytes = test_zip_buffer.getvalue()
+        
+        # Create ZipFile and extract
+        zip_file = ZipFile("test.zip", test_zip_bytes)
+        folder = zip_file.extract()
+        
+        # Walk through all files in the extracted folder
+        files = list(walk_folder(folder))
+        
+        # Should only find the regular CSV files, not the hidden ones
+        file_names = [f.name for f in files]
+        assert "a.csv" in file_names
+        assert "b.csv" in file_names
+        assert "._a.csv" not in file_names
+        assert "._b.csv" not in file_names
+        assert len(files) == 2
+        
+        print("Tested filetree ZipFile.extract filtering out Mac OS hidden files.")
+    
     def test_convert_csv_to_parquet(self, manager, mock_s3):
         """Test CSV to Parquet conversion"""
         # Create test metadata
@@ -755,6 +858,212 @@ class TestIntegration:
         transformed = NYCModernBikeShareRecord.to_dataframe(df, "test.csv")
         assert "source_file" in transformed.columns
         assert len(transformed) == 2
+
+
+class TestCLI:
+    """Test CLI commands"""
+    
+    @pytest.fixture
+    def mock_manager(self):
+        """Mock ExtractedFileManager"""
+        with patch('extracted_file_manager.cli.ExtractedFileManager') as mock_class:
+            mock_manager = Mock()
+            mock_class.return_value = mock_manager
+            yield mock_manager
+    
+    @patch('sys.argv', ['cli.py', 'reset-failed'])
+    @patch('builtins.input', return_value='y')
+    def test_reset_failed_cli(self, mock_input, mock_manager):
+        """Test reset-failed CLI command"""
+        from extracted_file_manager.cli import main
+        
+        # Mock failed files
+        failed_files = [
+            {'key': 'test1.csv', 'city': 'nyc', 'file_type': 'csv', 'status': 'failed'},
+            {'key': 'test2.csv', 'city': 'nyc', 'file_type': 'csv', 'status': 'failed'}
+        ]
+        mock_manager.list_failed_files.return_value = failed_files
+        mock_manager.reset_failed_files.return_value = 2
+        
+        # Run CLI
+        main()
+        
+        # Verify calls
+        mock_manager.list_failed_files.assert_called_once()
+        mock_manager.reset_failed_files.assert_called_once()
+    
+    @patch('sys.argv', ['cli.py', 'reset-failed', '--confirm'])
+    def test_reset_failed_cli_with_confirm(self, mock_manager):
+        """Test reset-failed CLI command with --confirm flag"""
+        from extracted_file_manager.cli import main
+        
+        # Mock failed files
+        failed_files = [
+            {'key': 'test1.csv', 'city': 'nyc', 'file_type': 'csv', 'status': 'failed'}
+        ]
+        mock_manager.list_failed_files.return_value = failed_files
+        mock_manager.reset_failed_files.return_value = 1
+        
+        # Run CLI
+        main()
+        
+        # Verify calls
+        mock_manager.list_failed_files.assert_called_once()
+        mock_manager.reset_failed_files.assert_called_once()
+    
+    @patch('sys.argv', ['cli.py', 'reset-failed'])
+    @patch('builtins.input', return_value='n')
+    def test_reset_failed_cli_cancelled(self, mock_input, mock_manager):
+        """Test reset-failed CLI command when cancelled"""
+        from extracted_file_manager.cli import main
+        
+        # Mock failed files
+        failed_files = [
+            {'key': 'test1.csv', 'city': 'nyc', 'file_type': 'csv', 'status': 'failed'}
+        ]
+        mock_manager.list_failed_files.return_value = failed_files
+        
+        # Run CLI
+        main()
+        
+        # Verify calls
+        mock_manager.list_failed_files.assert_called_once()
+        mock_manager.reset_failed_files.assert_not_called()
+    
+    @patch('sys.argv', ['cli.py', 'reset-failed'])
+    def test_reset_failed_cli_no_files(self, mock_manager):
+        """Test reset-failed CLI command when no failed files exist"""
+        from extracted_file_manager.cli import main
+        
+        # Mock no failed files
+        mock_manager.list_failed_files.return_value = []
+        
+        # Run CLI
+        main()
+        
+        # Verify calls
+        mock_manager.list_failed_files.assert_called_once()
+        mock_manager.reset_failed_files.assert_not_called()
+    
+    @patch('sys.argv', ['cli.py', 'reprocess-failed'])
+    @patch('builtins.input', return_value='y')
+    def test_reprocess_failed_cli(self, mock_input, mock_manager):
+        """Test reprocess-failed CLI command"""
+        from extracted_file_manager.cli import main
+        
+        # Mock failed files
+        failed_files = [
+            {'key': 'test1.csv', 'city': 'nyc', 'file_type': 'csv', 'status': 'failed'},
+            {'key': 'test2.csv', 'city': 'nyc', 'file_type': 'csv', 'status': 'failed'}
+        ]
+        mock_manager.list_failed_files.return_value = failed_files
+        mock_manager.reset_failed_files.return_value = 2
+        
+        # Run CLI
+        main()
+        
+        # Verify calls
+        mock_manager.list_failed_files.assert_called_once()
+        mock_manager.reset_failed_files.assert_called_once()
+        mock_manager.run_pipeline.assert_called_once()
+    
+    @patch('sys.argv', ['cli.py', 'reprocess-failed', '--confirm'])
+    def test_reprocess_failed_cli_with_confirm(self, mock_manager):
+        """Test reprocess-failed CLI command with --confirm flag"""
+        from extracted_file_manager.cli import main
+        
+        # Mock failed files
+        failed_files = [
+            {'key': 'test1.csv', 'city': 'nyc', 'file_type': 'csv', 'status': 'failed'}
+        ]
+        mock_manager.list_failed_files.return_value = failed_files
+        mock_manager.reset_failed_files.return_value = 1
+        
+        # Run CLI
+        main()
+        
+        # Verify calls
+        mock_manager.list_failed_files.assert_called_once()
+        mock_manager.reset_failed_files.assert_called_once()
+        mock_manager.run_pipeline.assert_called_once()
+    
+    @patch('sys.argv', ['cli.py', 'reprocess-failed'])
+    @patch('builtins.input', return_value='n')
+    def test_reprocess_failed_cli_cancelled(self, mock_input, mock_manager):
+        """Test reprocess-failed CLI command when cancelled"""
+        from extracted_file_manager.cli import main
+        
+        # Mock failed files
+        failed_files = [
+            {'key': 'test1.csv', 'city': 'nyc', 'file_type': 'csv', 'status': 'failed'}
+        ]
+        mock_manager.list_failed_files.return_value = failed_files
+        
+        # Run CLI
+        main()
+        
+        # Verify calls
+        mock_manager.list_failed_files.assert_called_once()
+        mock_manager.reset_failed_files.assert_not_called()
+        mock_manager.run_pipeline.assert_not_called()
+    
+    @patch('sys.argv', ['cli.py', 'reprocess-failed'])
+    def test_reprocess_failed_cli_no_files(self, mock_manager):
+        """Test reprocess-failed CLI command when no failed files exist"""
+        from extracted_file_manager.cli import main
+        
+        # Mock no failed files
+        mock_manager.list_failed_files.return_value = []
+        
+        # Run CLI
+        main()
+        
+        # Verify calls
+        mock_manager.list_failed_files.assert_called_once()
+        mock_manager.reset_failed_files.assert_not_called()
+        mock_manager.run_pipeline.assert_not_called()
+    
+    @patch('sys.argv', ['cli.py', 'reset-failed', '--location', 'nyc'])
+    @patch('builtins.input', return_value='y')
+    def test_reset_failed_cli_with_location_filter(self, mock_input, mock_manager):
+        """Test reset-failed CLI command with location filter"""
+        from extracted_file_manager.cli import main
+        
+        # Mock failed files
+        failed_files = [
+            {'key': 'test1.csv', 'city': 'nyc', 'file_type': 'csv', 'status': 'failed'}
+        ]
+        mock_manager.list_failed_files.return_value = failed_files
+        mock_manager.reset_failed_files.return_value = 1
+        
+        # Run CLI
+        main()
+        
+        # Verify calls with location filter
+        mock_manager.list_failed_files.assert_called_once_with(city='nyc', file_type=None)
+        mock_manager.reset_failed_files.assert_called_once_with(city='nyc', file_type=None)
+    
+    @patch('sys.argv', ['cli.py', 'reprocess-failed', '--location', 'london', '--type', 'nyc_csv'])
+    @patch('builtins.input', return_value='y')
+    def test_reprocess_failed_cli_with_filters(self, mock_input, mock_manager):
+        """Test reprocess-failed CLI command with location and type filters"""
+        from extracted_file_manager.cli import main
+        
+        # Mock failed files
+        failed_files = [
+            {'key': 'test1.csv', 'city': 'london', 'file_type': 'csv', 'status': 'failed'}
+        ]
+        mock_manager.list_failed_files.return_value = failed_files
+        mock_manager.reset_failed_files.return_value = 1
+        
+        # Run CLI
+        main()
+        
+        # Verify calls with filters
+        from extracted_file_manager.models import FileType
+        mock_manager.list_failed_files.assert_called_once_with(city='london', file_type=FileType.NYC_CSV)
+        mock_manager.reset_failed_files.assert_called_once_with(city='london', file_type=FileType.NYC_CSV)
+        mock_manager.run_pipeline.assert_called_once_with(city='london', file_type=FileType.NYC_CSV)
 
 
 if __name__ == "__main__":

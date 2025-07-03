@@ -439,8 +439,12 @@ class ExtractedFileManager:
             extracted_csvs = []
             city = "nyc"  # This method is only for NYC ZIPs
             with zipfile.ZipFile(temp_zip_path, 'r') as zf:
-                csv_infos = [info for info in zf.infolist() if info.filename.lower().endswith('.csv')]
-                print(f"  Found {len(csv_infos)} CSV files in ZIP")
+                # Filter out Mac OS hidden files (starting with ._) and get only CSV files
+                csv_infos = [
+                    info for info in zf.infolist() 
+                    if info.filename.lower().endswith('.csv') and not info.filename.startswith('._')
+                ]
+                print(f"  Found {len(csv_infos)} CSV files in ZIP (excluding Mac OS hidden files)")
                 for info in csv_infos:
                     new_csv_filename = os.path.basename(info.filename)
                     csv_s3_key = f"extracted_bike_ride_csvs/{city}/{new_csv_filename}"
@@ -488,6 +492,73 @@ class ExtractedFileManager:
             self._save_metadata()
             print(f"Conversion failed: {error_msg}")
             return False
+    
+    def _get_column_types_for_model(self, model_class) -> Dict[str, str]:
+        """Get explicit column types for pyarrow CSV reading based on the data model."""
+        import pyarrow as pa
+        
+        # Define column type mappings for each model
+        type_mappings = {
+            'LondonModernBikeShareRecord': {
+                'Number': pa.string(),
+                'Bike number': pa.string(),  # Force string to handle alphanumeric values
+                'Bike model': pa.string(),
+                'Start date': pa.string(),  # Handle as string, convert in to_dataframe
+                'End date': pa.string(),    # Handle as string, convert in to_dataframe
+                'Total duration': pa.string(),
+                'Total duration (ms)': pa.int64(),
+                'Start station number': pa.string(),  # Force string
+                'Start station': pa.string(),
+                'End station number': pa.string(),    # Force string
+                'End station': pa.string(),
+            },
+            'NYCModernBikeShareRecord': {
+                'ride_id': pa.string(),
+                'rideable_type': pa.string(),
+                'started_at': pa.string(),
+                'ended_at': pa.string(),
+                'start_station_id': pa.string(),  # Force string to handle alphanumeric values
+                'start_station_name': pa.string(),
+                'end_station_id': pa.string(),    # Force string to handle alphanumeric values
+                'end_station_name': pa.string(),
+                'start_lat': pa.float64(),
+                'start_lng': pa.float64(),
+                'end_lat': pa.float64(),
+                'end_lng': pa.float64(),
+                'member_casual': pa.string(),
+            },
+            'NYCLegacyBikeShareRecord': {
+                'tripduration': pa.int64(),
+                'bikeid': pa.string(),
+                'starttime': pa.string(),
+                'stoptime': pa.string(),
+                'start station id': pa.string(),
+                'start station name': pa.string(),
+                'start station latitude': pa.float64(),
+                'start station longitude': pa.float64(),
+                'end station id': pa.string(),
+                'end station name': pa.string(),
+                'end station latitude': pa.float64(),
+                'end station longitude': pa.float64(),
+                'usertype': pa.string(),
+                'birth year': pa.int64(),
+                'gender': pa.int64(),
+            },
+            'LondonLegacyBikeShareRecord': {
+                'Rental Id': pa.string(),
+                'Bike Id': pa.string(),
+                'Start Date': pa.string(),  # Handle as string, convert in to_dataframe
+                'End Date': pa.string(),    # Handle as string, convert in to_dataframe
+                'StartStation Id': pa.string(),
+                'StartStation Name': pa.string(),
+                'EndStation Id': pa.string(),
+                'EndStation Name': pa.string(),
+                'Duration': pa.int64(),
+            }
+        }
+        
+        model_name = model_class.__name__
+        return type_mappings.get(model_name, {})
     
     def convert_csv_to_parquet(self, filename: str) -> bool:
         """Convert a CSV file to Parquet with schema-based organization using pyarrow streaming."""
@@ -544,9 +615,14 @@ class ExtractedFileManager:
             temp_parquet_path = temp_parquet.name
             temp_parquet.close()
             
-            # Stream CSV to Parquet using pyarrow with smaller blocks
+            # Stream CSV to Parquet using pyarrow with explicit column types
             read_options = pv.ReadOptions(block_size=5_000_000)  # 5MB blocks (reduced from 10MB)
-            convert_options = pv.ConvertOptions()
+            
+            # Get explicit column types for this model to prevent type inference issues
+            column_types = self._get_column_types_for_model(model)
+            convert_options = pv.ConvertOptions(
+                column_types=column_types if column_types else None
+            )
             
             with open(temp_csv_path, 'rb') as f:
                 reader = pv.open_csv(f, read_options=read_options, convert_options=convert_options)

@@ -33,6 +33,9 @@ flowchart TD
   - If `metadata.json` is missing, the manager will automatically scan S3 and rebuild it.
 - **Convenience Pipeline:**
   - The `pipeline` command simply runs `extract_zips` and then `convert_csvs` in order.
+- **Mac OS Hidden File Filtering:**
+  - Automatically filters out Mac OS hidden files (starting with `._`) during ZIP extraction.
+  - Prevents system files from causing validation errors and cluttering the pipeline.
 
 ## Usage
 
@@ -56,6 +59,12 @@ python -m extracted_file_manager.cli list --status validated
 
 # Show summary
 python -m extracted_file_manager.cli summary
+
+# Reset failed files (just reset flags, don't reprocess)
+python -m extracted_file_manager.cli reset-failed --location nyc
+
+# Reset and reprocess failed files
+python -m extracted_file_manager.cli reprocess-failed --location nyc --confirm
 ```
 
 ### CLI Commands
@@ -68,6 +77,18 @@ python -m extracted_file_manager.cli summary
 - `list`: List files by status/type
 - `summary`: Show a summary of all files
 - `reprocess`: Reset a file's status for reprocessing
+- `reset-failed`: Reset failed files to 'extracted' status (does not reprocess)
+- `reprocess-failed`: Reset failed files to 'extracted' status and reprocess them
+
+### Failed File Management
+
+Two commands are available for handling failed files:
+
+- **`reset-failed`**: Only resets the metadata flags of failed files to 'extracted' status. This is useful when you want to manually inspect or fix files before reprocessing.
+
+- **`reprocess-failed`**: Resets failed files to 'extracted' status AND immediately reprocesses them through the pipeline. This is useful when you've fixed the underlying issue and want to retry processing.
+
+Both commands support filtering by `--location` (nyc/london) and `--file-type` (zip/csv/parquet).
 
 ### Wipe Operations (Destructive)
 ⚠️ **WARNING**: These commands permanently delete files from S3 and require `--confirm` flag.
