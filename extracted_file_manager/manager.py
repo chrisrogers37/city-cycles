@@ -492,9 +492,8 @@ class ExtractedFileManager:
                 reader = pv.open_csv(f, read_options=read_options, convert_options=convert_options)
                 writer = None
                 for batch in reader:
-                    table = batch.to_table()
                     # Convert to pandas DataFrame for model transformation
-                    df_chunk = table.to_pandas()
+                    df_chunk = batch.to_pandas()
                     df_transformed = model.to_dataframe(df_chunk, filename)
                     # Convert back to pyarrow Table
                     table_transformed = pq.Table.from_pandas(df_transformed)
