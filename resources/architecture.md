@@ -10,7 +10,7 @@ This architecture is designed to support an end-to-end analytics workflow for an
 
 ```
 city-cycles/
-├── data_ingestion/
+├── extraction/
 │   ├── __init__.py
 │   ├── london.py                # London JourneyDataExtract scraper
 │   ├── nyc.py                   # NYC CitiBike scraper
@@ -70,14 +70,14 @@ city-cycles/
 
 ### 1. **Data Ingestion Layer**
 - **Raw data is first downloaded and staged in Amazon S3. S3 acts as the canonical raw data store.**
-- **`data_ingestion/london.py`**:
+- **`extraction/london.py`**:
   - Uses Playwright to download weekly CSVs from TfL website
   - Implements robust download handling with retries and validation
   - Uploads to S3 with standardized naming
-- **`data_ingestion/nyc.py`**:
+- **`extraction/nyc.py`**:
   - Downloads monthly CitiBike CSVs from S3 (NYC public bucket)
   - Stages them in your S3 bucket with consistent naming
-- **`data_ingestion/weather.py`**:
+- **`extraction/weather.py`**:
   - Pulls historical daily weather using OpenWeatherMap or Meteostat API
   - Stages results in S3 for later joining
 

@@ -15,7 +15,7 @@
 - [x] Confirm activation and Python compatibility
 
 ### 3. Create initial folder structure
-- [x] Generate folders: `data_ingestion`, `data_models`, `db`, `dbt_project`, `dashboards`, `config`, `scripts`, `tests`
+- [x] Generate folders: `extraction`, `data_models`, `db`, `dbt_project`, `dashboards`, `config`, `scripts`, `tests`
 
 ---
 
@@ -46,11 +46,11 @@
 ## 🌍 Phase 3: Data Ingestion & Staging (Cloud-Native)
 
 ### 9. Write and test NYC CitiBike ingestion function
-- [x] Implement function in `data_ingestion/nyc.py` to list, download, and upload all NYC CitiBike zip files from public S3 to your S3 bucket
+- [x] Implement function in `extraction/nyc.py` to list, download, and upload all NYC CitiBike zip files from public S3 to your S3 bucket
 - [x] The same function must, after downloading each zip file to EC2, unzip the archive, upload all extracted CSV(s) to S3 (e.g., under `nyc_csv/`), and clean up local files—all as part of a single ingestion process
 
 ### 10. Write and test London Santander ingestion function
-- [x] Implement function in `data_ingestion/london.py` to list, download, and upload all London Santander zip files to your S3 bucket
+- [x] Implement function in `extraction/london.py` to list, download, and upload all London Santander zip files to your S3 bucket
 - [x] The same function must, after downloading each zip file to EC2, unzip the archive, upload all extracted CSV(s) to S3 (e.g., under `london_csv/`), and clean up local files—all as part of a single ingestion process
 
 ---
@@ -166,11 +166,11 @@
 ## 🌍 Phase 9: Weather & COVID Data Ingestion (Nice-to-Have)
 
 ### 28. Weather Data Ingestion
-- [ ] Implement function in `data_ingestion/weather.py` to fetch weather data, store as CSV in S3
+- [ ] Implement function in `extraction/weather.py` to fetch weather data, store as CSV in S3
 - [ ] Ensure all intermediate files are cleaned up from EC2 after upload
 
 ### 29. COVID Data Ingestion
-- [ ] Implement function in `data_ingestion/covid.py` to fetch COVID data, store as CSV in S3
+- [ ] Implement function in `extraction/covid.py` to fetch COVID data, store as CSV in S3
 - [ ] Ensure all intermediate files are cleaned up from EC2 after upload
 
 ### 30. Update dbt models to include weather and COVID data
