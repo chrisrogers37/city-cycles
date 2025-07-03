@@ -17,6 +17,7 @@ import tempfile
 import time
 import pyarrow.csv as pv
 import pyarrow.parquet as pq
+import pyarrow as pa
 
 from .models import FileMetadata, FileStatus, FileType, FileSummary
 from data_models.base import BaseBikeShareRecord
@@ -496,7 +497,7 @@ class ExtractedFileManager:
                     df_chunk = batch.to_pandas()
                     df_transformed = model.to_dataframe(df_chunk, filename)
                     # Convert back to pyarrow Table
-                    table_transformed = pq.Table.from_pandas(df_transformed)
+                    table_transformed = pa.Table.from_pandas(df_transformed)
                     if writer is None:
                         writer = pq.ParquetWriter(temp_parquet_path, table_transformed.schema)
                     writer.write_table(table_transformed)
