@@ -272,7 +272,10 @@ class TestExtractedFileManager:
         assert len(meta.validation_errors) > 0
     
     def test_convert_zip_to_csv(self, manager, mock_s3):
-        """Test ZIP to CSV conversion"""
+        """Test ZIP to CSV conversion with nested ZIPs and multiple CSVs using filetree"""
+        from extracted_file_manager.filetree import ZipFile as ZipFileNode
+        import zipfile
+        import tempfile
         # Create test metadata
         meta = FileMetadata(
             filename="test.zip",
@@ -281,25 +284,47 @@ class TestExtractedFileManager:
             status=FileStatus.EXTRACTED
         )
         manager._metadata_cache["test.zip"] = meta
-        
-        # Create test ZIP content
-        csv_content = "tripduration,bikeid,starttime\n60,12345,2019-06-01 00:00:00"
-        zip_buffer = BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
-            zip_file.writestr('test.csv', csv_content)
-        zip_buffer.seek(0)
-        
-        # Mock ZIP download
-        mock_s3.download_fileobj.side_effect = lambda bucket, key, buffer: buffer.write(zip_buffer.getvalue())
-        
+        # Create a nested ZIP structure in memory:
+        # test.zip
+        #   ├── a.csv
+        #   └── nested.zip
+        #         └── b.csv
+        csv_content_a = b"col1,col2\n1,2\n"
+        csv_content_b = b"col1,col2\n3,4\n"
+        # Create nested.zip in memory
+        nested_zip_buffer = BytesIO()
+        with zipfile.ZipFile(nested_zip_buffer, 'w') as nested_zip:
+            nested_zip.writestr('b.csv', csv_content_b)
+        nested_zip_bytes = nested_zip_buffer.getvalue()
+        # Create test.zip in memory
+        test_zip_buffer = BytesIO()
+        with zipfile.ZipFile(test_zip_buffer, 'w') as test_zip:
+            test_zip.writestr('a.csv', csv_content_a)
+            test_zip.writestr('nested.zip', nested_zip_bytes)
+        test_zip_bytes = test_zip_buffer.getvalue()
+        # Mock S3 download_file to write test_zip_bytes to the temp file
+        def download_file_side_effect(bucket, key, filename):
+            with open(filename, 'wb') as f:
+                f.write(test_zip_bytes)
+        mock_s3.download_file.side_effect = download_file_side_effect
+        # Mock S3 upload_fileobj to just record the uploads
+        uploaded_files = {}
+        def upload_fileobj_side_effect(buffer, bucket, key):
+            uploaded_files[key] = buffer.getvalue()
+        mock_s3.upload_fileobj.side_effect = upload_fileobj_side_effect
+        # Run the extraction (debug output will be printed)
         success = manager.convert_zip_to_csv("test.zip")
-        
         assert success
-        assert meta.status == FileStatus.CSV_CONVERTED
-        assert meta.metadata["converted_csv"] == "test.csv"
-        
-        # Verify CSV was uploaded
-        mock_s3.upload_fileobj.assert_called_once()
+        # Check that both CSVs were uploaded
+        assert "extracted_bike_ride_csvs/nyc/a.csv" in uploaded_files
+        assert "extracted_bike_ride_csvs/nyc/b.csv" in uploaded_files
+        # Check that both CSVs are in metadata
+        assert "a.csv" in manager._metadata_cache
+        assert "b.csv" in manager._metadata_cache
+        # Check that the ZIP metadata lists both CSVs
+        extracted_csvs = manager._metadata_cache["test.zip"].metadata["extracted_csvs"]
+        assert set(extracted_csvs) == {"a.csv", "b.csv"}
+        print("Tested recursive ZIP extraction and upload of all CSVs.")
     
     def test_convert_csv_to_parquet(self, manager, mock_s3):
         """Test CSV to Parquet conversion"""
@@ -352,21 +377,31 @@ class TestExtractedFileManager:
         zip_buffer.seek(0)
         
         # Mock S3 operations for ZIP and CSV
+        def download_file_side_effect(bucket, key, filename):
+            with open(filename, 'wb') as f:
+                f.write(zip_buffer.getvalue())
+        
         def download_fileobj_side_effect(bucket, key, buffer):
-            if key.endswith('.zip'):
-                buffer.write(zip_buffer.getvalue())
-                buffer.seek(0)
-            else:
-                buffer.write(csv_content.encode())
-                buffer.seek(0)
+            buffer.write(csv_content.encode())
+            buffer.seek(0)
+        
+        # Mock S3 upload_fileobj for CSV uploads
+        def upload_fileobj_side_effect(buffer, bucket, key):
+            pass  # Just record the upload
+        
+        mock_s3.download_file.side_effect = download_file_side_effect
         mock_s3.download_fileobj.side_effect = download_fileobj_side_effect
+        mock_s3.upload_fileobj.side_effect = upload_fileobj_side_effect
         
         success = manager.process_pipeline("test.zip")
         
         assert success
-        # After pipeline, the original ZIP should be CSV_CONVERTED, the CSV should be PARQUET_CONVERTED
+        # After pipeline, the original ZIP should be CSV_CONVERTED
         assert meta.status == FileStatus.CSV_CONVERTED
-        csv_filename = meta.metadata["converted_csv"]
+        # Check that the CSV was extracted and processed
+        extracted_csvs = meta.metadata["extracted_csvs"]
+        assert len(extracted_csvs) == 1
+        csv_filename = extracted_csvs[0]
         csv_meta = manager._metadata_cache[csv_filename]
         assert csv_meta.status == FileStatus.PARQUET_CONVERTED
         parquet_filename = csv_meta.metadata["converted_parquet"]

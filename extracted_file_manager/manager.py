@@ -18,6 +18,7 @@ import time
 
 from .models import FileMetadata, FileStatus, FileType, FileSummary
 from data_models.base import BaseBikeShareRecord
+from .filetree import ZipFile as ZipFileNode, walk_folder
 
 # Load environment variables
 load_dotenv()
@@ -362,92 +363,64 @@ class ExtractedFileManager:
         print("="*60)
     
     def convert_zip_to_csv(self, filename: str) -> bool:
-        """Convert a ZIP file to CSV and store in extracted_bike_ride_csvs/{city}/"""
+        """Recursively extract all CSVs from a ZIP using filetree, upload to S3, and track metadata."""
         if filename not in self._metadata_cache:
             print(f"File {filename} not found in metadata")
             return False
-        
         file_meta = self._metadata_cache[filename]
-        
         if file_meta.file_type != FileType.NYC_ZIP:
             print(f"File {filename} is not a ZIP file")
             return False
-        
         if file_meta.status != FileStatus.EXTRACTED:
             print(f"File {filename} is not in EXTRACTED status")
             return False
-        
         try:
-            print(f"Converting ZIP to CSV: {filename}")
-            
-            # Download ZIP file to temporary file to avoid memory issues
+            print(f"Recursively extracting all CSVs from ZIP: {filename}")
+            # Download ZIP file to temp file
             with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as temp_zip:
                 temp_zip_path = temp_zip.name
-                
-            # Download ZIP file to temp file
             self.s3_client.download_file(self.s3_bucket, file_meta.s3_key, temp_zip_path)
-            
-            # Extract ALL CSVs from ZIP using file operations
-            extracted_csvs = []
-            
-            with zipfile.ZipFile(temp_zip_path, 'r') as zip_file:
-                csv_files = [f for f in zip_file.namelist() if f.endswith('.csv')]
-                if not csv_files:
-                    raise ValueError(f"No CSV files found in ZIP: {filename}")
-                
-                print(f"  Found {len(csv_files)} CSV files in ZIP")
-                
-                # Process each CSV file
-                for csv_filename in csv_files:
-                    print(f"  Extracting: {csv_filename}")
-                    
-                    # Read CSV content
-                    with zip_file.open(csv_filename) as csv_file:
-                        csv_content = csv_file.read()
-                    
-                    # Determine city from file type
-                    city = "nyc" if file_meta.file_type == FileType.NYC_ZIP else "london"
-                    
-                    # Create new CSV filename (use the original CSV filename)
-                    new_csv_filename = os.path.basename(csv_filename)
-                    csv_s3_key = f"extracted_bike_ride_csvs/{city}/{new_csv_filename}"
-                    
-                    # Upload CSV to S3 using streaming
-                    csv_buffer = BytesIO(csv_content)
-                    self.s3_client.upload_fileobj(csv_buffer, self.s3_bucket, csv_s3_key)
-                    
-                    # Create metadata for the new CSV file
-                    csv_file_meta = FileMetadata(
-                        filename=new_csv_filename,
-                        s3_key=csv_s3_key,
-                        file_type=FileType.NYC_CSV if city == "nyc" else FileType.LONDON_CSV,
-                        file_size_bytes=len(csv_content),
-                        extracted_at=datetime.now(),
-                        status=FileStatus.EXTRACTED,
-                        metadata={"source_zip": filename}
-                    )
-                    
-                    self._metadata_cache[new_csv_filename] = csv_file_meta
-                    extracted_csvs.append(new_csv_filename)
-                    
-                    print(f"  ✓ Uploaded {new_csv_filename} to S3")
-            
-            # Clean up temp ZIP file
+            # Read ZIP content into memory (streaming for large files can be added if needed)
+            with open(temp_zip_path, 'rb') as f:
+                zip_content = f.read()
             os.unlink(temp_zip_path)
-            
-            # Update ZIP file status
+            # Build the file tree
+            root_zip_node = ZipFileNode(filename, zip_content, None)
+            root_folder = root_zip_node.extract()
+            # Recursively upload all CSVs
+            extracted_csvs = []
+            city = "nyc"  # This method is only for NYC ZIPs
+            for csv_node in walk_folder(root_folder):
+                if not csv_node.name.lower().endswith('.csv'):
+                    continue
+                new_csv_filename = os.path.basename(csv_node.name)
+                csv_s3_key = f"extracted_bike_ride_csvs/{city}/{new_csv_filename}"
+                # Upload CSV to S3
+                csv_buffer = BytesIO(csv_node.content)
+                self.s3_client.upload_fileobj(csv_buffer, self.s3_bucket, csv_s3_key)
+                # Create metadata for the new CSV file
+                csv_file_meta = FileMetadata(
+                    filename=new_csv_filename,
+                    s3_key=csv_s3_key,
+                    file_type=FileType.NYC_CSV,
+                    file_size_bytes=len(csv_node.content),
+                    extracted_at=datetime.now(),
+                    status=FileStatus.EXTRACTED,
+                    metadata={"source_zip": filename}
+                )
+                self._metadata_cache[new_csv_filename] = csv_file_meta
+                extracted_csvs.append(new_csv_filename)
+                print(f"  ✓ Uploaded {new_csv_filename} to S3")
+            # Update ZIP file status and metadata
             file_meta.status = FileStatus.CSV_CONVERTED
             file_meta.csv_converted_at = datetime.now()
             file_meta.metadata["extracted_csvs"] = extracted_csvs
             file_meta.metadata["csv_count"] = len(extracted_csvs)
-            
             self._save_metadata()
-            
-            print(f"Successfully extracted {len(extracted_csvs)} CSV files from {filename}")
+            print(f"Successfully extracted and uploaded {len(extracted_csvs)} CSV files from {filename}")
             return True
-            
         except Exception as e:
-            error_msg = f"Failed to convert ZIP to CSV: {str(e)}"
+            error_msg = f"Failed to recursively extract ZIP: {str(e)}"
             file_meta.processing_errors.append(error_msg)
             file_meta.status = FileStatus.FAILED
             self._save_metadata()
@@ -548,23 +521,47 @@ class ExtractedFileManager:
         if file_meta.file_type == FileType.NYC_ZIP and file_meta.status == FileStatus.EXTRACTED:
             if not self.convert_zip_to_csv(filename):
                 return False
-            # Get the converted CSV filename
-            csv_filename = file_meta.metadata.get("converted_csv")
-            if not csv_filename:
-                print(f"No CSV filename found in metadata for {filename}")
+            
+            # Get all the extracted CSV filenames
+            extracted_csvs = file_meta.metadata.get("extracted_csvs", [])
+            if not extracted_csvs:
+                print(f"No CSV files found in metadata for {filename}")
                 return False
-            filename = csv_filename
-            file_meta = self._metadata_cache[filename]
+            
+            # Process each extracted CSV through the rest of the pipeline
+            csv_success_count = 0
+            for csv_filename in extracted_csvs:
+                if csv_filename in self._metadata_cache:
+                    csv_meta = self._metadata_cache[csv_filename]
+                    
+                    # Step 2: Validate CSV
+                    if csv_meta.status == FileStatus.EXTRACTED:
+                        if not self.validate_file_schema(csv_filename):
+                            continue
+                    
+                    # Step 3: Convert CSV to Parquet
+                    if csv_meta.status == FileStatus.VALIDATED:
+                        if not self.convert_csv_to_parquet(csv_filename):
+                            continue
+                        csv_success_count += 1
+            
+            print(f"Pipeline completed for {csv_success_count}/{len(extracted_csvs)} CSV files from {filename}")
+            return csv_success_count > 0
         
-        # Step 2: Validate CSV
-        if file_meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and file_meta.status == FileStatus.EXTRACTED:
-            if not self.validate_file_schema(filename):
-                return False
-        
-        # Step 3: Convert CSV to Parquet
-        if file_meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and file_meta.status == FileStatus.VALIDATED:
-            if not self.convert_csv_to_parquet(filename):
-                return False
+        # Handle individual CSV files (not from ZIP)
+        elif file_meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV]:
+            # Step 2: Validate CSV
+            if file_meta.status == FileStatus.EXTRACTED:
+                if not self.validate_file_schema(filename):
+                    return False
+            
+            # Step 3: Convert CSV to Parquet
+            if file_meta.status == FileStatus.VALIDATED:
+                if not self.convert_csv_to_parquet(filename):
+                    return False
+            
+            print(f"Pipeline completed successfully for {filename}")
+            return True
         
         print(f"Pipeline completed successfully for {filename}")
         return True

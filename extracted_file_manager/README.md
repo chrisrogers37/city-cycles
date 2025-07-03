@@ -1,3 +1,41 @@
+# Extracted File Manager: S3 ZIP/CSV/Parquet Pipeline
+
+## Pipeline Flow Diagram
+
+```mermaid
+flowchart TD
+    A[S3: extracted_bike_ride_zips/nyc/*.zip] -->|scan| B[metadata.json: ZIP file registered]
+    B -->|pipeline| C[Extract ZIP: find all CSVs]
+    C --> D[Upload CSVs to S3: extracted_bike_ride_csvs/nyc/*.csv]
+    D --> E[metadata.json: CSV files registered]
+    E -->|pipeline| F[Validate CSV schema]
+    F -->|pipeline| G[Convert CSV to Parquet]
+    G --> H[Upload Parquet to S3: extracted_bike_ride_parquet/nyc/schema/*.parquet]
+    H --> I[metadata.json: Parquet files registered]
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style D fill:#bbf,stroke:#333,stroke-width:2px
+    style H fill:#bfb,stroke:#333,stroke-width:2px
+    style B fill:#fff,stroke:#333,stroke-width:1px
+    style E fill:#fff,stroke:#333,stroke-width:1px
+    style I fill:#fff,stroke:#333,stroke-width:1px
+    style C fill:#ffd,stroke:#333,stroke-width:1px
+    style F fill:#ffd,stroke:#333,stroke-width:1px
+    style G fill:#ffd,stroke:#333,stroke-width:1px
+    classDef step fill:#ffd,stroke:#333,stroke-width:1px;
+```
+
+## Explanation
+
+1. **ZIPs in S3**: Place raw ZIP files in `extracted_bike_ride_zips/nyc/` (or `london/`).
+2. **Scan**: Run `python -m extracted_file_manager.cli scan` to populate `metadata.json` with all found files (ZIPs, CSVs, Parquet, etc.).
+3. **Pipeline Step 1**: The pipeline finds ZIPs needing processing, extracts all CSVs from each ZIP, and uploads them to `extracted_bike_ride_csvs/{city}/`.
+4. **Metadata Update**: Each new CSV is registered in `metadata.json` for further processing.
+5. **Pipeline Step 2**: Each CSV is validated against the schema using the data models.
+6. **Pipeline Step 3**: Validated CSVs are converted to Parquet, uploaded to `extracted_bike_ride_parquet/{city}/{schema}/`, and registered in metadata.
+
+- If you delete `metadata.json`, you must re-run `scan` to repopulate the file list from S3.
+- The pipeline will always extract and register new CSVs from ZIPs, so you do not need to manually track ZIP contents.
+
 # Extracted File Manager
 
 Manages extracted ZIP and CSV files on S3 with a complete pipeline for data processing.
