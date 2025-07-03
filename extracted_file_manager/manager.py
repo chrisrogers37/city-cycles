@@ -363,7 +363,7 @@ class ExtractedFileManager:
         print("="*60)
     
     def convert_zip_to_csv(self, filename: str) -> bool:
-        """Recursively extract all CSVs from a ZIP using filetree, upload to S3, and track metadata."""
+        """Extract all CSVs from a ZIP using tempfiles, upload to S3, and track metadata."""
         if filename not in self._metadata_cache:
             print(f"File {filename} not found in metadata")
             return False
@@ -375,42 +375,48 @@ class ExtractedFileManager:
             print(f"File {filename} is not in EXTRACTED status")
             return False
         try:
-            print(f"Recursively extracting all CSVs from ZIP: {filename}")
+            print(f"Extracting all CSVs from ZIP (using tempfiles): {filename}")
             # Download ZIP file to temp file
             with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as temp_zip:
                 temp_zip_path = temp_zip.name
             self.s3_client.download_file(self.s3_bucket, file_meta.s3_key, temp_zip_path)
-            # Read ZIP content into memory (streaming for large files can be added if needed)
-            with open(temp_zip_path, 'rb') as f:
-                zip_content = f.read()
-            os.unlink(temp_zip_path)
-            # Build the file tree
-            root_zip_node = ZipFileNode(filename, zip_content, None)
-            root_folder = root_zip_node.extract()
-            # Recursively upload all CSVs
             extracted_csvs = []
             city = "nyc"  # This method is only for NYC ZIPs
-            for csv_node in walk_folder(root_folder):
-                if not csv_node.name.lower().endswith('.csv'):
-                    continue
-                new_csv_filename = os.path.basename(csv_node.name)
-                csv_s3_key = f"extracted_bike_ride_csvs/{city}/{new_csv_filename}"
-                # Upload CSV to S3
-                csv_buffer = BytesIO(csv_node.content)
-                self.s3_client.upload_fileobj(csv_buffer, self.s3_bucket, csv_s3_key)
-                # Create metadata for the new CSV file
-                csv_file_meta = FileMetadata(
-                    filename=new_csv_filename,
-                    s3_key=csv_s3_key,
-                    file_type=FileType.NYC_CSV,
-                    file_size_bytes=len(csv_node.content),
-                    extracted_at=datetime.now(),
-                    status=FileStatus.EXTRACTED,
-                    metadata={"source_zip": filename}
-                )
-                self._metadata_cache[new_csv_filename] = csv_file_meta
-                extracted_csvs.append(new_csv_filename)
-                print(f"  ✓ Uploaded {new_csv_filename} to S3")
+            with zipfile.ZipFile(temp_zip_path, 'r') as zf:
+                csv_infos = [info for info in zf.infolist() if info.filename.lower().endswith('.csv')]
+                print(f"  Found {len(csv_infos)} CSV files in ZIP")
+                for info in csv_infos:
+                    new_csv_filename = os.path.basename(info.filename)
+                    csv_s3_key = f"extracted_bike_ride_csvs/{city}/{new_csv_filename}"
+                    print(f"  Extracting: {info.filename}")
+                    # Extract to temp file
+                    with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_csv:
+                        with zf.open(info) as source:
+                            while True:
+                                chunk = source.read(1024 * 1024)  # 1MB chunks
+                                if not chunk:
+                                    break
+                                temp_csv.write(chunk)
+                        temp_csv_path = temp_csv.name
+                    # Upload to S3
+                    with open(temp_csv_path, 'rb') as f:
+                        self.s3_client.upload_fileobj(f, self.s3_bucket, csv_s3_key)
+                    file_size = os.path.getsize(temp_csv_path)
+                    os.unlink(temp_csv_path)
+                    # Create metadata for the new CSV file
+                    csv_file_meta = FileMetadata(
+                        filename=new_csv_filename,
+                        s3_key=csv_s3_key,
+                        file_type=FileType.NYC_CSV,
+                        file_size_bytes=file_size,
+                        extracted_at=datetime.now(),
+                        status=FileStatus.EXTRACTED,
+                        metadata={"source_zip": filename}
+                    )
+                    self._metadata_cache[new_csv_filename] = csv_file_meta
+                    extracted_csvs.append(new_csv_filename)
+                    print(f"  ✓ Uploaded {new_csv_filename} to S3")
+            os.unlink(temp_zip_path)
             # Update ZIP file status and metadata
             file_meta.status = FileStatus.CSV_CONVERTED
             file_meta.csv_converted_at = datetime.now()
@@ -420,7 +426,7 @@ class ExtractedFileManager:
             print(f"Successfully extracted and uploaded {len(extracted_csvs)} CSV files from {filename}")
             return True
         except Exception as e:
-            error_msg = f"Failed to recursively extract ZIP: {str(e)}"
+            error_msg = f"Failed to extract ZIP with tempfiles: {str(e)}"
             file_meta.processing_errors.append(error_msg)
             file_meta.status = FileStatus.FAILED
             self._save_metadata()
