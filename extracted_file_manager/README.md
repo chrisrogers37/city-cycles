@@ -84,8 +84,10 @@ python -m extracted_file_manager.cli convert_csvs --file "2023-01-nyc-data.csv"
 |---------|-------------|---------|
 | `scan` | Scan S3 for new files and update metadata | None |
 | `extract_zips` | Extract ZIPs to CSVs | `--location`, `--file` |
-| `convert_csvs` | Validate and convert CSVs to Parquet | `--location`, `--file` |
+| `convert_csvs` | Auto-validate and convert CSVs to Parquet | `--location`, `--file` |
 | `validate` | Validate file schemas (without conversion) | `--file`, `--file-type`, `--debug` |
+
+**Note**: The `convert_csvs` command automatically validates files before conversion. Files that fail validation are skipped.
 
 ### File Management Commands
 

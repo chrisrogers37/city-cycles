@@ -1029,6 +1029,14 @@ class ExtractedFileManager:
                         
                 elif operation == "convert":
                     if file_meta.file_type == FileType.CSV:
+                        # Auto-validate if not already validated
+                        if file_meta.status != FileStatus.VALIDATED:
+                            print(f"Auto-validating {filename} before conversion...")
+                            validation_success = self.validate_file_schema(filename)
+                            if not validation_success:
+                                print(f"Skipping {filename}: validation failed")
+                                results[filename] = False
+                                continue
                         results[filename] = self.convert_csv_to_parquet(filename)
                     else:
                         print(f"Skipping {filename}: not a CSV file")
