@@ -72,6 +72,12 @@ class DuckDBManager:
             schema_sql: SQL CREATE TABLE statement
         """
         try:
+            # Check if table already exists
+            existing_tables = self.list_tables()
+            if table_name in existing_tables:
+                logger.info(f"Table {table_name} already exists, skipping creation")
+                return
+            
             self.con.execute(schema_sql)
             logger.info(f"Created table: {table_name}")
         except Exception as e:
@@ -159,10 +165,10 @@ class DuckDBManager:
                     SELECT 
                         column_name,
                         CASE 
-                            WHEN data_type LIKE '%VARCHAR%' THEN 100  -- Approximate
-                            WHEN data_type LIKE '%INTEGER%' THEN 8
-                            WHEN data_type LIKE '%DOUBLE%' THEN 8
-                            WHEN data_type LIKE '%TIMESTAMP%' THEN 8
+                            WHEN column_type LIKE '%VARCHAR%' THEN 100  -- Approximate
+                            WHEN column_type LIKE '%INTEGER%' THEN 8
+                            WHEN column_type LIKE '%DOUBLE%' THEN 8
+                            WHEN column_type LIKE '%TIMESTAMP%' THEN 8
                             ELSE 50
                         END * {row_count} as column_size
                     FROM (
