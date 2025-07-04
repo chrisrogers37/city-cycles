@@ -68,12 +68,10 @@ def load_all_schemas(dry_run: bool = False, replace: bool = True):
                         
                         logger.info(f"✓ Successfully loaded {rows_loaded:,} rows into {table_name}")
                         
-                        # Run validation query
-                        validation_result = db.execute_query(VALIDATION_QUERIES[table_name])
-                        if validation_result:
-                            logger.info(f"Validation results for {table_name}:")
-                            for key, value in validation_result[0].items():
-                                logger.info(f"  {key}: {value}")
+                        # Skip validation during loading to save memory
+                        # Validation can be run separately with verify_data.py
+                        logger.info(f"✓ Successfully loaded {rows_loaded:,} rows into {table_name}")
+                        logger.info(f"  Run 'python db_duckdb/verify_data.py' for detailed validation")
                 
                 except Exception as e:
                     logger.error(f"✗ Failed to load {table_name}: {e}")

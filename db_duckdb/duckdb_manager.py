@@ -33,6 +33,10 @@ class DuckDBManager:
             # Connect to DuckDB
             self.con = duckdb.connect(self.db_path)
             
+            # Set memory limits for low-RAM environments
+            self.con.execute("SET memory_limit='512MB'")
+            self.con.execute("SET temp_directory='./temp'")
+            
             # Install and load required extensions
             self.con.execute("INSTALL httpfs")
             self.con.execute("LOAD httpfs")
@@ -151,8 +155,9 @@ class DuckDBManager:
             Dictionary with table information
         """
         try:
-            # Get schema
-            schema = self.con.execute(f"DESCRIBE {table_name}").fetchdf()
+            # Get schema (avoid pandas DataFrame for memory efficiency)
+            schema_result = self.con.execute(f"DESCRIBE {table_name}").fetchall()
+            schema = [{"column_name": row[0], "column_type": row[1], "default": row[2]} for row in schema_result]
             
             # Get row count
             row_count = self.con.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
@@ -210,8 +215,13 @@ class DuckDBManager:
             Query results as dictionary
         """
         try:
-            result = self.con.execute(query).fetchdf()
-            return result.to_dict('records')
+            # Use fetchall() instead of fetchdf() for memory efficiency
+            result = self.con.execute(query).fetchall()
+            if result:
+                # Convert to list of dicts manually
+                columns = [desc[0] for desc in self.con.description]
+                return [dict(zip(columns, row)) for row in result]
+            return []
         except Exception as e:
             logger.error(f"Failed to execute query: {e}")
             raise
