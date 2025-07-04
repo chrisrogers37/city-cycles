@@ -55,8 +55,8 @@ class ZipFile(File):
                     child = ZipFile(info.filename, data, folder)
                     folder.add_child(child.extract())
                 
-                # Handle CSV files (case-insensitive)
-                elif info.filename.lower().endswith('.csv'):
+                # Handle CSV files (case-insensitive), excluding Mac OS hidden files
+                elif info.filename.lower().endswith('.csv') and not info.filename.startswith('._'):
                     print(f"DEBUG: Found CSV file: {info.filename}")
                     child = File(info.filename, data, folder)
                     folder.add_child(child)
@@ -83,6 +83,10 @@ class ZipFile(File):
                                 new_folder = Folder(part, current_folder)
                                 current_folder.add_child(new_folder)
                                 current_folder = new_folder
+                
+                # Handle CSV files that are Mac OS hidden files (skip them)
+                elif info.filename.lower().endswith('.csv') and info.filename.startswith('._'):
+                    print(f"DEBUG: Skipping Mac OS hidden CSV file: {info.filename}")
                 
                 else:
                     print(f"DEBUG: Found other file: {info.filename}")

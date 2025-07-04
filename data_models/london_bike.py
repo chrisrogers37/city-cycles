@@ -4,6 +4,7 @@ from typing import Optional, Dict, Any
 import pandas as pd
 from data_models.base import BaseBikeShareRecord
 import re
+import os
 
 @dataclass
 class LondonLegacyBikeShareRecord(BaseBikeShareRecord):
@@ -22,21 +23,28 @@ class LondonLegacyBikeShareRecord(BaseBikeShareRecord):
     staging_table = "raw_london_legacy"
     s3_prefix = "london_csv/"
 
+    # Store required columns for detailed validation
+    _required_columns = [
+        "Rental Id",
+        "Bike Id",
+        "Start Date",
+        "End Date",
+        "StartStation Id",
+        "StartStation Name",
+        "EndStation Id",
+        "EndStation Name",
+        "Duration"
+    ]
+
     @classmethod
     def validate_schema(cls, df: pd.DataFrame) -> bool:
         """Validate if the dataframe contains all required columns for legacy London format."""
-        required_columns = [
-            "Rental Id",
-            "Bike Id",
-            "Start Date",
-            "End Date",
-            "StartStation Id",
-            "StartStation Name",
-            "EndStation Id",
-            "EndStation Name",
-            "Duration"
-        ]
-        missing_columns = [col for col in required_columns if col not in df.columns]
+        debug_mode = os.environ.get('EXTRACTED_FILE_MANAGER_DEBUG') == '1'
+        
+        missing_columns = [col for col in cls._required_columns if col not in df.columns]
+        if missing_columns and debug_mode:
+            print(f"DEBUG: LondonLegacyBikeShareRecord validation failed - missing columns: {missing_columns}")
+            print(f"DEBUG: Available columns: {list(df.columns)}")
         return not missing_columns
 
     @classmethod
@@ -76,21 +84,28 @@ class LondonModernBikeShareRecord(BaseBikeShareRecord):
     staging_table = "raw_london_modern"
     s3_prefix = "london_csv/"
 
+    # Store required columns for detailed validation
+    _required_columns = [
+        "Number",
+        "Bike model",
+        "Start date",
+        "End date",
+        "Start station number",
+        "Start station",
+        "End station number",
+        "End station",
+        "Total duration"
+    ]
+
     @classmethod
     def validate_schema(cls, df: pd.DataFrame) -> bool:
         """Validate if the dataframe contains all required columns for modern London format."""
-        required_columns = [
-            "Number",
-            "Bike model",
-            "Start date",
-            "End date",
-            "Start station number",
-            "Start station",
-            "End station number",
-            "End station",
-            "Total duration"
-        ]
-        missing_columns = [col for col in required_columns if col not in df.columns]
+        debug_mode = os.environ.get('EXTRACTED_FILE_MANAGER_DEBUG') == '1'
+        
+        missing_columns = [col for col in cls._required_columns if col not in df.columns]
+        if missing_columns and debug_mode:
+            print(f"DEBUG: LondonModernBikeShareRecord validation failed - missing columns: {missing_columns}")
+            print(f"DEBUG: Available columns: {list(df.columns)}")
         return not missing_columns
 
     @classmethod
@@ -109,7 +124,25 @@ class LondonModernBikeShareRecord(BaseBikeShareRecord):
             "End station": "end_station"
         })
         df["source_file"] = source_file
+        
+        # Handle date format variations
         for col in ["start_date", "end_date"]:
-            # Modern format uses YYYY-MM-DD HH:MM
-            df[col] = pd.to_datetime(df[col], format="%Y-%m-%d %H:%M").dt.strftime("%Y-%m-%d %H:%M:%S")
+            try:
+                # Try modern format first (YYYY-MM-DD HH:MM)
+                df[col] = pd.to_datetime(df[col], format="%Y-%m-%d %H:%M")
+            except ValueError:
+                try:
+                    # Try legacy format (DD/MM/YYYY HH:MM)
+                    df[col] = pd.to_datetime(df[col], format="%d/%m/%Y %H:%M")
+                except ValueError:
+                    # Try mixed format with dayfirst=True for British dates
+                    df[col] = pd.to_datetime(df[col], dayfirst=True)
+            
+            # Convert to standard format
+            df[col] = df[col].dt.strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Ensure bike_number is treated as string (handle non-numeric values)
+        if "bike_number" in df.columns:
+            df["bike_number"] = df["bike_number"].astype(str)
+        
         return df[list(cls.__dataclass_fields__.keys())] 

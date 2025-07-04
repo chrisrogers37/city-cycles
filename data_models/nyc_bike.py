@@ -4,6 +4,7 @@ from typing import Optional, Dict, Any
 import pandas as pd
 from data_models.base import BaseBikeShareRecord
 import re
+import os
 
 @dataclass
 class NYCLegacyBikeShareRecord(BaseBikeShareRecord):
@@ -27,27 +28,34 @@ class NYCLegacyBikeShareRecord(BaseBikeShareRecord):
     staging_table = "raw_nyc_legacy"
     s3_prefix = "nyc_csv/"
 
+    # Store required columns for detailed validation
+    _required_columns = [
+        "tripduration",
+        "starttime",
+        "stoptime",
+        "start station id",
+        "start station name",
+        "start station latitude",
+        "start station longitude",
+        "end station id",
+        "end station name",
+        "end station latitude",
+        "end station longitude",
+        "bikeid",
+        "usertype",
+        "birth year",
+        "gender"
+    ]
+
     @classmethod
     def validate_schema(cls, df: pd.DataFrame) -> bool:
         """Validate if the dataframe contains all required columns for legacy NYC format."""
-        required_columns = [
-            "tripduration",
-            "starttime",
-            "stoptime",
-            "start station id",
-            "start station name",
-            "start station latitude",
-            "start station longitude",
-            "end station id",
-            "end station name",
-            "end station latitude",
-            "end station longitude",
-            "bikeid",
-            "usertype",
-            "birth year",
-            "gender"
-        ]
-        missing_columns = [col for col in required_columns if col not in df.columns]
+        debug_mode = os.environ.get('EXTRACTED_FILE_MANAGER_DEBUG') == '1'
+        
+        missing_columns = [col for col in cls._required_columns if col not in df.columns]
+        if missing_columns and debug_mode:
+            print(f"DEBUG: NYCLegacyBikeShareRecord validation failed - missing columns: {missing_columns}")
+            print(f"DEBUG: Available columns: {list(df.columns)}")
         return not missing_columns
 
     @classmethod
@@ -92,25 +100,32 @@ class NYCModernBikeShareRecord(BaseBikeShareRecord):
     staging_table = "raw_nyc_modern"
     s3_prefix = "nyc_csv/"
 
+    # Store required columns for detailed validation
+    _required_columns = [
+        "ride_id",
+        "rideable_type",
+        "started_at",
+        "ended_at",
+        "start_station_name",
+        "start_station_id",
+        "end_station_name",
+        "end_station_id",
+        "start_lat",
+        "start_lng",
+        "end_lat",
+        "end_lng",
+        "member_casual"
+    ]
+
     @classmethod
     def validate_schema(cls, df: pd.DataFrame) -> bool:
         """Validate if the dataframe contains all required columns for modern NYC format."""
-        required_columns = [
-            "ride_id",
-            "rideable_type",
-            "started_at",
-            "ended_at",
-            "start_station_name",
-            "start_station_id",
-            "end_station_name",
-            "end_station_id",
-            "start_lat",
-            "start_lng",
-            "end_lat",
-            "end_lng",
-            "member_casual"
-        ]
-        missing_columns = [col for col in required_columns if col not in df.columns]
+        debug_mode = os.environ.get('EXTRACTED_FILE_MANAGER_DEBUG') == '1'
+        
+        missing_columns = [col for col in cls._required_columns if col not in df.columns]
+        if missing_columns and debug_mode:
+            print(f"DEBUG: NYCModernBikeShareRecord validation failed - missing columns: {missing_columns}")
+            print(f"DEBUG: Available columns: {list(df.columns)}")
         return not missing_columns
 
     @classmethod
@@ -131,4 +146,16 @@ class NYCModernBikeShareRecord(BaseBikeShareRecord):
             "member_casual": "member_casual"
         })
         df["source_file"] = source_file
+        
+        # Ensure station IDs are treated as strings (handle alphanumeric values)
+        for col in ["start_station_id", "end_station_id"]:
+            if col in df.columns:
+                df[col] = df[col].astype(str)
+        
+        # Handle potential data quality issues in coordinates
+        for col in ["start_lat", "start_lng", "end_lat", "end_lng"]:
+            if col in df.columns:
+                # Convert to numeric, coercing errors to NaN
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        
         return df[list(cls.__dataclass_fields__.keys())] 

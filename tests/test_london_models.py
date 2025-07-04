@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from data_models.london_bike import LondonLegacyBikeShareRecord, LondonModernBikeShareRecord, get_london_model_class
+from data_models.london_bike import LondonLegacyBikeShareRecord, LondonModernBikeShareRecord
 
 SAMPLE_DIR = os.path.join(os.path.dirname(__file__), "..", "data_models", "london_sample_data")
 
