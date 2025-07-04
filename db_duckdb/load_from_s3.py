@@ -21,6 +21,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from db_duckdb.duckdb_manager import DuckDBManager
 from db_duckdb.config.duckdb_config import S3_URIS, DB_CONFIG, VALIDATION_QUERIES
 import logging
+from db_duckdb.utils import log_memory_usage
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -43,44 +44,32 @@ def load_all_schemas(dry_run: bool = False, replace: bool = True):
     try:
         with DuckDBManager(db_path=DB_CONFIG['db_path']) as db:
             
-            total_rows = 0
-            
             for table_name, s3_uri in S3_URIS.items():
                 logger.info(f"\n{'='*50}")
                 logger.info(f"Processing: {table_name}")
                 logger.info(f"S3 URI: {s3_uri}")
                 logger.info(f"{'='*50}")
                 
+                log_memory_usage(f"BEFORE loading {table_name}")
                 try:
                     if dry_run:
-                        # For dry run, just check if files exist
                         logger.info(f"[DRY RUN] Would load {table_name} from {s3_uri}")
-                        # Note: We can't easily check file existence without loading metadata
-                        # This is a limitation of the dry run approach
+                        log_memory_usage(f"AFTER dry run for {table_name}")
                     else:
-                        # Load data from S3
                         db.load_parquet_from_s3(s3_uri, table_name, replace=replace)
-                        
-                        # Get row count
-                        table_info = db.get_table_info(table_name)
-                        rows_loaded = table_info['row_count']
-                        total_rows += rows_loaded
-                        
-                        logger.info(f"✓ Successfully loaded {rows_loaded:,} rows into {table_name}")
-                        
-                        # Skip validation during loading to save memory
-                        # Validation can be run separately with verify_data.py
-                        logger.info(f"✓ Successfully loaded {rows_loaded:,} rows into {table_name}")
+                        log_memory_usage(f"AFTER loading {table_name}")
+                        logger.info(f"✓ Successfully loaded data into {table_name}")
                         logger.info(f"  Run 'python db_duckdb/verify_data.py' for detailed validation")
+                        log_memory_usage(f"AFTER load log for {table_name}")
                 
                 except Exception as e:
                     logger.error(f"✗ Failed to load {table_name}: {e}")
+                    log_memory_usage(f"EXCEPTION during {table_name}")
                     raise
             
             if not dry_run:
                 logger.info(f"\n{'='*50}")
                 logger.info(f"✓ DATA LOADING COMPLETED SUCCESSFULLY")
-                logger.info(f"Total rows loaded: {total_rows:,}")
                 logger.info(f"{'='*50}")
             else:
                 logger.info(f"\n{'='*50}")
@@ -89,6 +78,7 @@ def load_all_schemas(dry_run: bool = False, replace: bool = True):
                 
     except Exception as e:
         logger.error(f"✗ Data loading failed: {e}")
+        log_memory_usage("EXCEPTION during data loading")
         raise
 
 def load_specific_schema(table_name: str, dry_run: bool = False, replace: bool = True):
