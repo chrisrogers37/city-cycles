@@ -1033,10 +1033,10 @@ class TestCLI:
         mock_manager.list_failed_files.assert_called_once()
         mock_manager.reset_failed_files.assert_not_called()
     
-    @patch('sys.argv', ['cli.py', 'reprocess-failed'])
+    @patch('sys.argv', ['cli.py', 'reset-failed', '--reprocess'])
     @patch('builtins.input', return_value='y')
     def test_reprocess_failed_cli(self, mock_input, mock_manager):
-        """Test reprocess-failed CLI command"""
+        """Test reset-failed CLI command with --reprocess flag"""
         from extracted_file_manager.cli import main
         
         # Mock failed files
@@ -1054,9 +1054,9 @@ class TestCLI:
         mock_manager.list_failed_files.assert_called_once()
         mock_manager.reset_failed_files.assert_called_once()
     
-    @patch('sys.argv', ['cli.py', 'reprocess-failed', '--confirm'])
+    @patch('sys.argv', ['cli.py', 'reset-failed', '--reprocess', '--confirm'])
     def test_reprocess_failed_cli_with_confirm(self, mock_manager):
-        """Test reprocess-failed CLI command with --confirm flag"""
+        """Test reset-failed CLI command with --reprocess and --confirm flags"""
         from extracted_file_manager.cli import main
         
         # Mock failed files
@@ -1073,10 +1073,10 @@ class TestCLI:
         mock_manager.list_failed_files.assert_called_once()
         mock_manager.reset_failed_files.assert_called_once()
     
-    @patch('sys.argv', ['cli.py', 'reprocess-failed'])
+    @patch('sys.argv', ['cli.py', 'reset-failed', '--reprocess'])
     @patch('builtins.input', return_value='n')
     def test_reprocess_failed_cli_cancelled(self, mock_input, mock_manager):
-        """Test reprocess-failed CLI command when cancelled"""
+        """Test reset-failed CLI command with --reprocess when cancelled"""
         from extracted_file_manager.cli import main
         
         # Mock failed files
@@ -1092,9 +1092,9 @@ class TestCLI:
         mock_manager.list_failed_files.assert_called_once()
         mock_manager.reset_failed_files.assert_not_called()
     
-    @patch('sys.argv', ['cli.py', 'reprocess-failed'])
+    @patch('sys.argv', ['cli.py', 'reset-failed', '--reprocess'])
     def test_reprocess_failed_cli_no_files(self, mock_manager):
-        """Test reprocess-failed CLI command when no failed files exist"""
+        """Test reset-failed CLI command with --reprocess when no failed files exist"""
         from extracted_file_manager.cli import main
         
         # Mock no failed files
@@ -1107,6 +1107,27 @@ class TestCLI:
         mock_manager.list_failed_files.assert_called_once()
         mock_manager.reset_failed_files.assert_not_called()
     
+    @patch('sys.argv', ['cli.py', 'reset-failed', '--reprocess', '--location', 'london', '--file-type', 'csv'])
+    @patch('builtins.input', return_value='y')
+    def test_reprocess_failed_cli_with_filters(self, mock_input, mock_manager):
+        """Test reset-failed CLI command with --reprocess and location/type filters"""
+        from extracted_file_manager.cli import main
+        
+        # Mock failed files
+        failed_files = [
+            {'key': 'test1.csv', 'city': 'london', 'file_type': 'csv', 'status': 'failed'}
+        ]
+        mock_manager.list_failed_files.return_value = failed_files
+        mock_manager.reset_failed_files.return_value = 1
+        
+        # Run CLI
+        main()
+        
+        # Verify calls with filters
+        from extracted_file_manager.models import FileType
+        mock_manager.list_failed_files.assert_called_once_with(city='london', file_type=FileType.CSV)
+        mock_manager.reset_failed_files.assert_called_once_with(city='london', file_type=FileType.CSV)
+
     @patch('sys.argv', ['cli.py', 'reset-failed', '--location', 'nyc'])
     @patch('builtins.input', return_value='y')
     def test_reset_failed_cli_with_location_filter(self, mock_input, mock_manager):
@@ -1126,27 +1147,6 @@ class TestCLI:
         # Verify calls with location filter
         mock_manager.list_failed_files.assert_called_once_with(city='nyc', file_type=None)
         mock_manager.reset_failed_files.assert_called_once_with(city='nyc', file_type=None)
-    
-    @patch('sys.argv', ['cli.py', 'reprocess-failed', '--location', 'london', '--type', 'nyc_csv'])
-    @patch('builtins.input', return_value='y')
-    def test_reprocess_failed_cli_with_filters(self, mock_input, mock_manager):
-        """Test reprocess-failed CLI command with location and type filters"""
-        from extracted_file_manager.cli import main
-        
-        # Mock failed files
-        failed_files = [
-            {'key': 'test1.csv', 'city': 'london', 'file_type': 'csv', 'status': 'failed'}
-        ]
-        mock_manager.list_failed_files.return_value = failed_files
-        mock_manager.reset_failed_files.return_value = 1
-        
-        # Run CLI
-        main()
-        
-        # Verify calls with filters
-        from extracted_file_manager.models import FileType
-        mock_manager.list_failed_files.assert_called_once_with(city='london', file_type=FileType.CSV)
-        mock_manager.reset_failed_files.assert_called_once_with(city='london', file_type=FileType.CSV)
 
 
 if __name__ == "__main__":
