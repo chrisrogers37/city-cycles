@@ -1,5 +1,7 @@
 # Extracted File Manager: S3 ZIP/CSV/Parquet Pipeline
 
+A robust file management system for processing bike share data from ZIP archives through CSV extraction to optimized Parquet storage, with comprehensive metadata tracking and memory management.
+
 ## Pipeline Flow Diagram
 
 ```mermaid
@@ -26,20 +28,17 @@ flowchart TD
 
 ## Key Features
 
-- **Separation of Concerns:**
-  - `extract_zips`: Only extracts ZIPs to CSVs (no validation or Parquet conversion).
-  - `convert_csvs`: Only validates and converts CSVs to Parquet (no ZIP extraction).
-- **Automatic Metadata Recovery:**
-  - If `metadata.json` is missing, the manager will automatically scan S3 and rebuild it.
-- **Convenience Pipeline:**
-  - The `pipeline` command simply runs `extract_zips` and then `convert_csvs` in order.
-- **Mac OS Hidden File Filtering:**
-  - Automatically filters out Mac OS hidden files (starting with `._`) during ZIP extraction.
-  - Prevents system files from causing validation errors and cluttering the pipeline.
+- **🔄 Pipeline Separation**: Independent `extract_zips` and `convert_csvs` commands for granular control
+- **🧠 Smart Schema Detection**: Automatic data model matching using your existing bike share models
+- **💾 Memory Management**: Advanced memory monitoring and cleanup to prevent OOM errors
+- **📊 Comprehensive Metadata**: Full tracking of file status, processing history, and relationships
+- **🛡️ Error Recovery**: Failed files can be reset and reprocessed without data loss
+- **🗑️ Safe Cleanup**: Destructive operations require confirmation and provide detailed feedback
+- **🔍 Debug Support**: Detailed logging for troubleshooting validation and conversion issues
 
-## Usage
+## Quick Start
 
-### Typical Workflow
+### Basic Workflow
 
 ```bash
 # 1. Scan for new files (auto-run if metadata is missing)
@@ -51,130 +50,211 @@ python -m extracted_file_manager.cli extract_zips
 # 3. Validate and convert all unprocessed CSVs to Parquet
 python -m extracted_file_manager.cli convert_csvs
 
-# (Optional) Run both steps in sequence
-python -m extracted_file_manager.cli pipeline
-
-# List files by status
-python -m extracted_file_manager.cli list --status validated
-
-# Show summary
+# 4. Check results
 python -m extracted_file_manager.cli summary
-
-# Reset failed files (just reset flags, don't reprocess)
-python -m extracted_file_manager.cli reset-failed --location nyc
-
-# Reset and reprocess failed files
-python -m extracted_file_manager.cli reprocess-failed --location nyc --confirm
 ```
 
-### CLI Commands
-
-- `scan`: Scan S3 for new files and update metadata
-- `extract_zips`: Extract all unprocessed ZIPs to CSVs
-- `convert_csvs`: Validate and convert all unprocessed CSVs to Parquet
-- `pipeline`: (Convenience) Runs `extract_zips` then `convert_csvs`
-- `validate`: Validate files (without conversion)
-- `list`: List files by status/type
-- `summary`: Show a summary of all files
-- `reprocess`: Reset a file's status for reprocessing
-- `reset-failed`: Reset failed files to 'extracted' status (does not reprocess)
-- `reprocess-failed`: Reset failed files to 'extracted' status and reprocess them
-
-### Debug Logging
-
-When files fail validation, you can enable detailed debug logging to understand why:
+### Location-Specific Processing
 
 ```bash
-# Enable debug logging to see why validation fails
+# Process only NYC files
+python -m extracted_file_manager.cli extract_zips --location nyc
+python -m extracted_file_manager.cli convert_csvs --location nyc
+
+# Process only London files
+python -m extracted_file_manager.cli extract_zips --location london
+python -m extracted_file_manager.cli convert_csvs --location london
+```
+
+### Single File Processing
+
+```bash
+# Process a specific ZIP file
+python -m extracted_file_manager.cli extract_zips --file "2023-01-nyc-data.zip"
+
+# Process a specific CSV file
+python -m extracted_file_manager.cli convert_csvs --file "2023-01-nyc-data.csv"
+```
+
+## CLI Commands Reference
+
+### Core Pipeline Commands
+
+| Command | Description | Options |
+|---------|-------------|---------|
+| `scan` | Scan S3 for new files and update metadata | None |
+| `extract_zips` | Extract ZIPs to CSVs | `--location`, `--file` |
+| `convert_csvs` | Validate and convert CSVs to Parquet | `--location`, `--file` |
+| `validate` | Validate file schemas (without conversion) | `--file`, `--file-type`, `--debug` |
+
+### File Management Commands
+
+| Command | Description | Options |
+|---------|-------------|---------|
+| `list` | List files with filters | `--status`, `--file-type`, `--location` |
+| `summary` | Show comprehensive file statistics | None |
+| `reprocess` | Reset a single file for reprocessing | `--file` |
+
+### Failed File Recovery
+
+| Command | Description | Options |
+|---------|-------------|---------|
+| `reset-failed` | Reset failed files to 'extracted' status | `--location`, `--file-type`, `--confirm`, `--reprocess` |
+
+### Destructive Operations ⚠️
+
+| Command | Description | Options |
+|---------|-------------|---------|
+| `wipe-file` | Delete a specific file | `--file`, `--confirm` |
+| `wipe-type` | Delete files by type/location | `--file-type`, `--location`, `--schema`, `--confirm` |
+| `wipe-all` | Delete ALL files (nuclear option) | `--confirm` |
+
+### Utility Commands
+
+| Command | Description | Options |
+|---------|-------------|---------|
+| `set-schema` | Set or clear manual schema override | `--file`, `--schema`, `--clear` |
+
+## Detailed Usage Examples
+
+### File Status Monitoring
+
+```bash
+# List all files
+python -m extracted_file_manager.cli list
+
+# List only validated files
+python -m extracted_file_manager.cli list --status validated
+
+# List only CSV files
+python -m extracted_file_manager.cli list --file-type csv
+
+# List only NYC files
+python -m extracted_file_manager.cli list --location nyc
+
+# List only NYC CSV files
+python -m extracted_file_manager.cli list --file-type csv --location nyc
+
+# List failed files
+python -m extracted_file_manager.cli list --status failed
+```
+
+### Failed File Recovery
+
+```bash
+# Reset all failed files (doesn't reprocess)
+python -m extracted_file_manager.cli reset-failed
+
+# Reset only NYC failed files
+python -m extracted_file_manager.cli reset-failed --location nyc
+
+# Reset only CSV failed files
+python -m extracted_file_manager.cli reset-failed --file-type csv
+
+# Reset and reprocess all failed files
+python -m extracted_file_manager.cli reset-failed --reprocess --confirm
+
+# Reset and reprocess only London CSV files
+python -m extracted_file_manager.cli reset-failed --location london --file-type csv --reprocess --confirm
+```
+
+### Debug and Troubleshooting
+
+```bash
+# Enable debug logging for validation
 python -m extracted_file_manager.cli validate --file problematic-file.csv --debug
 
-# Debug output shows:
-# - Available columns in the file
-# - Which models are being tested
-# - Missing columns for each model
-# - Detailed validation failure reasons
+# Validate all files with debug output
+python -m extracted_file_manager.cli validate --debug
 ```
-
-Debug output example:
-```
-DEBUG: Found 2 models to test for FileType.LONDON_CSV
-DEBUG: Available columns in file: ['Rental Id', 'Duration', 'Bike Id', 'End Date', 'EndStation Name', 'Start Date', 'StartStation Id', 'StartStation Name']
-DEBUG: Testing model: LondonLegacyBikeShareRecord
-DEBUG: LondonLegacyBikeShareRecord validation failed - missing columns: ['EndStation Id']
-DEBUG: ✗ Model LondonLegacyBikeShareRecord failed - missing columns: ['EndStation Id']
-DEBUG: Testing model: LondonModernBikeShareRecord
-DEBUG: LondonModernBikeShareRecord validation failed - missing columns: ['Number', 'Bike model', 'Start date', 'End date', 'Start station number', 'Start station', 'End station number', 'End station', 'Total duration']
-DEBUG: ✗ No matching model found for FileType.LONDON_CSV
-```
-
-This helps identify data quality issues like missing columns or schema mismatches.
-
-### Failed File Management
-
-Two commands are available for handling failed files:
-
-- **`reset-failed`**: Only resets the metadata flags of failed files to 'extracted' status. This is useful when you want to manually inspect or fix files before reprocessing.
-
-- **`reprocess-failed`**: Resets failed files to 'extracted' status AND immediately reprocesses them through the pipeline. This is useful when you've fixed the underlying issue and want to retry processing.
-
-Both commands support filtering by `--location` (nyc/london) and `--file-type` (zip/csv/parquet).
 
 ### Wipe Operations (Destructive)
-⚠️ **WARNING**: These commands permanently delete files from S3 and require `--confirm` flag.
 
-- `wipe-file --file <filename> --confirm` - Wipe a specific file
-- `wipe-type --type <type> [--location <location>] [--schema <schema>] --confirm` - Wipe files by type
-- `wipe-all --confirm` - Wipe all files
-
-#### Wipe Behavior:
-- **`wipe-file`**: Deletes specific file from S3 and removes from metadata
-- **`wipe-type`**: 
-  - For Parquet types: Deletes Parquet files AND resets CSV files that generated them back to `EXTRACTED` status
-  - For other types: Deletes files from S3 and removes from metadata
-- **`wipe-all`**: **NUCLEAR OPTION** - Deletes ALL files (ZIPs, CSVs, Parquets) from S3 and removes ALL metadata. This is a complete reset.
-
-#### Wipe Examples:
 ```bash
 # Wipe a specific file
 python -m extracted_file_manager.cli wipe-file --file "2023-01-nyc-data.zip" --confirm
 
-# Wipe all NYC ZIP files
-python -m extracted_file_manager.cli wipe-type --type nyc_zip --confirm
+# Wipe all ZIP files
+python -m extracted_file_manager.cli wipe-type --file-type zip --confirm
 
 # Wipe all NYC CSV files
-python -m extracted_file_manager.cli wipe-type --type nyc_csv --location nyc --confirm
+python -m extracted_file_manager.cli wipe-type --file-type csv --location nyc --confirm
 
-# Wipe all London Parquet files with specific schema
-python -m extracted_file_manager.cli wipe-type --type london_parquet --location london --schema modern --confirm
+# Wipe all London Parquet files
+python -m extracted_file_manager.cli wipe-type --file-type parquet --location london --confirm
 
-# Wipe all files (nuclear option)
+# Wipe all Parquet files (resets CSV status)
+python -m extracted_file_manager.cli wipe-type --file-type parquet --confirm
+
+# Nuclear option - wipe everything
 python -m extracted_file_manager.cli wipe-all --confirm
 ```
 
-#### File Types for Wipe Operations:
-- `nyc_zip` - NYC ZIP files
-- `nyc_csv` - NYC CSV files  
-- `london_csv` - London CSV files
-- `nyc_parquet` - NYC Parquet files
-- `london_parquet` - London Parquet files
+### Schema Management
 
-#### Location Filters:
+```bash
+# Set manual schema override for a problematic file
+python -m extracted_file_manager.cli set-schema --file "legacy-format.csv" --schema "NYCLegacyBikeShareRecord"
+
+# Clear schema override
+python -m extracted_file_manager.cli set-schema --file "legacy-format.csv" --clear
+```
+
+## File Type and Location Options
+
+### File Types (--file-type)
+- `zip` - ZIP files
+- `csv` - CSV files  
+- `parquet` - Parquet files
+
+### Locations (--location)
 - `nyc` - New York City files
 - `london` - London files
 
-#### Schema Filters (for Parquet files):
-- `legacy` - Legacy data schema
-- `modern` - Modern data schema
+### Status Values (--status)
+- `extracted` - File has been downloaded to S3
+- `csv_converted` - ZIP has been converted to CSV
+- `validated` - File has been schema validated
+- `parquet_converted` - CSV has been converted to Parquet
+- `processed` - File has been loaded into database
+- `failed` - File processing failed
+- `deleted` - File has been deleted
 
-## Metadata Auto-Scan
+## Memory Management
 
-- If `metadata.json` is missing from S3, the manager will automatically run a scan to rebuild it before any other operation.
-- You do not need to manually run `scan` after deleting metadata; it will be handled for you.
+The system includes advanced memory management to prevent Out-of-Memory (OOM) issues:
 
-## Pipeline Overview
+### Key Features
+- **Memory Monitoring**: Logs memory usage at key points
+- **Streaming Processing**: Uses pyarrow streaming with 5MB chunks
+- **Sample Validation**: Downloads only 5MB samples for schema validation
+- **Explicit Cleanup**: DataFrames and buffers are explicitly deleted
+- **Batch Processing**: Forces garbage collection between files
 
-The system implements a complete data pipeline:
+### Memory Usage Example
+```
+Memory usage before validation: 103.4 MB
+Memory usage after cleanup: 102.1 MB
+Memory usage before conversion: 105.7 MB
+Memory usage after conversion: 104.2 MB
+```
 
+## Debug Output
+
+When validation fails, debug output shows:
+```
+DEBUG: Found 2 models to test for FileType.LONDON_CSV
+DEBUG: Available columns in file: ['Rental Id', 'Duration', 'Bike Id', 'End Date', 'EndStation Name', 'Start Date', 'StartStation Id', 'StartStation Name']
+DEBUG: Testing model: LondonLegacyBikeShareRecord
+DEBUG: ✗ Model LondonLegacyBikeShareRecord failed - missing columns: ['EndStation Id']
+DEBUG: Testing model: LondonModernBikeShareRecord
+DEBUG: ✗ Model LondonModernBikeShareRecord failed - missing columns: ['Number', 'Bike model', 'Start date', 'End date', 'Start station number', 'Start station', 'End station number', 'End station', 'Total duration']
+DEBUG: ✗ No matching data model found for FileType.LONDON_CSV
+```
+
+## Pipeline Architecture
+
+### S3 Structure
 ```
 extracted_bike_ride_zips/{city}/     # Raw ZIP files from extraction
     ↓ (ZIP → CSV extraction)
@@ -183,75 +263,61 @@ extracted_bike_ride_csvs/{city}/     # Extracted CSV files
 extracted_bike_ride_parquet/{city}/{schema}/  # Parquet files organized by schema
 ```
 
-## Data Model Integration
-
+### Data Model Integration
 The system automatically determines the correct schema using your existing data models:
-
 - `NYCLegacyBikeShareRecord` for legacy NYC format
 - `NYCModernBikeShareRecord` for modern NYC format  
-- `LondonBikeShareRecord` for London format
+- `LondonLegacyBikeShareRecord` for legacy London format
+- `LondonModernBikeShareRecord` for modern London format
 
-## Metadata Tracking
-
-All file operations are tracked in S3 at `extracted_file_manager/metadata.json` including:
-
+### Metadata Tracking
+All operations are tracked in S3 at `extracted_file_manager/metadata.json`:
 - File locations and sizes
 - Processing timestamps
-- Validation results
-- Error messages
+- Validation results and errors
 - Pipeline relationships
+- Schema overrides
 
 ## Error Handling
 
 - Failed operations are marked with `FAILED` status
-- Error messages are stored in metadata
-- Files can be reprocessed using `reprocess_file()`
+- Error messages are stored in metadata for debugging
+- Files can be reprocessed using `reset-failed` or `reprocess-failed`
 - Pipeline continues processing other files even if some fail
+- Memory cleanup ensures system stability
 
-## Memory Management
+## Best Practices
 
-The system includes advanced memory management to prevent Out-of-Memory (OOM) issues when processing large files:
+1. **Start with Scan**: Always run `scan` first to ensure metadata is current
+2. **Process in Batches**: Use location filters to process manageable batches
+3. **Monitor Memory**: Watch memory usage logs for large file processing
+4. **Use Debug Mode**: Enable `--debug` when troubleshooting validation issues
+5. **Backup Before Wipe**: Always verify before running destructive operations
+6. **Check Status**: Use `list` and `summary` to monitor pipeline progress
 
-### Key Features
-- **Memory Monitoring**: Logs memory usage at key points for debugging
-- **Explicit Cleanup**: DataFrames and buffers are explicitly deleted after use
-- **Streaming Processing**: Uses pyarrow streaming with 5MB chunks for large files
-- **Sample Validation**: Downloads only 5MB samples for schema validation
-- **Batch Processing**: Forces garbage collection between files
-- **Resource Tracking**: All temporary files and writers are properly cleaned up
+## Troubleshooting
 
-### Implementation Details
+### Common Issues
 
-#### Memory Monitoring
-```python
-# Memory usage is logged before and after major operations
-Memory usage before validation: 103.4 MB
-Memory usage after cleanup: 102.1 MB
-Memory usage before conversion: 105.7 MB
-Memory usage after conversion: 104.2 MB
+**Validation Failures**: Use `--debug` flag to see detailed validation information
+```bash
+python -m extracted_file_manager.cli validate --file problematic.csv --debug
 ```
 
-#### Streaming Processing
-- **CSV to Parquet**: Uses pyarrow streaming with 5MB blocks (reduced from 10MB)
-- **Chunk Processing**: Each chunk is processed and immediately cleaned up
-- **Periodic Cleanup**: Memory cleanup every 10 batches
-- **Sample Validation**: Only downloads 5MB sample for schema validation
+**Memory Issues**: Check memory usage logs and consider processing smaller batches
+```bash
+python -m extracted_file_manager.cli convert_csvs --location nyc  # Process one city at a time
+```
 
-#### Batch Processing
-- **Memory cleanup after each file**: Forces garbage collection between files
-- **Progress tracking**: Shows progress (X/Y files) for better monitoring
-- **Delays**: 1-second delays between files to allow memory cleanup
+**Failed Files**: Reset and reprocess failed files
+```bash
+python -m extracted_file_manager.cli reprocess-failed --confirm
+```
 
-### Best Practices
-1. **Always Clean Up Resources**: Use `del` to explicitly delete large objects
-2. **Process in Chunks**: Use streaming readers for large files
-3. **Monitor Memory Usage**: Log memory usage at key points
-4. **Use Temporary Files**: Download large files to temp files instead of memory
-
-### Performance Impact
-- **Benefits**: Prevents OOM errors, stable processing, better monitoring
-- **Overhead**: Minimal overhead from memory logging, acceptable 1-second delays
-- **Result**: Eliminates crashes and data loss from memory issues
+**Schema Mismatches**: Set manual schema override for problematic files
+```bash
+python -m extracted_file_manager.cli set-schema --file "legacy.csv" --schema "NYCLegacyBikeShareRecord"
+```
 
 ---
 
