@@ -7,13 +7,13 @@ import sys
 import argparse
 from typing import Optional
 from .manager import ExtractedFileManager
-from .models import FileStatus, FileType
+from .models import FileStatus, FileType, FileLocation
 
 
 def main():
     parser = argparse.ArgumentParser(description="Extracted File Manager CLI")
     parser.add_argument("command", choices=[
-        "scan", "validate", "extract_zips", "convert_csvs", "pipeline", "list", "summary", "reprocess",
+        "scan", "validate", "extract_zips", "convert_csvs", "list", "summary", "reprocess",
         "wipe-file", "wipe-type", "wipe-all", "reprocess-failed", "reset-failed", "cleanup-macos-files",
         "set-schema", "clear-schema", "fix-parquet-status"
     ], help="Command to execute")
@@ -25,7 +25,6 @@ def main():
     parser.add_argument("--schema", help="Schema filter for parquet wipe operations or schema name for override")
     parser.add_argument("--status", choices=["extracted", "csv_converted", "validated", "parquet_converted", "processed", "failed"], 
                        help="Status filter")
-    parser.add_argument("--limit", type=int, help="Limit number of results")
     parser.add_argument("--confirm", action="store_true", help="Confirm destructive operations")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging for validation failures")
     
@@ -56,18 +55,28 @@ def main():
                     print(f"  {filename}: {'✓' if success else '✗'}")
                     
         elif args.command == "extract_zips":
-            count = manager.extract_all_zips(limit=args.limit)
-            print(f"Extracted {count} ZIP files to CSVs.")
+            # Handle single file or all files
+            if args.file:
+                results = manager.extract_zips(filenames=[args.file])
+                success_count = sum(1 for success in results.values() if success)
+                print(f"Extracted {success_count}/{len(results)} ZIP files to CSVs.")
+            else:
+                location = FileLocation(args.location) if args.location else None
+                results = manager.extract_zips(location=location)
+                success_count = sum(1 for success in results.values() if success)
+                print(f"Extracted {success_count}/{len(results)} ZIP files to CSVs.")
         
         elif args.command == "convert_csvs":
-            count = manager.convert_all_csvs(limit=args.limit)
-            print(f"Validated and converted {count} CSV files to Parquet.")
-        
-        elif args.command == "pipeline":
-            print("Running full pipeline: extract_zips then convert_csvs...")
-            count_zips = manager.extract_all_zips(limit=args.limit)
-            count_csvs = manager.convert_all_csvs(limit=args.limit)
-            print(f"Pipeline complete. Extracted {count_zips} ZIPs, converted {count_csvs} CSVs.")
+            # Handle single file or all files
+            if args.file:
+                results = manager.convert_csvs(filenames=[args.file])
+                success_count = sum(1 for success in results.values() if success)
+                print(f"Converted {success_count}/{len(results)} CSV files to Parquet.")
+            else:
+                location = FileLocation(args.location) if args.location else None
+                results = manager.convert_csvs(location=location)
+                success_count = sum(1 for success in results.values() if success)
+                print(f"Converted {success_count}/{len(results)} CSV files to Parquet.")
         
         elif args.command == "wipe-file":
             if not args.file:
@@ -76,8 +85,8 @@ def main():
             if not args.confirm:
                 print(f"Error: --confirm required for destructive operation: wipe-file {args.file}")
                 sys.exit(1)
-            success = manager.wipe_file(args.file)
-            print(f"Wipe {'successful' if success else 'failed'} for {args.file}")
+            count = manager.wipe_files(filenames=[args.file])
+            print(f"Wiped {count} file(s)")
         
         elif args.command == "wipe-type":
             if not args.type:
@@ -86,7 +95,17 @@ def main():
             if not args.confirm:
                 print(f"Error: --confirm required for destructive operation: wipe-type {args.type}")
                 sys.exit(1)
-            count = manager.wipe_file_type(args.type, args.location, args.schema)
+            # Convert type string to FileType enum
+            file_type_map = {
+                "nyc_zip": FileType.ZIP,
+                "nyc_csv": FileType.CSV,
+                "london_csv": FileType.CSV,
+                "nyc_parquet": FileType.PARQUET,
+                "london_parquet": FileType.PARQUET
+            }
+            file_type = file_type_map.get(args.type)
+            location = FileLocation(args.location) if args.location else None
+            count = manager.wipe_files(file_type=file_type, location=location)
             print(f"Wiped {count} files of type {args.type}")
         
         elif args.command == "wipe-all":
@@ -94,14 +113,14 @@ def main():
                 print("Error: --confirm required for destructive operation: wipe-all")
                 sys.exit(1)
             print("WARNING: This will delete ALL files (ZIPs, CSVs, Parquets) from S3 and remove ALL metadata!")
-            count = manager.wipe_all()
+            count = manager.wipe_files()
             print(f"Wiped {count} files total")
         
         elif args.command == "list":
             status = FileStatus(args.status) if args.status else None
             file_type = FileType(args.type) if args.type else None
             
-            files = manager.list_files(status=status, file_type=file_type, limit=args.limit)
+            files = manager.list_files(status=status, file_type=file_type)
             print(f"Found {len(files)} files:")
             for file_meta in files:
                 print(f"  {file_meta.filename} ({file_meta.file_type.value}) - {file_meta.status.value}")
@@ -118,7 +137,15 @@ def main():
             
         elif args.command == "reset-failed":
             city = args.location
-            file_type = FileType(args.type) if args.type else None
+            # Convert type string to FileType enum using the same mapping as wipe-type
+            file_type_map = {
+                "nyc_zip": FileType.ZIP,
+                "nyc_csv": FileType.CSV,
+                "london_csv": FileType.CSV,
+                "nyc_parquet": FileType.PARQUET,
+                "london_parquet": FileType.PARQUET
+            }
+            file_type = file_type_map.get(args.type) if args.type else None
             yes = args.confirm
             
             failed_files = manager.list_failed_files(city=city, file_type=file_type)
@@ -142,7 +169,15 @@ def main():
             
         elif args.command == "reprocess-failed":
             city = args.location
-            file_type = FileType(args.type) if args.type else None
+            # Convert type string to FileType enum using the same mapping as wipe-type
+            file_type_map = {
+                "nyc_zip": FileType.ZIP,
+                "nyc_csv": FileType.CSV,
+                "london_csv": FileType.CSV,
+                "nyc_parquet": FileType.PARQUET,
+                "london_parquet": FileType.PARQUET
+            }
+            file_type = file_type_map.get(args.type) if args.type else None
             yes = args.confirm
             
             failed_files = manager.list_failed_files(city=city, file_type=file_type)
@@ -165,10 +200,9 @@ def main():
             reset_count = manager.reset_failed_files(city=city, file_type=file_type)
             print(f"Reset {reset_count} failed files to 'extracted' status.")
             
-            # Reprocess the files
-            print("Starting reprocessing...")
-            manager.run_pipeline(city=city, file_type=file_type)
-            print("Reprocessing completed.")
+            # Note: Files are now reset to 'extracted' status and can be processed with extract_zips/convert_csvs
+            print("Files have been reset to 'extracted' status.")
+            print("Run 'extract_zips' or 'convert_csvs' to process them.")
             
         elif args.command == "cleanup-macos-files":
             if not args.confirm:
@@ -239,7 +273,7 @@ def main():
             # Find CSV files with parquet_converted status
             csv_files_to_reset = []
             for filename, meta in manager._metadata_cache.items():
-                if (meta.file_type in [FileType.NYC_CSV, FileType.LONDON_CSV] and 
+                if (meta.file_type == FileType.CSV and 
                     meta.status == FileStatus.PARQUET_CONVERTED):
                     
                     # Apply city filter

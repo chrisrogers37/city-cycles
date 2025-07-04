@@ -46,3 +46,5 @@ config/secrets.*
 .DS_Store
 Thumbs.db 
 
+# Planning docs
+resources/*.md

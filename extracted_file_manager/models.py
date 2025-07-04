@@ -6,8 +6,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from enum import Enum
-import json
-
 
 class FileStatus(Enum):
     """Status of extracted files"""
@@ -19,15 +17,16 @@ class FileStatus(Enum):
     FAILED = "failed"  # File processing failed
     DELETED = "deleted"  # File has been deleted
 
-
 class FileType(Enum):
     """Type of extracted file"""
-    NYC_ZIP = "nyc_zip"
-    NYC_CSV = "nyc_csv"
-    LONDON_CSV = "london_csv"
-    NYC_PARQUET = "nyc_parquet"
-    LONDON_PARQUET = "london_parquet"
+    ZIP = "zip"
+    CSV = "csv"
+    PARQUET = "parquet"
 
+class FileLocation(Enum):
+    """Relevant location for file"""
+    NYC = "nyc"
+    LONDON = "london"
 
 @dataclass
 class FileMetadata:
@@ -35,6 +34,7 @@ class FileMetadata:
     filename: str
     s3_key: str
     file_type: FileType
+    file_location: FileLocation
     source_url: Optional[str] = None
     file_size_bytes: Optional[int] = None
     extracted_at: Optional[datetime] = None
@@ -60,6 +60,7 @@ class FileMetadata:
             "filename": self.filename,
             "s3_key": self.s3_key,
             "file_type": self.file_type.value,
+            "file_location": self.file_location.value,
             "source_url": self.source_url,
             "file_size_bytes": self.file_size_bytes,
             "extracted_at": self.extracted_at.isoformat() if self.extracted_at else None,
@@ -81,6 +82,7 @@ class FileMetadata:
             filename=data["filename"],
             s3_key=data["s3_key"],
             file_type=FileType(data["file_type"]),
+            file_location=FileLocation(data["file_location"]),
             source_url=data.get("source_url"),
             file_size_bytes=data.get("file_size_bytes"),
             extracted_at=datetime.fromisoformat(data["extracted_at"]) if data.get("extracted_at") else None,
