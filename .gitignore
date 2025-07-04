@@ -46,5 +46,14 @@ config/secrets.*
 .DS_Store
 Thumbs.db 
 
+# Database files
+*.duckdb
+*.duckdb.wal
+*.duckdb-shm
+*.duckdb-wal
+data/
+!data/*.parquet
+!data/*.csv
+
 # Planning docs
 resources/*.md

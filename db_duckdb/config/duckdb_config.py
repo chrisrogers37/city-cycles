@@ -95,7 +95,7 @@ TABLE_SCHEMAS = {
 
 # Database configuration
 DB_CONFIG = {
-    'db_path': os.environ.get('DUCKDB_PATH', '/data/city-cycles/city_cycles.duckdb'),
+    'db_path': os.environ.get('DUCKDB_PATH', './data/city_cycles.duckdb'),
     'memory_limit': os.environ.get('DUCKDB_MEMORY_LIMIT', '8GB'),
     'threads': int(os.environ.get('DUCKDB_THREADS', '4'))
 }
