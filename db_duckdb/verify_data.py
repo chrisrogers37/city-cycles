@@ -166,12 +166,19 @@ def run_data_quality_checks(table_name: str, db: DuckDBManager) -> Dict:
             quality_checks['duplicate_checks'] = duplicate_check_result[0]
         
         # Check date ranges
-        if table_name in ['raw_nyc_legacy', 'raw_nyc_modern']:
-            date_range_query = f"""
+        if table_name == 'raw_nyc_legacy':
+            date_range_query = """
                 SELECT 
-                    MIN(CASE WHEN '{table_name}' = 'raw_nyc_legacy' THEN starttime ELSE started_at END) as earliest_date,
-                    MAX(CASE WHEN '{table_name}' = 'raw_nyc_legacy' THEN stoptime ELSE ended_at END) as latest_date
-                FROM {table_name}
+                    MIN(starttime) as earliest_date,
+                    MAX(stoptime) as latest_date
+                FROM raw_nyc_legacy
+            """
+        elif table_name == 'raw_nyc_modern':
+            date_range_query = """
+                SELECT 
+                    MIN(started_at) as earliest_date,
+                    MAX(ended_at) as latest_date
+                FROM raw_nyc_modern
             """
         else:
             date_range_query = f"""
