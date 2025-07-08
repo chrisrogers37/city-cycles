@@ -1,6 +1,6 @@
 {{ config(
     materialized='incremental',
-    unique_key=['bikeid', 'starttime', 'stoptime', 'start_station_id'],
+    unique_key=['bike_id', 'start_time', 'stoptime', 'start_station_id'],
     indexes=[
         {'columns': ['start_time']},
         {'columns': ['ride_id'], 'unique': true},
@@ -42,7 +42,7 @@ renamed as (
             when usertype = 'Customer' then 'casual'
             else usertype
         end as user_type,
-        birth_year::integer,
+        birth_year::integer AS birth_year,
         gender::integer,
         -- Date-derived fields
         date_trunc('day', starttime::timestamp) as date,
