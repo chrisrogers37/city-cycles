@@ -54,6 +54,7 @@ Thumbs.db
 data/
 !data/*.parquet
 !data/*.csv
+db_duckdb/*.log
 
 # Planning docs
 resources/*.md
