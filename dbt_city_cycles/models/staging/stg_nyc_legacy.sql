@@ -21,8 +21,8 @@ renamed as (
         -- Create unique ride_id using concatenation of key fields
         'legacy_' || bikeid || '_' || 
         start_station_id || '_' || 
-        to_char(starttime::timestamp, 'YYYYMMDDHH24MISS') || '_' ||
-        to_char(stoptime::timestamp, 'YYYYMMDDHH24MISS') as ride_id,
+        strftime('%Y%m%d%H%M%S', starttime::timestamp) || '_' ||
+        strftime('%Y%m%d%H%M%S', stoptime::timestamp) as ride_id,
         -- Calculate duration in seconds from timestamps
         extract(epoch from (stoptime::timestamp - starttime::timestamp)) as duration_seconds,
         starttime::timestamp as start_time,
