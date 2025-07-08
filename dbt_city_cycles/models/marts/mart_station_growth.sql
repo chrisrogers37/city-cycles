@@ -8,6 +8,7 @@ with station_counts as (
         extract(year from start_time) as year,
         count(distinct start_station_id) as station_count
     from {{ ref('unified_rides') }}
+    where start_station_id is not null  -- Exclude rides with null station IDs
     group by 1, 2
 ),
 growth_calc as (
@@ -20,8 +21,9 @@ growth_calc as (
         lag(s.station_count) over (partition by s.location order by s.year) as prev_year_count,
         case 
             when lag(s.station_count) over (partition by s.location order by s.year) = 0 then null
-            else round(((s.station_count - lag(s.station_count) over (partition by s.location order by s.year))::numeric / 
-                  lag(s.station_count) over (partition by s.location order by s.year) * 100)::numeric, 1)
+            when lag(s.station_count) over (partition by s.location order by s.year) is null then null
+            else round(((s.station_count - lag(s.station_count) over (partition by s.location order by s.year))::float / 
+                  lag(s.station_count) over (partition by s.location order by s.year) * 100)::float, 1)
         end as yoy_growth
     from station_counts s
     left join {{ ref('population') }} p
