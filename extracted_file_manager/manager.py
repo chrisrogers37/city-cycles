@@ -406,7 +406,7 @@ class ExtractedFileManager:
         print("="*60)
     
     def convert_zip_to_csv(self, filename: str) -> bool:
-        """Extract all CSVs from a ZIP (including nested ZIPs) using temp files, upload to S3, and track metadata. Always extracts, regardless of current status. Minimizes memory usage."""
+        """Extract all CSVs from a ZIP (including nested ZIPs) using temp files, upload to S3, and track metadata. Always extracts, regardless of current status. Minimizes memory usage. Skips MacOSX artifacts."""
         import shutil
         def extract_zip_to_csvs(zip_path, parent_zip=None):
             extracted_csvs = []
@@ -414,14 +414,19 @@ class ExtractedFileManager:
             try:
                 with zipfile.ZipFile(zip_path, 'r') as zf:
                     for info in zf.infolist():
-                        if info.filename.lower().endswith('.csv') and not info.filename.startswith('._'):
+                        basename = os.path.basename(info.filename)
+                        # Skip MacOSX artifacts: __MACOSX dirs and dot-underscore files
+                        if ('__MACOSX' in info.filename) or basename.startswith('._'):
+                            print(f"  Skipping MacOSX artifact: {info.filename}")
+                            continue
+                        if info.filename.lower().endswith('.csv'):
                             # Extract CSV to temp file
                             with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_csv:
                                 with zf.open(info) as source:
                                     shutil.copyfileobj(source, temp_csv)
                                 temp_csv_path = temp_csv.name
                             # Upload to S3, then delete temp file
-                            new_csv_filename = os.path.basename(info.filename)
+                            new_csv_filename = basename
                             csv_s3_key = f"extracted_bike_ride_csvs/{city}/{new_csv_filename}"
                             print(f"  Uploading: {new_csv_filename}")
                             with open(temp_csv_path, 'rb') as f:
