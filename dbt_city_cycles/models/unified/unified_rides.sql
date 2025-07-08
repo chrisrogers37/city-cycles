@@ -15,8 +15,8 @@ SELECT
     user_type,         -- null for London
     bike_id,           -- null for NYC modern
     duration_seconds,
-    birth_year,        -- null for London
-    gender,            -- null for London
+    NULL as birth_year,        -- null for London // need to flow thru upstream for NYC
+    NULL as gender,            -- null for London // need to flow thru upstream for NYC
     -- Date-derived fields (from staging)
     date,
     month,
