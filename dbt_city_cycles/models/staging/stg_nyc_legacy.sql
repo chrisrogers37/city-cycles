@@ -43,7 +43,7 @@ renamed as (
             else usertype
         end as user_type,
         birth_year::integer AS birth_year,
-        gender::integer,
+        gender::integer as gender,
         -- Date-derived fields
         date_trunc('day', starttime::timestamp) as date,
         extract(month from starttime::timestamp) as month,
