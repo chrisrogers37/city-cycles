@@ -10,7 +10,6 @@ This script loads the four raw tables from S3 Parquet files:
 """
 
 import sys
-import os
 import argparse
 from pathlib import Path
 from typing import List, Optional
