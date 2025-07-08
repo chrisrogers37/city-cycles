@@ -169,13 +169,13 @@ class DuckDBManager:
                 FROM (
                     SELECT 
                         column_name,
-                        CASE 
-                            WHEN column_type LIKE '%VARCHAR%' THEN 100  -- Approximate
-                            WHEN column_type LIKE '%INTEGER%' THEN 8
-                            WHEN column_type LIKE '%DOUBLE%' THEN 8
-                            WHEN column_type LIKE '%TIMESTAMP%' THEN 8
-                            ELSE 50
-                        END * {row_count} as column_size
+                        (CASE 
+                            WHEN column_type LIKE '%VARCHAR%' THEN 100::BIGINT
+                            WHEN column_type LIKE '%INTEGER%' THEN 8::BIGINT
+                            WHEN column_type LIKE '%DOUBLE%' THEN 8::BIGINT
+                            WHEN column_type LIKE '%TIMESTAMP%' THEN 8::BIGINT
+                            ELSE 50::BIGINT
+                        END * {row_count}::BIGINT) as column_size
                     FROM (
                         DESCRIBE {table_name}
                     )
@@ -187,7 +187,7 @@ class DuckDBManager:
             return {
                 "table_name": table_name,
                 "row_count": row_count,
-                "schema": schema.to_dict('records'),
+                "schema": schema,  # Already a list of dicts
                 "size_mb": round(total_size_bytes / (1024 * 1024), 2)
             }
             
