@@ -108,7 +108,8 @@ VALIDATION_QUERIES = {
             COUNT(DISTINCT source_file) as unique_files,
             MIN(starttime) as earliest_start,
             MAX(stoptime) as latest_stop,
-            COUNT(DISTINCT bikeid) as unique_bikes
+            COUNT(DISTINCT bikeid) as unique_bikes,
+            COUNT(DISTINCT (bikeid || '_' || starttime || '_' || stoptime || '_' || start_station_id)) as unique_rides
         FROM raw_nyc_legacy
     """,
     
@@ -128,7 +129,8 @@ VALIDATION_QUERIES = {
             COUNT(DISTINCT source_file) as unique_files,
             MIN(start_date) as earliest_start,
             MAX(end_date) as latest_stop,
-            COUNT(DISTINCT bike_id) as unique_bikes
+            COUNT(DISTINCT bike_id) as unique_bikes,
+            COUNT(DISTINCT rental_id) as unique_rides
         FROM raw_london_legacy
     """,
     
@@ -138,7 +140,8 @@ VALIDATION_QUERIES = {
             COUNT(DISTINCT source_file) as unique_files,
             MIN(start_date) as earliest_start,
             MAX(end_date) as latest_stop,
-            COUNT(DISTINCT bike_number) as unique_bikes
+            COUNT(DISTINCT bike_number) as unique_bikes,
+            COUNT(DISTINCT number) as unique_rides
         FROM raw_london_modern
     """
 } 
