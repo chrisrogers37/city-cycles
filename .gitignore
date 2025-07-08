@@ -46,5 +46,18 @@ config/secrets.*
 .DS_Store
 Thumbs.db 
 
+# Database files
+*.duckdb
+*.duckdb.wal
+*.duckdb-shm
+*.duckdb-wal
+data/
+!data/*.parquet
+!data/*.csv
+# Ignore duckdb memory logs everywhere
+duckdb_memory.log
+db_duckdb/duckdb_memory.log
+
+
 # Planning docs
 resources/*.md
