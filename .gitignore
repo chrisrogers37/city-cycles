@@ -54,7 +54,10 @@ Thumbs.db
 data/
 !data/*.parquet
 !data/*.csv
-db_duckdb/*.log
+# Ignore duckdb memory logs everywhere
+duckdb_memory.log
+db_duckdb/duckdb_memory.log
+
 
 # Planning docs
 resources/*.md
