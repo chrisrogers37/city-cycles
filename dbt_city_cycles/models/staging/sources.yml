@@ -3,6 +3,7 @@ version: 2
 sources:
   - name: raw
     schema: main
+    database: ""
     tables:
       - name: raw_nyc_legacy
         description: Raw NYC bike share data (legacy format)
