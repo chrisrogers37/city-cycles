@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class DuckDBManager:
     """Manages DuckDB connections and operations for the City Cycles analytics pipeline."""
     
-    def __init__(self, db_path: str = "/data/city-cycles/city_cycles.duckdb"):
+    def __init__(self, db_path: str):
         """
         Initialize DuckDB manager.
         

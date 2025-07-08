@@ -7,6 +7,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Project root is two levels up from this file
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DB_PATH = os.path.join(PROJECT_ROOT, 'data', 'city_cycles.duckdb')
+
 # S3 Configuration
 S3_BUCKET = os.environ.get("S3_BUCKET", "city-cycles-data-ctr37")
 
@@ -95,7 +99,7 @@ TABLE_SCHEMAS = {
 
 # Database configuration
 DB_CONFIG = {
-    'db_path': os.environ.get('DUCKDB_PATH', './data/city_cycles.duckdb'),
+    'db_path': DB_PATH,
     'memory_limit': os.environ.get('DUCKDB_MEMORY_LIMIT', '8GB'),
     'threads': int(os.environ.get('DUCKDB_THREADS', '4'))
 }
