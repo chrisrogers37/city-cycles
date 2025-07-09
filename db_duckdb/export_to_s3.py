@@ -59,7 +59,7 @@ def export_table_to_s3(db: DuckDBManager, table_name: str, s3_key: str, dry_run:
     try:
         # Determine the full table name based on whether it's a mart or intermediate table
         if table_name in MART_TABLES:
-            full_table_name = f"marts.{table_name}"
+            full_table_name = f"main_marts.{table_name}"
         else:
             # Intermediate tables are in the main schema
             full_table_name = table_name
@@ -232,7 +232,7 @@ def list_available_marts():
     """List available mart tables in the database."""
     try:
         with DuckDBManager(db_path=DB_CONFIG['db_path']) as db:
-            marts_tables = db.list_tables(schema='marts')
+            marts_tables = db.list_tables(schema='main_marts')
             
             logger.info("Available mart tables in database:")
             logger.info("=" * 50)
@@ -240,12 +240,12 @@ def list_available_marts():
             if marts_tables:
                 for table in marts_tables:
                     try:
-                        table_info = db.get_table_info(f"marts.{table}")
+                        table_info = db.get_table_info(f"main_marts.{table}")
                         logger.info(f"  {table} ({table_info['row_count']:,} rows, {table_info['size_mb']} MB)")
                     except Exception as e:
                         logger.info(f"  {table} (error getting info: {e})")
             else:
-                logger.info("  No mart tables found in marts schema")
+                logger.info("  No mart tables found in main_marts schema")
                 
     except Exception as e:
         logger.error(f"Failed to list available marts: {e}")
