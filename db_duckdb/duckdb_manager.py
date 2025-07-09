@@ -149,7 +149,7 @@ class DuckDBManager:
         Get information about a table.
         
         Args:
-            table_name: Name of the table
+            table_name: Name of the table (can include schema prefix like 'marts.table_name')
             
         Returns:
             Dictionary with table information
@@ -195,11 +195,26 @@ class DuckDBManager:
             logger.error(f"Failed to get table info for {table_name}: {e}")
             raise
     
-    def list_tables(self) -> List[str]:
-        """List all tables in the database."""
+    def list_tables(self, schema: str = None) -> List[str]:
+        """
+        List all tables in the database.
+        
+        Args:
+            schema: Optional schema name to filter tables
+            
+        Returns:
+            List of table names
+        """
         try:
-            tables = self.con.execute("SHOW TABLES").fetchdf()
-            return tables['name'].tolist()
+            if schema:
+                # List tables in specific schema
+                query = f"SELECT table_name FROM information_schema.tables WHERE table_schema = '{schema}'"
+                tables = self.con.execute(query).fetchall()
+                return [table[0] for table in tables]
+            else:
+                # List all tables in current schema
+                tables = self.con.execute("SHOW TABLES").fetchdf()
+                return tables['name'].tolist()
         except Exception as e:
             logger.error(f"Failed to list tables: {e}")
             raise
