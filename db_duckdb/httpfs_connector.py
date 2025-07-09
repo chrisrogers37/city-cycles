@@ -8,9 +8,11 @@ enabling the dashboard to query mart data without loading the full database.
 
 import duckdb
 import os
+import boto3
 from typing import List, Dict, Optional, Any
 import logging
 from dotenv import load_dotenv
+from botocore.exceptions import ClientError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -135,22 +137,69 @@ class HTTPFSConnector:
     def list_available_marts(self) -> List[str]:
         """List all available mart tables in S3."""
         try:
-            # Query S3 to list available mart files
-            list_query = f"SELECT name FROM s3_list_directory('s3://{self.s3_bucket}/marts/') WHERE name LIKE '%.parquet'"
-            result = self.con.execute(list_query).fetchall()
+            # Use boto3 to list S3 objects
+            s3_client = boto3.client('s3')
             
-            # Extract mart names from file names
+            response = s3_client.list_objects_v2(
+                Bucket=self.s3_bucket,
+                Prefix='marts/'
+            )
+            
             marts = []
-            for row in result:
-                filename = row[0]
-                if filename.endswith('.parquet'):
-                    mart_name = filename.replace('.parquet', '')
-                    marts.append(mart_name)
+            if 'Contents' in response:
+                for obj in response['Contents']:
+                    key = obj['Key']
+                    if key.endswith('.parquet'):
+                        # Extract mart name from key like 'marts/mart_daily_metrics.parquet'
+                        mart_name = key.replace('marts/', '').replace('.parquet', '')
+                        marts.append(mart_name)
             
             return marts
             
+        except ClientError as e:
+            logger.error(f"Failed to list available marts: {e}")
+            return []
         except Exception as e:
             logger.error(f"Failed to list available marts: {e}")
+            return []
+    
+    def list_marts_with_info(self) -> List[Dict[str, Any]]:
+        """List all available mart tables in S3 with file information."""
+        try:
+            # Use boto3 to list S3 objects
+            s3_client = boto3.client('s3')
+            
+            response = s3_client.list_objects_v2(
+                Bucket=self.s3_bucket,
+                Prefix='marts/'
+            )
+            
+            marts_info = []
+            if 'Contents' in response:
+                for obj in response['Contents']:
+                    key = obj['Key']
+                    if key.endswith('.parquet'):
+                        # Extract mart name from key like 'marts/mart_daily_metrics.parquet'
+                        mart_name = key.replace('marts/', '').replace('.parquet', '')
+                        
+                        # Get file info
+                        size_mb = obj['Size'] / (1024 * 1024)
+                        last_modified = obj['LastModified']
+                        
+                        marts_info.append({
+                            'mart_name': mart_name,
+                            's3_key': key,
+                            'size_mb': round(size_mb, 2),
+                            'last_modified': last_modified
+                        })
+            
+            return marts_info
+            
+        except ClientError as e:
+            logger.error(f"Failed to list marts with info: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Failed to list marts with info: {e}")
             return []
     
     def execute_custom_query(self, query: str, params: Dict[str, Any] = None) -> List[Dict[str, Any]]:
@@ -265,15 +314,65 @@ def get_station_growth(location: str = None) -> List[Dict[str, Any]]:
 
 # Example usage and testing
 if __name__ == "__main__":
-    # Test the connector
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='HTTPFS connector for querying S3 Parquet files')
+    parser.add_argument('--list-files', action='store_true', help='List available mart files in S3')
+    parser.add_argument('--list-info', action='store_true', help='List mart files with detailed info')
+    parser.add_argument('--query', type=str, help='Execute a custom query against S3 Parquet files')
+    parser.add_argument('--mart', type=str, help='Query a specific mart table')
+    parser.add_argument('--limit', type=int, default=10, help='Limit query results (default: 10)')
+    
+    args = parser.parse_args()
+    
     with HTTPFSConnector() as connector:
-        print("Available marts:")
-        marts = connector.list_available_marts()
-        for mart in marts:
-            print(f"  - {mart}")
+        if args.list_files:
+            print("Available marts:")
+            marts = connector.list_available_marts()
+            for mart in marts:
+                print(f"  - {mart}")
         
-        if marts:
-            print(f"\nInfo for {marts[0]}:")
-            info = connector.get_mart_info(marts[0])
-            print(f"  Rows: {info['row_count']}")
-            print(f"  Columns: {len(info['schema'])}") 
+        elif args.list_info:
+            print("Available marts with file info:")
+            marts_info = connector.list_marts_with_info()
+            for mart_info in marts_info:
+                print(f"  - {mart_info['mart_name']}: {mart_info['size_mb']} MB, {mart_info['last_modified']}")
+        
+        elif args.query:
+            print(f"Executing query: {args.query}")
+            try:
+                results = connector.execute_custom_query(args.query)
+                print(f"Results ({len(results)} rows):")
+                for i, row in enumerate(results[:args.limit]):
+                    print(f"  {i+1}: {row}")
+                if len(results) > args.limit:
+                    print(f"  ... and {len(results) - args.limit} more rows")
+            except Exception as e:
+                print(f"Query failed: {e}")
+        
+        elif args.mart:
+            print(f"Querying mart: {args.mart}")
+            try:
+                query = f"SELECT * FROM 's3://{connector.s3_bucket}/marts/{args.mart}.parquet' LIMIT {args.limit}"
+                results = connector.execute_custom_query(query)
+                print(f"Results ({len(results)} rows):")
+                for i, row in enumerate(results):
+                    print(f"  {i+1}: {row}")
+            except Exception as e:
+                print(f"Query failed: {e}")
+        
+        else:
+            # Default behavior - list available marts
+            print("Available marts:")
+            marts = connector.list_available_marts()
+            for mart in marts:
+                print(f"  - {mart}")
+            
+            if marts:
+                print(f"\nInfo for {marts[0]}:")
+                try:
+                    info = connector.get_mart_info(marts[0])
+                    print(f"  Rows: {info['row_count']}")
+                    print(f"  Columns: {len(info['schema'])}")
+                except Exception as e:
+                    print(f"  Error getting info: {e}") 
