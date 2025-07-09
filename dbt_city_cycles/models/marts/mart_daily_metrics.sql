@@ -17,5 +17,5 @@ from {{ ref('unified_rides') }} m
 left join {{ ref('population') }} p
   on m.location = p.location
  and m.year = p.year
-group by 1, 2, 3, 4, 12
+group by 1, 2, 3, 4, 11
 order by 2, 1 
