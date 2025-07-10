@@ -12,6 +12,10 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from streamlit_data_manager.parquet_file_manager import ensure_local_parquet_files
 
+# Always resolve data directory at project root
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
+
 # Ensure all required Parquet files are present locally
 ensure_local_parquet_files()
 
@@ -54,8 +58,8 @@ def set_default_state():
 set_default_state()
 
 # --- Get max available date for each city ---
-nyc_max_date_query = "SELECT MAX(date) as max_date FROM 'data/mart_daily_metrics.parquet' WHERE location = 'nyc' AND date <= '2024-12-31'"
-london_max_date_query = "SELECT MAX(date) as max_date FROM 'data/mart_daily_metrics.parquet' WHERE location = 'london'"
+nyc_max_date_query = f"SELECT MAX(date) as max_date FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics.parquet')}' WHERE location = 'nyc' AND date <= '2024-12-31'"
+london_max_date_query = f"SELECT MAX(date) as max_date FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics.parquet')}' WHERE location = 'london'"
 
 try:
     nyc_max_date_result = run_query(nyc_max_date_query)
@@ -79,7 +83,7 @@ st.sidebar.radio(
 # --- Use only applied_page to determine min/max date for the date input widget ---
 if st.session_state['applied_page'] == "Comparison":
     comparison_max_date = min(nyc_max_date, london_max_date)
-    date_query = f"SELECT MIN(date) as min_date FROM 'data/mart_daily_metrics.parquet' WHERE date >= '{dashboard_min_date}' AND date <= '{comparison_max_date}'"
+    date_query = f"SELECT MIN(date) as min_date FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics.parquet')}' WHERE date >= '{dashboard_min_date}' AND date <= '{comparison_max_date}'"
     try:
         date_df = run_query(date_query)
         min_date = max(pd.to_datetime(date_df['min_date'][0]).date(), dashboard_min_date) if not date_df.empty else dashboard_min_date
@@ -88,7 +92,7 @@ if st.session_state['applied_page'] == "Comparison":
         min_date = dashboard_min_date
         max_date = comparison_max_date
 elif st.session_state['applied_page'] == "NYC":
-    date_query = f"SELECT MIN(date) as min_date FROM 'data/mart_daily_metrics.parquet' WHERE location = 'nyc' AND date >= '{dashboard_min_date}' AND date <= '{nyc_max_date}'"
+    date_query = f"SELECT MIN(date) as min_date FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics.parquet')}' WHERE location = 'nyc' AND date >= '{dashboard_min_date}' AND date <= '{nyc_max_date}'"
     try:
         date_df = run_query(date_query)
         min_date = max(pd.to_datetime(date_df['min_date'][0]).date(), dashboard_min_date) if not date_df.empty else dashboard_min_date
@@ -97,7 +101,7 @@ elif st.session_state['applied_page'] == "NYC":
         min_date = dashboard_min_date
         max_date = nyc_max_date
 elif st.session_state['applied_page'] == "London":
-    date_query = f"SELECT MIN(date) as min_date FROM 'data/mart_daily_metrics.parquet' WHERE location = 'london' AND date >= '{dashboard_min_date}' AND date <= '{london_max_date}'"
+    date_query = f"SELECT MIN(date) as min_date FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics.parquet')}' WHERE location = 'london' AND date >= '{dashboard_min_date}' AND date <= '{london_max_date}'"
     try:
         date_df = run_query(date_query)
         min_date = max(pd.to_datetime(date_df['min_date'][0]).date(), dashboard_min_date) if not date_df.empty else dashboard_min_date
@@ -164,7 +168,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         return f"date BETWEEN '{max(start_date, dashboard_min_date)}' AND '{min(end_date, dashboard_max_date)}'"
     date_filter = date_filter_sql(applied_start_date, applied_end_date)
 
-    # --- All dashboard queries below should use 'data/mart_*.parquet' instead of S3 URIs ---
+    # --- All dashboard queries below should use os.path.join(DATA_DIR, ...) for Parquet file paths ---
     if applied_page == "Comparison":
         st.subheader("NYC vs London")
     else:
@@ -175,7 +179,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         col_nyc, col_london = st.columns(2)
 
         year_query = f"""
-            SELECT MAX(year) as latest_year FROM 'data/mart_station_growth.parquet'
+            SELECT MAX(year) as latest_year FROM '{os.path.join(DATA_DIR, 'mart_station_growth.parquet')}'
             WHERE year BETWEEN EXTRACT(YEAR FROM DATE '{applied_start_date}') AND EXTRACT(YEAR FROM DATE '{applied_end_date}')
         """
         try:
@@ -187,7 +191,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
 
         pop_query = f"""
             SELECT location, MAX(metric_value) as population
-            FROM 'data/mart_daily_metrics_long.parquet'
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
             WHERE metric_name = 'population' AND year = {latest_year}
             GROUP BY location
         """
@@ -202,7 +206,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
 
         rides_query = f"""
             SELECT location, SUM(metric_value) as total_rides
-            FROM 'data/mart_daily_metrics_long.parquet'
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
             WHERE metric_name = 'total_rides' AND {date_filter}
             GROUP BY location
         """
@@ -222,7 +226,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         nyc_duration_query = f"""
             SELECT SUM(CASE WHEN metric_name = 'total_minutes_biked' THEN metric_value ELSE 0 END) / 
                    NULLIF(SUM(CASE WHEN metric_name = 'total_rides' THEN metric_value ELSE 0 END), 0) AS avg_ride_duration_minutes
-            FROM 'data/mart_daily_metrics_long.parquet'
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
             WHERE location = 'nyc' AND {date_filter}
         """
         try:
@@ -234,7 +238,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         london_duration_query = f"""
             SELECT SUM(CASE WHEN metric_name = 'total_minutes_biked' THEN metric_value ELSE 0 END) / 
                    NULLIF(SUM(CASE WHEN metric_name = 'total_rides' THEN metric_value ELSE 0 END), 0) AS avg_ride_duration_minutes
-            FROM 'data/mart_daily_metrics_long.parquet'
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
             WHERE location = 'london' AND {date_filter}
         """
         try:
@@ -258,7 +262,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
     elif applied_page in ["NYC", "London"]:
         total_rides_query = f"""
         SELECT SUM(metric_value) as total_rides
-        FROM 'data/mart_daily_metrics_long.parquet'
+        FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
         WHERE location = '{applied_page.lower()}'
           AND {date_filter}
           AND metric_name = 'total_rides'
@@ -274,7 +278,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         SELECT AVG(daily_rides) as avg_daily_rides
         FROM (
             SELECT date, SUM(metric_value) as daily_rides
-            FROM 'data/mart_daily_metrics_long.parquet'
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
             WHERE location = '{applied_page.lower()}'
               AND {date_filter}
               AND metric_name = 'total_rides'
@@ -291,7 +295,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         avg_duration_query = f"""
             SELECT SUM(CASE WHEN metric_name = 'total_minutes_biked' THEN metric_value ELSE 0 END) / 
                    NULLIF(SUM(CASE WHEN metric_name = 'total_rides' THEN metric_value ELSE 0 END), 0) AS avg_ride_duration_minutes
-            FROM 'data/mart_daily_metrics_long.parquet'
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
             WHERE location = '{applied_page.lower()}' AND {date_filter}
         """
         try:
@@ -317,7 +321,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         if rides_agg_type == "Average Daily Rides":
             rides_trend_query = f"""
             SELECT EXTRACT(MONTH FROM date) AS month, year, AVG(metric_value) as metric_value
-            FROM 'data/mart_daily_metrics_long.parquet'
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
             WHERE location = '{applied_page.lower()}'
               AND {date_filter}
               AND metric_name = 'total_rides'
@@ -329,7 +333,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         else:
             rides_trend_query = f"""
             SELECT EXTRACT(MONTH FROM date) AS month, year, SUM(metric_value) as metric_value
-            FROM 'data/mart_daily_metrics_long.parquet'
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
             WHERE location = '{applied_page.lower()}'
               AND {date_filter}
               AND metric_name = 'total_rides'
@@ -364,7 +368,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
           year,
           SUM(CASE WHEN metric_name = 'total_minutes_biked' THEN metric_value ELSE 0 END) /
             NULLIF(SUM(CASE WHEN metric_name = 'total_rides' THEN metric_value ELSE 0 END), 0) AS avg_duration
-        FROM 'data/mart_daily_metrics_long.parquet'
+        FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
         WHERE location = '{applied_page.lower()}'
           AND {date_filter}
           AND metric_name IN ('total_minutes_biked', 'total_rides')
@@ -392,7 +396,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
             st.error(f"Error creating duration trend chart: {e}")
 
         st.subheader("Time of Day Analysis")
-        hour_query = f"SELECT hour_of_day, ride_count FROM 'data/mart_hourly_patterns.parquet' WHERE location = '{applied_page.lower()}' ORDER BY hour_of_day"
+        hour_query = f"SELECT hour_of_day, ride_count FROM '{os.path.join(DATA_DIR, 'mart_hourly_patterns.parquet')}' WHERE location = '{applied_page.lower()}' ORDER BY hour_of_day"
         try:
             hour_df = run_query(hour_query)
             fig_hour = px.bar(hour_df, x='hour_of_day', y='ride_count', title=f"{applied_page} Rides by Hour of Day")
@@ -402,7 +406,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
 
         if applied_page == "NYC":
             st.subheader("Member Percentage Trend")
-            member_query = f"SELECT month, member_percentage FROM 'data/mart_nyc_member_analysis.parquet' WHERE month BETWEEN '{applied_start_date}' AND '{applied_end_date}' ORDER BY month"
+            member_query = f"SELECT month, member_percentage FROM '{os.path.join(DATA_DIR, 'mart_nyc_member_analysis.parquet')}' WHERE month BETWEEN '{applied_start_date}' AND '{applied_end_date}' ORDER BY month"
             try:
                 member_df = run_query(member_query)
                 fig_member = px.line(member_df, x='month', y='member_percentage', title="NYC Member Percentage Over Time")
@@ -413,7 +417,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         st.subheader("Station Growth")
         station_query = f"""
         SELECT year, station_count as metric_value
-        FROM 'data/mart_station_growth.parquet'
+        FROM '{os.path.join(DATA_DIR, 'mart_station_growth.parquet')}'
         WHERE location = '{applied_page.lower()}'
         AND year BETWEEN EXTRACT(YEAR FROM DATE '{applied_start_date}') AND EXTRACT(YEAR FROM DATE '{applied_end_date}')
         ORDER BY year
@@ -438,7 +442,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         if comparison_metric == "Overall Rides":
             comparison_query = f"""
             SELECT {date_expr} as period, location, SUM(metric_value) as metric_value
-            FROM 'data/mart_daily_metrics_long.parquet'
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
             WHERE {date_filter}
               AND metric_name = 'total_rides'
             GROUP BY period, location
@@ -449,7 +453,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         else:
             comparison_query = f"""
             SELECT {date_expr} as period, location, SUM(metric_value) as metric_value
-            FROM 'data/mart_daily_metrics_long.parquet'
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
             WHERE {date_filter}
               AND metric_name = 'rides_per_1000'
             GROUP BY period, location
@@ -476,7 +480,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
             SELECT {date_expr} as period, location,
               SUM(CASE WHEN metric_name = 'total_minutes_biked' THEN metric_value ELSE 0 END) /
                 NULLIF(SUM(CASE WHEN metric_name = 'total_rides' THEN metric_value ELSE 0 END), 0) AS avg_duration
-            FROM 'data/mart_daily_metrics_long.parquet'
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
             WHERE {date_filter}
               AND metric_name IN ('total_minutes_biked', 'total_rides')
             GROUP BY period, location
@@ -499,7 +503,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         st.markdown("<h2 style='font-size:2.2rem; margin-top:2em;'>Comparative Station Growth</h2>", unsafe_allow_html=True)
         station_query = f"""
             SELECT year, location, station_count
-            FROM 'data/mart_station_growth.parquet'
+            FROM '{os.path.join(DATA_DIR, 'mart_station_growth.parquet')}'
             WHERE year BETWEEN EXTRACT(YEAR FROM DATE '{applied_start_date}') AND EXTRACT(YEAR FROM DATE '{applied_end_date}')
             ORDER BY year, location
         """
