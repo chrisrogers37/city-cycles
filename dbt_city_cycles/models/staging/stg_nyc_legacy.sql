@@ -1,6 +1,6 @@
 {{ config(
     materialized='incremental',
-    unique_key=['bikeid', 'starttime', 'stoptime', 'start_station_id'],
+    unique_key=['bike_id', 'start_time', 'stop_time', 'start_station_id'],
     indexes=[
         {'columns': ['start_time']},
         {'columns': ['ride_id'], 'unique': true},
@@ -21,8 +21,8 @@ renamed as (
         -- Create unique ride_id using concatenation of key fields
         'legacy_' || bikeid || '_' || 
         start_station_id || '_' || 
-        to_char(starttime::timestamp, 'YYYYMMDDHH24MISS') || '_' ||
-        to_char(stoptime::timestamp, 'YYYYMMDDHH24MISS') as ride_id,
+        strftime('%Y%m%d%H%M%S', starttime::timestamp) || '_' ||
+        strftime('%Y%m%d%H%M%S', stoptime::timestamp) as ride_id,
         -- Calculate duration in seconds from timestamps
         extract(epoch from (stoptime::timestamp - starttime::timestamp)) as duration_seconds,
         starttime::timestamp as start_time,
@@ -42,8 +42,8 @@ renamed as (
             when usertype = 'Customer' then 'casual'
             else usertype
         end as user_type,
-        birth_year::integer,
-        gender::integer,
+        birth_year::integer AS birth_year,
+        gender::integer as gender,
         -- Date-derived fields
         date_trunc('day', starttime::timestamp) as date,
         extract(month from starttime::timestamp) as month,

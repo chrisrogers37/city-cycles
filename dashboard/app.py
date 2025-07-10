@@ -3,40 +3,28 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 import duckdb
-from datetime import datetime, timedelta
 import os
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Add the parent directory to the path so we can import our modules
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from streamlit_data_manager.parquet_file_manager import ensure_local_parquet_files
 
-# Define data directory path
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
+# Always resolve data directory at project root
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
 
-# Database connection
-def get_db_connection():
-    # Create an in-memory DuckDB connection
-    conn = duckdb.connect(':memory:')
-    
-    # Load all parquet files as tables
-    parquet_files = {
-        'mart_daily_metrics_long': 'mart_daily_metrics_long.parquet',
-        'mart_london_daily_metrics': 'mart_london_daily_metrics.parquet',
-        'mart_nyc_daily_metrics': 'mart_nyc_daily_metrics.parquet',
-        'mart_london_hourly_patterns': 'mart_london_hourly_patterns.parquet',
-        'mart_nyc_hourly_patterns': 'mart_nyc_hourly_patterns.parquet',
-        'mart_london_station_growth': 'mart_london_station_growth.parquet',
-        'mart_nyc_station_growth': 'mart_nyc_station_growth.parquet',
-        'mart_nyc_member_analysis': 'mart_nyc_member_analysis.parquet'
-    }
-    
-    for table_name, file_name in parquet_files.items():
-        file_path = os.path.join(DATA_DIR, file_name)
-        if os.path.exists(file_path):
-            # Create table from parquet file
-            conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM read_parquet('{file_path}')")
-    
-    return conn
+# Ensure all required Parquet files are present locally
+ensure_local_parquet_files()
+
+# Persistent DuckDB connection (in-memory or file-based)
+DUCKDB_CONN = duckdb.connect(database=':memory:')
+
+# Helper function for running queries
+def run_query(query):
+    return DUCKDB_CONN.execute(query).fetchdf()
 
 # Page config
 st.set_page_config(
@@ -48,133 +36,216 @@ st.set_page_config(
 # Title
 st.title("🚲 City Cycles Analytics Dashboard")
 
-# Restrict date range to 2019-01-01 through 2024-12-31
 dashboard_min_date = pd.to_datetime('2019-01-01').date()
 dashboard_max_date = pd.to_datetime('2024-12-31').date()
 
-# Sidebar for city selection
-page = st.sidebar.radio("Select a page:", ["NYC", "London", "Comparison"])
-
-# Connect to database
-conn = get_db_connection()
+# --- Session State Defaults ---
+def set_default_state():
+    if 'pending_page' not in st.session_state:
+        st.session_state['pending_page'] = 'NYC'
+    if 'pending_start_date' not in st.session_state:
+        st.session_state['pending_start_date'] = dashboard_min_date
+    if 'pending_end_date' not in st.session_state:
+        st.session_state['pending_end_date'] = dashboard_max_date
+    if 'applied_page' not in st.session_state:
+        st.session_state['applied_page'] = 'NYC'
+    if 'applied_start_date' not in st.session_state:
+        st.session_state['applied_start_date'] = dashboard_min_date
+    if 'applied_end_date' not in st.session_state:
+        st.session_state['applied_end_date'] = dashboard_max_date
+    if 'date_filter_applied' not in st.session_state:
+        st.session_state['date_filter_applied'] = False
+set_default_state()
 
 # --- Get max available date for each city ---
-nyc_max_date = pd.read_sql(
-    f"""SELECT MAX(date) as max_date FROM mart_daily_metrics_long WHERE location = 'nyc' AND date <= '2024-12-31'""", conn
-)['max_date'][0]
-london_max_date = pd.read_sql(
-    f"""SELECT MAX(date) as max_date FROM mart_daily_metrics_long WHERE location = 'london'""", conn
-)['max_date'][0]
-nyc_max_date = pd.to_datetime(nyc_max_date).date() if nyc_max_date else dashboard_max_date
-london_max_date = pd.to_datetime(london_max_date).date() if london_max_date else dashboard_max_date
+nyc_max_date_query = f"SELECT MAX(date) as max_date FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics.parquet')}' WHERE location = 'nyc' AND date <= '2024-12-31'"
+london_max_date_query = f"SELECT MAX(date) as max_date FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics.parquet')}' WHERE location = 'london'"
 
-# --- Date Range Picker with Apply Button ---
-if page == "Comparison":
+try:
+    nyc_max_date_result = run_query(nyc_max_date_query)
+    london_max_date_result = run_query(london_max_date_query)
+    nyc_max_date = pd.to_datetime(nyc_max_date_result['max_date'][0]).date() if not nyc_max_date_result.empty and nyc_max_date_result['max_date'][0] else dashboard_max_date
+    london_max_date = pd.to_datetime(london_max_date_result['max_date'][0]).date() if not london_max_date_result.empty and london_max_date_result['max_date'][0] else dashboard_max_date
+except Exception as e:
+    st.warning(f"Could not fetch date ranges from local Parquet, using defaults: {e}")
+    nyc_max_date = dashboard_max_date
+    london_max_date = dashboard_max_date
+
+# --- Sidebar UI for pending filter values ---
+st.sidebar.header("")
+st.sidebar.radio(
+    "Select a page:",
+    ["NYC", "London", "Comparison"],
+    index=["NYC", "London", "Comparison"].index(st.session_state['pending_page']),
+    key='pending_page'
+)
+
+# --- Use only applied_page to determine min/max date for the date input widget ---
+if st.session_state['applied_page'] == "Comparison":
     comparison_max_date = min(nyc_max_date, london_max_date)
-    date_query = f"SELECT MIN(date) as min_date FROM mart_daily_metrics_long WHERE date >= '{dashboard_min_date}' AND date <= '{comparison_max_date}'"
-    date_df = pd.read_sql(date_query, conn)
-    min_date = max(pd.to_datetime(date_df['min_date'][0]).date(), dashboard_min_date)
-    max_date = comparison_max_date
-elif page == "NYC":
-    date_query = f"SELECT MIN(date) as min_date FROM mart_daily_metrics_long WHERE location = 'nyc' AND date >= '{dashboard_min_date}' AND date <= '{nyc_max_date}'"
-    date_df = pd.read_sql(date_query, conn)
-    min_date = max(pd.to_datetime(date_df['min_date'][0]).date(), dashboard_min_date)
-    max_date = nyc_max_date
-elif page == "London":
-    date_query = f"SELECT MIN(date) as min_date FROM mart_daily_metrics_long WHERE location = 'london' AND date >= '{dashboard_min_date}' AND date <= '{london_max_date}'"
-    date_df = pd.read_sql(date_query, conn)
-    min_date = max(pd.to_datetime(date_df['min_date'][0]).date(), dashboard_min_date)
-    max_date = london_max_date
+    date_query = f"SELECT MIN(date) as min_date FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics.parquet')}' WHERE date >= '{dashboard_min_date}' AND date <= '{comparison_max_date}'"
+    try:
+        date_df = run_query(date_query)
+        min_date = max(pd.to_datetime(date_df['min_date'][0]).date(), dashboard_min_date) if not date_df.empty else dashboard_min_date
+        max_date = comparison_max_date
+    except Exception as e:
+        min_date = dashboard_min_date
+        max_date = comparison_max_date
+elif st.session_state['applied_page'] == "NYC":
+    date_query = f"SELECT MIN(date) as min_date FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics.parquet')}' WHERE location = 'nyc' AND date >= '{dashboard_min_date}' AND date <= '{nyc_max_date}'"
+    try:
+        date_df = run_query(date_query)
+        min_date = max(pd.to_datetime(date_df['min_date'][0]).date(), dashboard_min_date) if not date_df.empty else dashboard_min_date
+        max_date = nyc_max_date
+    except Exception as e:
+        min_date = dashboard_min_date
+        max_date = nyc_max_date
+elif st.session_state['applied_page'] == "London":
+    date_query = f"SELECT MIN(date) as min_date FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics.parquet')}' WHERE location = 'london' AND date >= '{dashboard_min_date}' AND date <= '{london_max_date}'"
+    try:
+        date_df = run_query(date_query)
+        min_date = max(pd.to_datetime(date_df['min_date'][0]).date(), dashboard_min_date) if not date_df.empty else dashboard_min_date
+        max_date = london_max_date
+    except Exception as e:
+        min_date = dashboard_min_date
+        max_date = london_max_date
 else:
     min_date = dashboard_min_date
     max_date = dashboard_max_date
 
-start_date, end_date = st.sidebar.date_input(
-    "Select date range:",
-    value=(min_date, max_date),
-    min_value=dashboard_min_date,
-    max_value=max_date
-)
-apply_filter = st.sidebar.button("Apply Date Filter")
+# Ensure we have valid date values
+if min_date is None or max_date is None:
+    min_date = dashboard_min_date
+    max_date = dashboard_max_date
 
-# Add note about re-applying date filter (now below the button, in white)
+# Clamp pending_start_date and pending_end_date to min_date and max_date
+pending_start = max(st.session_state['pending_start_date'], min_date)
+pending_end = min(st.session_state['pending_end_date'], max_date)
+if pending_start > pending_end:
+    pending_start = min_date
+    pending_end = max_date
+
+try:
+    st.sidebar.date_input(
+        "Select date range:",
+        value=(pending_start, pending_end),
+        min_value=min_date,
+        max_value=max_date,
+        key='pending_date_input'
+    )
+    # Update pending_start_date and pending_end_date from the widget value
+    if isinstance(st.session_state['pending_date_input'], tuple) and len(st.session_state['pending_date_input']) == 2:
+        st.session_state['pending_start_date'], st.session_state['pending_end_date'] = st.session_state['pending_date_input']
+except Exception as e:
+    st.error(f"Error with date input: {e}")
+    st.session_state['pending_start_date'] = min_date
+    st.session_state['pending_end_date'] = max_date
+
+apply_filter = st.sidebar.button("Apply Date Filter")
+reset_filter = st.sidebar.button("Reset Dashboard")
+
 st.sidebar.markdown("<span style='color:#fff'><b>Note:</b> After switching dashboards or changing the date range, you must click 'Apply Date Filter' to update the dashboard.</span>", unsafe_allow_html=True)
 
-if 'date_filter_applied' not in st.session_state:
-    st.session_state['date_filter_applied'] = False
+if reset_filter:
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    set_default_state()
+    st.rerun()
+
 if apply_filter:
+    st.session_state['applied_page'] = st.session_state['pending_page']
+    st.session_state['applied_start_date'] = st.session_state['pending_start_date']
+    st.session_state['applied_end_date'] = st.session_state['pending_end_date']
     st.session_state['date_filter_applied'] = True
-    st.session_state['applied_start_date'] = start_date
-    st.session_state['applied_end_date'] = end_date
+    st.rerun()
 
-# Use applied dates if filter applied, else None
-applied_start_date = st.session_state.get('applied_start_date', None)
-applied_end_date = st.session_state.get('applied_end_date', None)
+applied_page = st.session_state.get('applied_page', 'NYC')
+applied_start_date = st.session_state.get('applied_start_date', dashboard_min_date)
+applied_end_date = st.session_state.get('applied_end_date', dashboard_max_date)
 
-# Only render dashboard if filter applied and both dates are present
 if st.session_state.get('date_filter_applied', False) and applied_start_date and applied_end_date:
     def date_filter_sql(start_date, end_date):
         return f"date BETWEEN '{max(start_date, dashboard_min_date)}' AND '{min(end_date, dashboard_max_date)}'"
     date_filter = date_filter_sql(applied_start_date, applied_end_date)
 
-    # City/Comparison Title above KPIs
-    if page == "Comparison":
+    # --- All dashboard queries below should use os.path.join(DATA_DIR, ...) for Parquet file paths ---
+    if applied_page == "Comparison":
         st.subheader("NYC vs London")
     else:
-        st.subheader(page)
+        st.subheader(applied_page)
 
-    # --- KPI Section ---
-    if page == "Comparison":
-        # Only render the new KPI section (remove the old one)
+    if applied_page == "Comparison":
         st.header("Comparative Analytics")
         col_nyc, col_london = st.columns(2)
 
-        # Get latest year in filter
         year_query = f"""
-            SELECT MAX(year) as latest_year FROM mart_nyc_station_growth
+            SELECT MAX(year) as latest_year FROM '{os.path.join(DATA_DIR, 'mart_station_growth.parquet')}'
             WHERE year BETWEEN EXTRACT(YEAR FROM DATE '{applied_start_date}') AND EXTRACT(YEAR FROM DATE '{applied_end_date}')
         """
-        latest_year = pd.read_sql(year_query, conn)['latest_year'][0]
+        try:
+            latest_year_result = run_query(year_query)
+            latest_year = latest_year_result['latest_year'][0] if not latest_year_result.empty and latest_year_result['latest_year'][0] else 2024
+        except Exception as e:
+            st.error(f"Error getting latest year: {e}")
+            latest_year = 2024
 
-        # Get population for latest year for each city
         pop_query = f"""
             SELECT location, MAX(metric_value) as population
-            FROM mart_daily_metrics_long
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
             WHERE metric_name = 'population' AND year = {latest_year}
             GROUP BY location
         """
-        pop_df = pd.read_sql(pop_query, conn).set_index('location')
-        nyc_pop = int(pop_df.loc['nyc', 'population']) if 'nyc' in pop_df.index else None
-        london_pop = int(pop_df.loc['london', 'population']) if 'london' in pop_df.index else None
+        try:
+            pop_df = run_query(pop_query).set_index('location')
+            nyc_pop = int(pop_df.loc['nyc', 'population']) if 'nyc' in pop_df.index else None
+            london_pop = int(pop_df.loc['london', 'population']) if 'london' in pop_df.index else None
+        except Exception as e:
+            st.error(f"Error getting population data: {e}")
+            nyc_pop = None
+            london_pop = None
 
-        # Calculate rides per 1000 in period for each city
         rides_query = f"""
             SELECT location, SUM(metric_value) as total_rides
-            FROM mart_daily_metrics_long
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
             WHERE metric_name = 'total_rides' AND {date_filter}
             GROUP BY location
         """
-        rides_df = pd.read_sql(rides_query, conn).set_index('location')
-        nyc_rides = rides_df.loc['nyc', 'total_rides'] if 'nyc' in rides_df.index else None
-        london_rides = rides_df.loc['london', 'total_rides'] if 'london' in rides_df.index else None
-        nyc_rides_per_1000 = (nyc_rides / nyc_pop * 1000) if nyc_rides and nyc_pop else None
-        london_rides_per_1000 = (london_rides / london_pop * 1000) if london_rides and london_pop else None
+        try:
+            rides_df = run_query(rides_query).set_index('location')
+            nyc_rides = rides_df.loc['nyc', 'total_rides'] if 'nyc' in rides_df.index else None
+            london_rides = rides_df.loc['london', 'total_rides'] if 'london' in rides_df.index else None
+            nyc_rides_per_1000 = (nyc_rides / nyc_pop * 1000) if nyc_rides and nyc_pop else None
+            london_rides_per_1000 = (london_rides / london_pop * 1000) if london_rides and london_pop else None
+        except Exception as e:
+            st.error(f"Error getting rides data: {e}")
+            nyc_rides = None
+            london_rides = None
+            nyc_rides_per_1000 = None
+            london_rides_per_1000 = None
 
-        # Average Ride Duration (global, not average of daily averages)
         nyc_duration_query = f"""
             SELECT SUM(CASE WHEN metric_name = 'total_minutes_biked' THEN metric_value ELSE 0 END) / 
                    NULLIF(SUM(CASE WHEN metric_name = 'total_rides' THEN metric_value ELSE 0 END), 0) AS avg_ride_duration_minutes
-            FROM mart_daily_metrics_long
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
             WHERE location = 'nyc' AND {date_filter}
         """
-        nyc_avg_duration = pd.read_sql(nyc_duration_query, conn)['avg_ride_duration_minutes'][0]
+        try:
+            nyc_avg_duration = run_query(nyc_duration_query)['avg_ride_duration_minutes'][0]
+        except Exception as e:
+            st.error(f"Error getting NYC duration: {e}")
+            nyc_avg_duration = None
+        
         london_duration_query = f"""
             SELECT SUM(CASE WHEN metric_name = 'total_minutes_biked' THEN metric_value ELSE 0 END) / 
                    NULLIF(SUM(CASE WHEN metric_name = 'total_rides' THEN metric_value ELSE 0 END), 0) AS avg_ride_duration_minutes
-            FROM mart_daily_metrics_long
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
             WHERE location = 'london' AND {date_filter}
         """
-        london_avg_duration = pd.read_sql(london_duration_query, conn)['avg_ride_duration_minutes'][0]
+        try:
+            london_avg_duration = run_query(london_duration_query)['avg_ride_duration_minutes'][0]
+        except Exception as e:
+            st.error(f"Error getting London duration: {e}")
+            london_avg_duration = None
 
         with col_nyc:
             st.subheader("NYC")
@@ -188,39 +259,51 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
             st.metric("Rides Per 1,000 Capita in Period", f"{london_rides_per_1000:,.1f}" if london_rides_per_1000 else "N/A")
             st.metric(f"Est. Population ({latest_year})", f"{london_pop:,}" if london_pop else "N/A")
             st.metric("Avg Ride Duration", f"{london_avg_duration:.1f} min" if london_avg_duration else "N/A")
-    elif page in ["NYC", "London"]:
-        # Total rides in period
+    elif applied_page in ["NYC", "London"]:
         total_rides_query = f"""
         SELECT SUM(metric_value) as total_rides
-        FROM mart_daily_metrics_long
-        WHERE location = '{page.lower()}'
+        FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
+        WHERE location = '{applied_page.lower()}'
           AND {date_filter}
           AND metric_name = 'total_rides'
         """
-        total_rides = pd.read_sql(total_rides_query, conn)['total_rides'][0]
+        try:
+            total_rides_result = run_query(total_rides_query)
+            total_rides = total_rides_result['total_rides'][0] if not total_rides_result.empty else 0
+        except Exception as e:
+            st.error(f"Error getting total rides: {e}")
+            total_rides = 0
 
-        # Average daily rides in period
         avg_daily_query = f"""
         SELECT AVG(daily_rides) as avg_daily_rides
         FROM (
             SELECT date, SUM(metric_value) as daily_rides
-            FROM mart_daily_metrics_long
-            WHERE location = '{page.lower()}'
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
+            WHERE location = '{applied_page.lower()}'
               AND {date_filter}
               AND metric_name = 'total_rides'
             GROUP BY date
         ) t
         """
-        avg_daily = pd.read_sql(avg_daily_query, conn)['avg_daily_rides'][0]
+        try:
+            avg_daily_result = run_query(avg_daily_query)
+            avg_daily = avg_daily_result['avg_daily_rides'][0] if not avg_daily_result.empty else 0
+        except Exception as e:
+            st.error(f"Error getting average daily rides: {e}")
+            avg_daily = 0
 
-        # Average ride duration (global, not average of daily averages)
         avg_duration_query = f"""
             SELECT SUM(CASE WHEN metric_name = 'total_minutes_biked' THEN metric_value ELSE 0 END) / 
                    NULLIF(SUM(CASE WHEN metric_name = 'total_rides' THEN metric_value ELSE 0 END), 0) AS avg_ride_duration_minutes
-            FROM mart_daily_metrics_long
-            WHERE location = '{page.lower()}' AND {date_filter}
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
+            WHERE location = '{applied_page.lower()}' AND {date_filter}
         """
-        avg_duration = pd.read_sql(avg_duration_query, conn)['avg_ride_duration_minutes'][0]
+        try:
+            avg_duration_result = run_query(avg_duration_query)
+            avg_duration = avg_duration_result['avg_ride_duration_minutes'][0] if not avg_duration_result.empty else 0
+        except Exception as e:
+            st.error(f"Error getting average duration: {e}")
+            avg_duration = 0
 
         col1, col2, col3 = st.columns(3)
 
@@ -232,19 +315,14 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
             st.metric("Average Ride Duration", f"{avg_duration:.1f} minutes")
 
     # --- Trends Section ---
-    # st.header("Trends")
-    # if page == "Comparison":
-    #     st.subheader("NYC vs London: Comparative Analytics")
-
-    if page in ["NYC", "London"]:
-        # --- Rides Trend ---
+    if applied_page in ["NYC", "London"]:
         st.subheader("Rides by Month (Overlayed by Year)")
-        rides_agg_type = st.radio("Aggregation:", ["Average Daily Rides", "Total Rides"], key=f"rides_agg_{page}", horizontal=True)
+        rides_agg_type = st.radio("Aggregation:", ["Average Daily Rides", "Total Rides"], key=f"rides_agg_{applied_page}", horizontal=True)
         if rides_agg_type == "Average Daily Rides":
             rides_trend_query = f"""
             SELECT EXTRACT(MONTH FROM date) AS month, year, AVG(metric_value) as metric_value
-            FROM mart_daily_metrics_long
-            WHERE location = '{page.lower()}'
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
+            WHERE location = '{applied_page.lower()}'
               AND {date_filter}
               AND metric_name = 'total_rides'
             GROUP BY month, year
@@ -255,8 +333,8 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         else:
             rides_trend_query = f"""
             SELECT EXTRACT(MONTH FROM date) AS month, year, SUM(metric_value) as metric_value
-            FROM mart_daily_metrics_long
-            WHERE location = '{page.lower()}'
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
+            WHERE location = '{applied_page.lower()}'
               AND {date_filter}
               AND metric_name = 'total_rides'
             GROUP BY month, year
@@ -264,24 +342,25 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
             """
             y_label = "Total Rides"
             chart_title = "Total Rides per Month (Overlayed by Year)"
+        try:
+            rides_trend_df = run_query(rides_trend_query)
+            fig_rides = px.line(
+                rides_trend_df,
+                x='month', y='metric_value', color='year',
+                title=chart_title,
+                labels={'metric_value': y_label, 'month': 'Month'}
+            )
+            fig_rides.update_xaxes(
+                tickmode='array',
+                tickvals=list(range(1, 13)),
+                ticktext=['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            )
+            st.plotly_chart(fig_rides, use_container_width=True)
+            with st.expander("Show data table for rides trend"):
+                st.dataframe(rides_trend_df)
+        except Exception as e:
+            st.error(f"Error creating rides trend chart: {e}")
 
-        rides_trend_df = pd.read_sql(rides_trend_query, conn)
-        fig_rides = px.line(
-            rides_trend_df,
-            x='month', y='metric_value', color='year',
-            title=chart_title,
-            labels={'metric_value': y_label, 'month': 'Month'}
-        )
-        fig_rides.update_xaxes(
-            tickmode='array',
-            tickvals=list(range(1, 13)),
-            ticktext=['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        )
-        st.plotly_chart(fig_rides, use_container_width=True)
-        with st.expander("Show data table for rides trend"):
-            st.dataframe(rides_trend_df)
-
-        # --- Trip Duration Trend ---
         st.subheader("Average Trip Duration by Month (Overlayed by Year)")
         duration_trend_query = f"""
         SELECT
@@ -289,66 +368,69 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
           year,
           SUM(CASE WHEN metric_name = 'total_minutes_biked' THEN metric_value ELSE 0 END) /
             NULLIF(SUM(CASE WHEN metric_name = 'total_rides' THEN metric_value ELSE 0 END), 0) AS avg_duration
-        FROM mart_daily_metrics_long
-        WHERE location = '{page.lower()}'
+        FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
+        WHERE location = '{applied_page.lower()}'
           AND {date_filter}
           AND metric_name IN ('total_minutes_biked', 'total_rides')
         GROUP BY month, year
         ORDER BY month, year
         """
-        duration_trend_df = pd.read_sql(duration_trend_query, conn)
-        fig_duration = px.line(
-            duration_trend_df,
-            x='month', y='avg_duration', color='year',
-            title="Average Trip Duration by Month (Overlayed by Year)",
-            labels={'avg_duration': 'Avg Trip Duration (min)', 'month': 'Month'}
-        )
-        fig_duration.update_xaxes(
-            tickmode='array',
-            tickvals=list(range(1, 13)),
-            ticktext=['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        )
-        st.plotly_chart(fig_duration, use_container_width=True)
-        st.caption("True average: total minutes biked / total rides per period")
-        with st.expander("Show data table for trip duration trend"):
-            st.dataframe(duration_trend_df)
+        try:
+            duration_trend_df = run_query(duration_trend_query)
+            fig_duration = px.line(
+                duration_trend_df,
+                x='month', y='avg_duration', color='year',
+                title="Average Trip Duration by Month (Overlayed by Year)",
+                labels={'avg_duration': 'Avg Trip Duration (min)', 'month': 'Month'}
+            )
+            fig_duration.update_xaxes(
+                tickmode='array',
+                tickvals=list(range(1, 13)),
+                ticktext=['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            )
+            st.plotly_chart(fig_duration, use_container_width=True)
+            st.caption("True average: total minutes biked / total rides per period")
+            with st.expander("Show data table for trip duration trend"):
+                st.dataframe(duration_trend_df)
+        except Exception as e:
+            st.error(f"Error creating duration trend chart: {e}")
 
-        # --- Time of Day Analysis ---
         st.subheader("Time of Day Analysis")
-        hour_query = f"SELECT hour_of_day, ride_count FROM mart_hourly_patterns WHERE location = '{page.lower()}' ORDER BY hour_of_day"
-        hour_df = pd.read_sql(hour_query, conn)
-        fig_hour = px.bar(hour_df, x='hour_of_day', y='ride_count', title=f"{page} Rides by Hour of Day")
-        st.plotly_chart(fig_hour, use_container_width=True)
+        hour_query = f"SELECT hour_of_day, ride_count FROM '{os.path.join(DATA_DIR, 'mart_hourly_patterns.parquet')}' WHERE location = '{applied_page.lower()}' ORDER BY hour_of_day"
+        try:
+            hour_df = run_query(hour_query)
+            fig_hour = px.bar(hour_df, x='hour_of_day', y='ride_count', title=f"{applied_page} Rides by Hour of Day")
+            st.plotly_chart(fig_hour, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error creating hourly patterns chart: {e}")
 
-        # --- Member % (NYC only) ---
-        if page == "NYC":
+        if applied_page == "NYC":
             st.subheader("Member Percentage Trend")
-            member_query = f"SELECT month, member_percentage FROM mart_nyc_member_analysis WHERE month BETWEEN '{start_date}' AND '{end_date}' ORDER BY month"
-            member_df = pd.read_sql(member_query, conn)
-            fig_member = px.line(member_df, x='month', y='member_percentage', title="NYC Member Percentage Over Time")
-            st.plotly_chart(fig_member, use_container_width=True)
+            member_query = f"SELECT month, member_percentage FROM '{os.path.join(DATA_DIR, 'mart_nyc_member_analysis.parquet')}' WHERE month BETWEEN '{applied_start_date}' AND '{applied_end_date}' ORDER BY month"
+            try:
+                member_df = run_query(member_query)
+                fig_member = px.line(member_df, x='month', y='member_percentage', title="NYC Member Percentage Over Time")
+                st.plotly_chart(fig_member, use_container_width=True)
+            except Exception as e:
+                st.error(f"Error creating member percentage chart: {e}")
 
-        # --- Station Growth ---
         st.subheader("Station Growth")
         station_query = f"""
         SELECT year, station_count as metric_value
-        FROM mart_station_growth
-        WHERE location = '{page.lower()}'
-        AND year BETWEEN EXTRACT(YEAR FROM DATE '{start_date}') AND EXTRACT(YEAR FROM DATE '{end_date}')
+        FROM '{os.path.join(DATA_DIR, 'mart_station_growth.parquet')}'
+        WHERE location = '{applied_page.lower()}'
+        AND year BETWEEN EXTRACT(YEAR FROM DATE '{applied_start_date}') AND EXTRACT(YEAR FROM DATE '{applied_end_date}')
         ORDER BY year
         """
-        station_df = pd.read_sql(station_query, conn)
-        fig_station = px.bar(station_df, x='year', y='metric_value', title=f"Station Count by Year")
-        st.plotly_chart(fig_station, use_container_width=True)
+        try:
+            station_df = run_query(station_query)
+            fig_station = px.bar(station_df, x='year', y='metric_value', title=f"Station Count by Year")
+            st.plotly_chart(fig_station, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error creating station growth chart: {e}")
 
-    elif page == "Comparison":
-        # Remove the 'NYC vs London: Comparative Analytics' subheader from the comparison page
-        # (Delete or comment out the line: st.subheader("NYC vs London: Comparative Analytics"))
-
-        # --- Comparative Trends Section ---
+    elif applied_page == "Comparison":
         st.markdown("<h2 style='font-size:2.2rem; margin-top:2em;'>Comparative Trends</h2>", unsafe_allow_html=True)
-
-        # 1. Comparative Rides
         trend_agg = st.radio("Aggregation:", ["Monthly", "Yearly"], key="trend_agg", horizontal=True)
         comparison_metric = st.radio("Select Metric:", ["Overall Rides", "Per Capita Rides"], key="comparison_metric", horizontal=True)
         if trend_agg == "Monthly":
@@ -360,7 +442,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         if comparison_metric == "Overall Rides":
             comparison_query = f"""
             SELECT {date_expr} as period, location, SUM(metric_value) as metric_value
-            FROM mart_daily_metrics_long
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
             WHERE {date_filter}
               AND metric_name = 'total_rides'
             GROUP BY period, location
@@ -371,7 +453,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
         else:
             comparison_query = f"""
             SELECT {date_expr} as period, location, SUM(metric_value) as metric_value
-            FROM mart_daily_metrics_long
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
             WHERE {date_filter}
               AND metric_name = 'rides_per_1000'
             GROUP BY period, location
@@ -379,62 +461,65 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
             """
             y_label = "Rides per 1,000 Residents"
             chart_title = f"Comparative Per Capita Rides Over Time ({trend_agg})"
-        comparison_df = pd.read_sql(comparison_query, conn)
-        fig_comparison = px.line(
-            comparison_df,
-            x='period', y='metric_value', color='location',
-            title=chart_title,
-            labels={'metric_value': y_label, 'period': x_label}
-        )
-        st.plotly_chart(fig_comparison, use_container_width=True)
-        with st.expander("Show data table for comparative trends"):
-            st.dataframe(comparison_df)
+        try:
+            comparison_df = run_query(comparison_query)
+            fig_comparison = px.line(
+                comparison_df,
+                x='period', y='metric_value', color='location',
+                title=chart_title,
+                labels={'metric_value': y_label, 'period': x_label}
+            )
+            st.plotly_chart(fig_comparison, use_container_width=True)
+            with st.expander("Show data table for comparative trends"):
+                st.dataframe(comparison_df)
+        except Exception as e:
+            st.error(f"Error creating comparative trends chart: {e}")
 
-        # 2. Comparative Average Ride Duration
         st.markdown("<h2 style='font-size:2.2rem; margin-top:2em;'>Comparative Average Ride Duration</h2>", unsafe_allow_html=True)
         duration_query = f"""
             SELECT {date_expr} as period, location,
               SUM(CASE WHEN metric_name = 'total_minutes_biked' THEN metric_value ELSE 0 END) /
                 NULLIF(SUM(CASE WHEN metric_name = 'total_rides' THEN metric_value ELSE 0 END), 0) AS avg_duration
-            FROM mart_daily_metrics_long
+            FROM '{os.path.join(DATA_DIR, 'mart_daily_metrics_long.parquet')}'
             WHERE {date_filter}
               AND metric_name IN ('total_minutes_biked', 'total_rides')
             GROUP BY period, location
             ORDER BY period, location
         """
-        duration_df = pd.read_sql(duration_query, conn)
-        fig_duration = px.line(
-            duration_df,
-            x='period', y='avg_duration', color='location',
-            title=f'Comparative Average Ride Duration Over Time ({trend_agg})',
-            labels={'avg_duration': 'Avg Ride Duration (min)', 'period': x_label}
-        )
-        st.plotly_chart(fig_duration, use_container_width=True)
-        with st.expander("Show data table for duration trends"):
-            st.dataframe(duration_df)
+        try:
+            duration_df = run_query(duration_query)
+            fig_duration = px.line(
+                duration_df,
+                x='period', y='avg_duration', color='location',
+                title=f'Comparative Average Ride Duration Over Time ({trend_agg})',
+                labels={'avg_duration': 'Avg Ride Duration (min)', 'period': x_label}
+            )
+            st.plotly_chart(fig_duration, use_container_width=True)
+            with st.expander("Show data table for duration trends"):
+                st.dataframe(duration_df)
+        except Exception as e:
+            st.error(f"Error creating comparative duration chart: {e}")
 
-        # 3. Comparative Station Growth
         st.markdown("<h2 style='font-size:2.2rem; margin-top:2em;'>Comparative Station Growth</h2>", unsafe_allow_html=True)
         station_query = f"""
             SELECT year, location, station_count
-            FROM mart_station_growth
+            FROM '{os.path.join(DATA_DIR, 'mart_station_growth.parquet')}'
             WHERE year BETWEEN EXTRACT(YEAR FROM DATE '{applied_start_date}') AND EXTRACT(YEAR FROM DATE '{applied_end_date}')
             ORDER BY year, location
         """
-        station_df = pd.read_sql(station_query, conn)
-        fig_station = px.bar(
-            station_df,
-            x='year', y='station_count', color='location',
-            barmode='group',
-            title='Comparative Station Count by Year',
-            labels={'station_count': 'Station Count', 'year': 'Year'}
-        )
-        st.plotly_chart(fig_station, use_container_width=True)
-        with st.expander("Show data table for station trends"):
-            st.dataframe(station_df)
-
+        try:
+            station_df = run_query(station_query)
+            fig_station = px.bar(
+                station_df,
+                x='year', y='station_count', color='location',
+                barmode='group',
+                title='Comparative Station Count by Year',
+                labels={'station_count': 'Station Count', 'year': 'Year'}
+            )
+            st.plotly_chart(fig_station, use_container_width=True)
+            with st.expander("Show data table for station trends"):
+                st.dataframe(station_df)
+        except Exception as e:
+            st.error(f"Error creating comparative station growth chart: {e}")
 else:
-    st.info("Select a start and end date, then click 'Apply Date Filter' to update the dashboard.")
-
-# Close database connection
-conn.close() 
+    st.info("Select a page and date range, then click 'Apply Date Filter' to update the dashboard.") 

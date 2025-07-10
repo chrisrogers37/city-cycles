@@ -7,9 +7,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Project root is two levels up from this file
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Project root is three levels up from this file (config -> db_duckdb -> project_root)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DB_PATH = os.path.join(PROJECT_ROOT, 'data', 'city_cycles.duckdb')
+
+# Debug: Print path resolution for troubleshooting
+print(f"DEBUG: __file__ = {__file__}")
+print(f"DEBUG: PROJECT_ROOT = {PROJECT_ROOT}")
+print(f"DEBUG: DB_PATH = {DB_PATH}")
 
 # S3 Configuration
 S3_BUCKET = os.environ.get("S3_BUCKET", "city-cycles-data-ctr37")

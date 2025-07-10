@@ -38,3 +38,10 @@ models:
     marts:
       +materialized: table
       +schema: marts
+
+on-run-start:
+  - "PRAGMA memory_limit='512MB';"
+  - "PRAGMA threads=1;"
+  - "PRAGMA max_temp_directory_size='10GB';"
+  - "PRAGMA temp_directory='/tmp';"
+  - "PRAGMA preserve_insertion_order=false;"
