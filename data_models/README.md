@@ -1,102 +1,227 @@
 # Data Models for Bike Share Data
 
-This directory contains the data models for London and NYC bike share data. The models are designed to handle both legacy and modern schemas, and provide a robust way to load data from S3 into a PostgreSQL database.
+This directory contains the data models for London and NYC bike share data. The models are designed to handle both legacy and modern schemas, and provide a robust way to validate and transform data from CSV files into standardized formats for analytics.
 
 ## Overview
 
-The data models are built on top of a base class (`BaseBikeShareRecord`) that provides common functionality for listing files in S3, downloading files, assigning models, and loading data into the database. Each model (e.g., `LondonLegacyBikeShareRecord`, `LondonModernBikeShareRecord`, `NYCLegacyBikeShareRecord`, `NYCModernBikeShareRecord`) is a subclass of `BaseBikeShareRecord` and defines its own schema, S3 prefix, and methods for matching files and aligning data.
+The data models are built on top of a base class (`BaseBikeShareRecord`) that provides common functionality for schema validation, data transformation, and integration with the broader analytics pipeline. Each model defines its own schema, validation rules, and transformation logic to handle the specific formats of bike share data from different cities and time periods.
+
+### Core Components
+
+- **`base.py`**: Base class providing common functionality for all bike share data models
+- **`nyc_bike.py`**: NYC bike share data models (legacy and modern formats)
+- **`london_bike.py`**: London bike share data models (legacy and modern formats)
+- **`registry.py`**: Central registry of all available models
+- **`__init__.py`**: Module exports for easy access to models
+
+## Data Models
+
+### NYC Bike Share Models
+
+#### `NYCLegacyBikeShareRecord` (2013-2016)
+- **Staging Table**: `raw_nyc_legacy`
+- **S3 Prefix**: `nyc_csv/`
+- **Key Fields**: `tripduration`, `bikeid`, `starttime`, `stoptime`, station data, user demographics
+- **Schema**: Includes birth year, gender, and detailed station coordinates
+
+#### `NYCModernBikeShareRecord` (2017-present)
+- **Staging Table**: `raw_nyc_modern`
+- **S3 Prefix**: `nyc_csv/`
+- **Key Fields**: `ride_id`, `rideable_type`, `started_at`, `ended_at`, station data, member type
+- **Schema**: Simplified schema with ride IDs and member/casual classification
+
+### London Bike Share Models
+
+#### `LondonLegacyBikeShareRecord` (2010-2022)
+- **Staging Table**: `raw_london_legacy`
+- **S3 Prefix**: `london_csv/`
+- **Key Fields**: `rental_id`, `bike_id`, `start_date`, `end_date`, station data
+- **Schema**: Includes duration and detailed station information
+
+#### `LondonModernBikeShareRecord` (2022-present)
+- **Staging Table**: `raw_london_modern`
+- **S3 Prefix**: `london_csv/`
+- **Key Fields**: `number`, `bike_number`, `bike_model`, `start_date`, `end_date`, station data
+- **Schema**: Enhanced schema with bike model information and millisecond duration
 
 ## Key Features
 
-- **Model Registry:** The base class maintains a registry of all subclasses, allowing for robust model assignment based on file names and content.
-- **S3 Integration:** Methods for listing and downloading files from S3.
-- **Database Loading:** Methods for loading data into the correct table in the database, supporting chunked, memory-efficient loading with progress and memory logging.
-- **Schema Generation & Execution:** Generate and execute SQL DDLs for creating tables directly from the models.
+### Schema Validation
+- **Automatic Detection**: Models automatically validate CSV schemas using required column lists
+- **Debug Support**: Detailed validation output when `EXTRACTED_FILE_MANAGER_DEBUG=1` is set
+- **Flexible Matching**: Handles column name variations and missing fields gracefully
 
-## Example Usage
+### Data Transformation
+- **Column Mapping**: Automatic renaming of CSV columns to standardized field names
+- **Type Conversion**: Proper handling of data types (strings, integers, floats, datetimes)
+- **Data Quality**: Built-in handling of coordinate precision, station ID formats, and date parsing
+- **Source Tracking**: Automatic addition of `source_file` field for data lineage
 
-### Listing Files in S3
+### Integration Points
+- **Extracted File Manager**: Used for schema validation during CSV to Parquet conversion
+- **DuckDB Pipeline**: Provides table schemas for raw table creation
+- **dbt Transformations**: Serves as the foundation for staging and mart models
 
-```python
-from data_models.base import BaseBikeShareRecord
+## Usage Examples
 
-# List all files in the 'london_csv/' prefix
-files = BaseBikeShareRecord.list_s3_files(prefix='london_csv/')
-print(files)
-
-# List files for a specific year
-files_2021 = BaseBikeShareRecord.list_s3_files(prefix='london_csv/', year=2021)
-print(files_2021)
-```
-
-### Assigning Models
+### Schema Validation
 
 ```python
-from data_models.base import BaseBikeShareRecord
+from data_models.nyc_bike import NYCModernBikeShareRecord
+import pandas as pd
 
-# Assign a model to a file (now requires s3_prefix)
-filename = 'london_2021.csv'
-s3_prefix = 'london_csv/'
-model = BaseBikeShareRecord.assign_model(filename, s3_prefix)
-if model:
-    print(f"Matched model: {model.__name__} (table: {model.staging_table})")
+# Load a sample CSV
+df = pd.read_csv('sample_nyc_data.csv')
+
+# Validate schema
+if NYCModernBikeShareRecord.validate_schema(df):
+    print("Schema validation passed")
 else:
-    print("No model matched.")
+    print("Schema validation failed")
 ```
 
-### Generating and Executing SQL DDLs
+### Data Transformation
 
 ```python
 from data_models.london_bike import LondonLegacyBikeShareRecord
+import pandas as pd
 
-# Generate SQL DDL for the London Legacy table
-ddl = LondonLegacyBikeShareRecord.get_schema_sql()
-print(ddl)
+# Load raw CSV data
+df = pd.read_csv('london_legacy_data.csv')
 
-# Create the table in the database
-LondonLegacyBikeShareRecord.create_table()
-
-# Create all tables for all models
-from data_models.base import BaseBikeShareRecord
-BaseBikeShareRecord.create_all_tables()
+# Transform to standardized format
+transformed_df = LondonLegacyBikeShareRecord.to_dataframe(df, 'source_file.csv')
+print(transformed_df.columns)
 ```
 
-### Loading Data into the Database (Chunked, Memory-Efficient)
+### Model Registry Access
 
 ```python
 from data_models.base import BaseBikeShareRecord
 
-# Load all files in the 'london_csv/' prefix, processing in memory-efficient chunks
-BaseBikeShareRecord.load_from_s3(prefix='london_csv/', chunksize=10000)
+# Access all registered models
+for model in BaseBikeShareRecord._registry:
+    print(f"Model: {model.__name__}")
+    print(f"Table: {model.staging_table}")
+    print(f"S3 Prefix: {model.s3_prefix}")
 ```
 
-### Batch Loading
+### Schema Generation
 
-You can also use the batch loading scripts to load all files for a specific prefix or all prefixes:
+```python
+from data_models.nyc_bike import NYCLegacyBikeShareRecord
 
+# Generate SQL DDL for table creation
+ddl = NYCLegacyBikeShareRecord.get_schema_sql()
+print(ddl)
+```
+
+## Integration with Extracted File Manager
+
+The data models are automatically used by the Extracted File Manager for:
+
+### Schema Validation
 ```bash
-# Load all files in the 'london_csv/' prefix
-python db/batch_load_from_s3.py london_csv/
+# Validate a specific file
+python -m extracted_file_manager.cli validate --file "2023-01-nyc-data.csv" --debug
 
-# Load files for a specific year
-python db/batch_load_from_s3.py london_csv/ 2021
-
-# Dry run
-python db/batch_load_from_s3.py london_csv/ --dry-run
-
-# Load all prefixes
-python db/batch_load_all_from_s3.py
+# Validate all files
+python -m extracted_file_manager.cli validate --debug
 ```
 
-### Error Handling & Logging
+### Automatic Model Assignment
+The Extracted File Manager uses the models to:
+1. **Detect Schema**: Automatically determine which model matches a CSV file
+2. **Validate Data**: Ensure CSV columns match expected schema
+3. **Organize Output**: Group Parquet files by schema type in S3
+4. **Transform Data**: Convert CSV data to standardized format during Parquet conversion
 
-- The ETL process logs progress and memory usage for each chunk and file.
-- Errors in loading one file or prefix do not stop the rest of the batch.
+### Debug Output Example
+```
+DEBUG: Found 2 models to test for FileType.NYC_CSV
+DEBUG: Available columns in file: ['ride_id', 'rideable_type', 'started_at', 'ended_at', ...]
+DEBUG: Testing model: NYCLegacyBikeShareRecord
+DEBUG: ✗ Model NYCLegacyBikeShareRecord failed - missing columns: ['tripduration', 'bikeid', ...]
+DEBUG: Testing model: NYCModernBikeShareRecord
+DEBUG: ✓ Model NYCModernBikeShareRecord matched successfully
+```
 
-## London Data Model Schema Change (September 2022)
+## Integration with DuckDB Pipeline
 
-**Note:** The schema for London bike share data changes between the following files:
-- `334JourneyDataExtract07Sep2022-11Sep2022.csv` (uses the legacy schema)
-- `335JourneyDataExtract12Sep2022-18Sep2022.csv` (uses the modern schema)
+The data models provide schema definitions for the DuckDB ETL pipeline:
 
-This indicates that the data model diverges in mid-September 2022. When processing London data, ensure you use the correct model for files before and after this point.
+### Table Creation
+```python
+from data_models.base import BaseBikeShareRecord
+
+# Create all raw tables in DuckDB
+BaseBikeShareRecord.create_all_tables()
+```
+
+### Schema Mapping
+The models define the exact column types and structures used in:
+- `db_duckdb/config/duckdb_config.py` for table schemas
+- `db_duckdb/init_raw_tables.py` for table initialization
+- S3 URI patterns for data loading
+
+## Data Quality Features
+
+### NYC Data Handling
+- **Station IDs**: Ensures station IDs are treated as strings (handles alphanumeric values)
+- **Coordinates**: Robust handling of latitude/longitude data with error coercion
+- **Date Formats**: Flexible date parsing for various input formats
+
+### London Data Handling
+- **Date Parsing**: Handles multiple date formats (DD/MM/YYYY, YYYY-MM-DD, mixed formats)
+- **Bike Numbers**: Ensures bike numbers are treated as strings
+- **Duration Fields**: Proper handling of duration in both seconds and milliseconds
+
+### Common Features
+- **Source Tracking**: Every record includes the source file for data lineage
+- **Type Safety**: Proper type conversion and validation
+- **Error Handling**: Graceful handling of missing or malformed data
+
+## Schema Evolution
+
+### London Schema Change (September 2022)
+The London data schema changed between:
+- **Legacy**: `334JourneyDataExtract07Sep2022-11Sep2022.csv` and earlier
+- **Modern**: `335JourneyDataExtract12Sep2022-18Sep2022.csv` and later
+
+Key changes:
+- `Rental Id` → `Number`
+- `Bike Id` → `Bike number`
+- Added `Bike model` field
+- `Duration` → `Total duration` (with millisecond precision)
+- Station naming conventions updated
+
+### NYC Schema Change (2017)
+The NYC data schema changed between:
+- **Legacy**: 2013-2016 data
+- **Modern**: 2017-present data
+
+Key changes:
+- `tripduration` → `ride_id` (unique identifier)
+- Added `rideable_type` field
+- `usertype` → `member_casual`
+- Removed demographic fields (birth year, gender)
+- Simplified coordinate handling
+
+## Best Practices
+
+1. **Always Validate**: Use schema validation before processing data
+2. **Check Debug Output**: Enable debug mode when troubleshooting validation issues
+3. **Monitor Data Quality**: Review transformation results for unexpected data patterns
+4. **Update Models**: Keep models synchronized with actual data schema changes
+5. **Test Transformations**: Verify data transformations work with sample files
+
+## Error Handling
+
+- **Missing Columns**: Models report specific missing columns for debugging
+- **Type Mismatches**: Automatic type conversion with error handling
+- **Date Parsing**: Multiple fallback strategies for date format variations
+- **Data Corruption**: Graceful handling of malformed or incomplete data
+
+---
+
+For more details on integration with the broader pipeline, see the documentation for `extracted_file_manager/` and `db_duckdb/`.
