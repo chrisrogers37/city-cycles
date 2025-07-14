@@ -2,6 +2,17 @@
 
 A robust file management system for processing bike share data from ZIP archives through CSV extraction to optimized Parquet storage, with comprehensive metadata tracking and memory management.
 
+## Overview
+
+The Extracted File Manager provides a complete pipeline for processing bike share data files from their raw extracted state to analytics-ready Parquet format. It handles the single concern of processing extracted files into optimized Parquet format for analytics, using data models from `~/data_models/` to validate schemas and properly format CSV files when creating Parquet files.
+
+### Core Components
+
+- **`manager.py`**: Main manager class (`ExtractedFileManager`) handling all file operations, S3 interactions, and pipeline logic
+- **`cli.py`**: Command-line interface providing access to all manager functionality
+- **`models.py`**: Data models for file metadata, status tracking, and summary statistics
+- **`filetree.py`**: Utilities for processing ZIP file structures and nested archives
+
 ## Pipeline Flow Diagram
 
 ```mermaid
@@ -10,8 +21,8 @@ flowchart TD
     B -->|extract_zips| C[Extract ZIP: find all CSVs]
     C --> D[Upload CSVs to S3: extracted_bike_ride_csvs/nyc/*.csv]
     D --> E[metadata.json: CSV files registered]
-    E -->|convert_csvs| F[Validate CSV schema]
-    F -->|convert_csvs| G[Convert CSV to Parquet]
+    E -->|convert_csvs| F[Validate CSV schema using data_models]
+    F -->|convert_csvs| G[Convert CSV to Parquet with schema validation]
     G --> H[Upload Parquet to S3: extracted_bike_ride_parquet/nyc/schema/*.parquet]
     H --> I[metadata.json: Parquet files registered]
     style A fill:#f9f,stroke:#333,stroke-width:2px
@@ -29,12 +40,25 @@ flowchart TD
 ## Key Features
 
 - **🔄 Pipeline Separation**: Independent `extract_zips` and `convert_csvs` commands for granular control
-- **🧠 Smart Schema Detection**: Automatic data model matching using your existing bike share models
+- **🧠 Smart Schema Detection**: Automatic data model matching using existing bike share models from `~/data_models/`
 - **💾 Memory Management**: Advanced memory monitoring and cleanup to prevent OOM errors
 - **📊 Comprehensive Metadata**: Full tracking of file status, processing history, and relationships
 - **🛡️ Error Recovery**: Failed files can be reset and reprocessed without data loss
 - **🗑️ Safe Cleanup**: Destructive operations require confirmation and provide detailed feedback
 - **🔍 Debug Support**: Detailed logging for troubleshooting validation and conversion issues
+- **📁 ZIP Processing**: Handles nested ZIP files and complex archive structures
+- **🎯 Schema Organization**: Parquet files automatically organized by schema type in S3
+
+## Data Model Integration
+
+The system automatically determines the correct schema using your existing data models from `~/data_models/`:
+
+- **`NYCLegacyBikeShareRecord`** for legacy NYC format (2013-2016)
+- **`NYCModernBikeShareRecord`** for modern NYC format (2017-present)  
+- **`LondonLegacyBikeShareRecord`** for legacy London format (2010-2016)
+- **`LondonModernBikeShareRecord`** for modern London format (2017-present)
+
+Schema validation ensures CSV files match expected column structures before Parquet conversion, and files are organized by schema in the final S3 structure.
 
 ## Quick Start
 
@@ -265,13 +289,6 @@ extracted_bike_ride_csvs/{city}/     # Extracted CSV files
 extracted_bike_ride_parquet/{city}/{schema}/  # Parquet files organized by schema
 ```
 
-### Data Model Integration
-The system automatically determines the correct schema using your existing data models:
-- `NYCLegacyBikeShareRecord` for legacy NYC format
-- `NYCModernBikeShareRecord` for modern NYC format  
-- `LondonLegacyBikeShareRecord` for legacy London format
-- `LondonModernBikeShareRecord` for modern London format
-
 ### Metadata Tracking
 All operations are tracked in S3 at `extracted_file_manager/metadata.json`:
 - File locations and sizes
@@ -279,6 +296,12 @@ All operations are tracked in S3 at `extracted_file_manager/metadata.json`:
 - Validation results and errors
 - Pipeline relationships
 - Schema overrides
+
+### ZIP Processing Features
+- **Nested ZIP Support**: Handles ZIP files containing other ZIP files
+- **Complex Structures**: Processes multi-level directory structures within archives
+- **Mac OS Compatibility**: Skips hidden files (`.DS_Store`, `._*`) automatically
+- **CSV Detection**: Case-insensitive CSV file detection and extraction
 
 ## Error Handling
 

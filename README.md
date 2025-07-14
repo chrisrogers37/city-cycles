@@ -21,41 +21,91 @@ I built an end-to-end, automatable flow that:
 
 🔗 [View the Dashboard (Streamlit Cloud)](https://city-cycles.streamlit.app/)
 
-Note: The above dashboard will be offline until I replace Amazon RDS (PostgresSQL) implementation with solution hostable on Streamlit Cloud.
-
 ---
 
 ## Infrastructure
 
 - **AWS S3:** Centralized storage for all raw and processed data.
-- ~~**~~AWS RDS (PostgreSQL):~~** Scalable, cloud-hosted analytics database.~~ 
-  - Update - 7.2.2025: 
-    - Shut down AWS RDS due to carrying costs
-    - Hosting aggregated metrics marts in repo as parquet for now, and will reconnect dashboard via DuckDB or other solution asap.
-    - Marts available at ~/data
+- **DuckDB on AWS EC2:** Embedded analytics database for data processing and transformation.
+  - **Migration Note:** Previously used AWS RDS (PostgreSQL) but migrated to DuckDB on EC2 for cost efficiency and improved performance.
+  - **Trade-offs:** DuckDB provides faster analytics queries and lower costs, though it's less production-grade and scalable than PostgreSQL RDS.
 - **AWS EC2 (Ubuntu):** Orchestration and processing environment.
 - **Streamlit Cloud:** Free public hosting for the dashboard.
 
 ---
 
-## Data Extraction
+## Data Extraction (`~/extraction/`)
 
-- **NYC:**  
-  - Uses `boto3` to list and download zipped CSVs from the official S3 bucket.
-  - Unzips and uploads files to the project S3 bucket.
+The extraction module handles the single concern of scraping files from the web and getting them into S3:
 
-- **London:**  
-  - Uses Playwright to automate browser downloads from the TFL website (no direct S3 access).
-  - Handles schema differences and uploads to S3.
+### NYC Data Extraction
+- **Source:** Public S3 bucket (`tripdata`) containing CitiBike ZIP files
+- **Method:** Uses `boto3` with unsigned access to list and download ZIP files
+- **Storage:** Uploads ZIP files to `extracted_bike_ride_zips/nyc/` in project S3 bucket
+- **Features:** Year-based filtering, duplicate detection, ZIP validation
+
+### London Data Extraction  
+- **Source:** Transport for London (TfL) website (`cycling.data.tfl.gov.uk`)
+- **Method:** Uses Playwright for headless browser automation (no direct S3 access)
+- **Storage:** Downloads CSV files directly to `extracted_bike_ride_csvs/london/` in project S3 bucket
+- **Features:** Dynamic page scrolling, file pattern matching, XLS-to-CSV conversion
+
+---
+
+## File Processing (`~/extracted_file_manager/`)
+
+The extracted file manager handles the single concern of processing extracted files into optimized Parquet format for analytics:
+
+### Processing Pipeline
+
+```mermaid
+flowchart TD
+    A[S3: extracted_bike_ride_zips/nyc/*.zip] -->|extract_zips| B[Extract ZIP: find all CSVs]
+    B --> C[S3: extracted_bike_ride_csvs/nyc/*.csv]
+    D[S3: extracted_bike_ride_csvs/london/*.csv] --> E[Schema Validation]
+    C --> E
+    E -->|convert_csvs| F[Convert CSV to Parquet]
+    F --> G[S3: extracted_bike_ride_parquet/schema/*.parquet]
+    G --> H[DuckDB: Load into raw tables]
+    
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style D fill:#f9f,stroke:#333,stroke-width:2px
+    style C fill:#bbf,stroke:#333,stroke-width:2px
+    style G fill:#bfb,stroke:#333,stroke-width:2px
+    style H fill:#fbb,stroke:#333,stroke-width:2px
+```
+
+### Key Features
+
+- **Schema Validation:** Uses data models from `~/data_models/` to validate CSV schemas and organize Parquet files by schema type
+- **Memory Management:** Advanced memory monitoring and cleanup to prevent OOM errors
+- **Metadata Tracking:** Comprehensive tracking of file status and processing history
+- **Error Recovery:** Failed files can be reset and reprocessed without data loss
+- **Pipeline Separation:** Independent `extract_zips` and `convert_csvs` commands for granular control
+
+### Data Flow
+1. **ZIP Processing:** Extracts CSV files from downloaded ZIP archives (NYC)
+2. **Schema Detection:** Automatically matches files against data models (NYC Legacy/Modern, London Legacy/Modern)
+3. **Parquet Conversion:** Converts validated CSVs to optimized Parquet format, organized by schema
+4. **DuckDB Loading:** Processed Parquet files are ready for loading into DuckDB raw tables
 
 ---
 
 ## Data Modeling & Loading
 
+### DuckDB ETL Pipeline (`~/db_duckdb/`)
+
+- **Table Initialization:** Creates raw tables in DuckDB for NYC and London bike share data
+- **S3 Integration:** Loads raw data from S3 Parquet files into DuckDB tables
+- **Data Validation:** Verifies integrity and quality of loaded raw tables
+- **Mart Export:** Exports dbt-generated mart tables from DuckDB to S3 as Parquet files for dashboard consumption
+
+### Data Modeling
+
 - **Python data classes** represent each schema (legacy/modern, NYC/London).
 - **Validation** ensures only well-formed data is loaded.
 - **Automated table creation**: Table schemas are generated from the data models.
-- **Batch loading**: Efficient, chunked inserts from S3 to PostgreSQL.
+- **Batch loading**: Efficient, chunked inserts from S3 to DuckDB.
 
 ---
 
@@ -65,6 +115,8 @@ Note: The above dashboard will be offline until I replace Amazon RDS (PostgresSQ
   - Standardize and clean raw data in staging models.
   - Combine legacy and modern data into unified intermediate tables.
   - Build flexible, long-format metrics marts for analytics and dashboarding.
+- **DuckDB Integration:** dbt runs against DuckDB for fast analytics processing
+- **S3 Export:** Final metric marts are exported to S3 as Parquet files for dashboard consumption
 
 ---
 
@@ -75,12 +127,15 @@ Note: The above dashboard will be offline until I replace Amazon RDS (PostgresSQ
   - Flexible date filtering, per-capita toggles, and trend overlays.
   - KPIs, time series, and station growth visualizations.
 - **Deployed on Streamlit Cloud** for public access.
+- **Data Source:** Reads metric marts from S3 Parquet files exported by the DuckDB pipeline.
 
 ---
 
 ## Additional Documentation
 
 - See `data_models/README.md` for details on the data model architecture.
+- See `db_duckdb/README.md` for DuckDB ETL pipeline documentation.
+- See `extracted_file_manager/README.md` for file processing pipeline documentation.
 - See `resources/` for learnings, design notes, task flows, and architecture ideas that I accumulated along the way.
 
 ## Technologies Used
@@ -89,9 +144,8 @@ Note: The above dashboard will be offline until I replace Amazon RDS (PostgresSQ
 - **boto3** — AWS SDK for Python, used for S3 data access and management
 - **Playwright** — Headless browser automation for scraping London data
 - **pandas** — Data manipulation and validation
-- **psycopg** — PostgreSQL database driver for Python
+- **DuckDB** — Embedded analytics database for fast data processing
 - **dbt (Data Build Tool)** — SQL-based data transformation, modeling, and analytics marts
-- **PostgreSQL (AWS RDS)** — Cloud-hosted relational database for analytics
 - **AWS S3** — Cloud object storage for raw and processed data
 - **AWS EC2 (Ubuntu)** — Cloud compute for orchestration and automation
 - **Streamlit** — Interactive dashboarding and web app framework
@@ -115,11 +169,8 @@ Note: The above dashboard will be offline until I replace Amazon RDS (PostgresSQ
   - Bring in annotated events data to contextualize anomalies and visualize pandemic impact.
 
 ### Data Extraction
-- **Enhanced Extraction**
-  - Build file indexing that keeps track of available files on web locations and diffs against the S3 bucket.
-  - Refactor extraction of files from the web to leverage this indexing.
-- **S3 Management**
-  - Refactor the flow to include an intermediate process that scans S3 and moves files into the right location based on schema, rather than determining the model and raw landing table at load time.
+- **Review File Metadata Tracking**
+  - Review and potentially refactor the file status flow to reduce complexity and risk of getting "stuck" in out of sync states
 
 ### Database Load
 - **Improved Data Modeling**
@@ -128,8 +179,6 @@ Note: The above dashboard will be offline until I replace Amazon RDS (PostgresSQ
   - Remove pandas from the process, if possible, for greater efficiency.
 
 ### Analytics
-- **Move date-derived fields upstream**
-  - Add fields like `day_type` (weekday/weekend), `is_weekday`, `year`, `month`, etc. to staging models (`stg_*`) to ensure all downstream models receive these fields consistently and avoid logic duplication.
 - **Explore new metrics, categorizations, and areas of insight**
   - Station-focused metrics
   - Route-focused insight (distance, heatmapping, common routes, inflow vs outflow)
@@ -145,7 +194,7 @@ Note: The above dashboard will be offline until I replace Amazon RDS (PostgresSQ
 
 ## Contact
 
-If you are interested in gaining access to the database or have questions about the project, please reach out:
+If you are interested in learning more or have questions about the project, please reach out:
 
 christophertrogers37@gmail.com
 
