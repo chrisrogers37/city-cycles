@@ -360,7 +360,7 @@ class ExtractedFileManager:
         return None
     
     def _stream_csv_to_parquet(self, csv_s3_key: str, parquet_s3_key: str, model):
-        """Stream CSV to parquet using pyarrow"""
+        """Stream CSV to parquet using pyarrow with proper string handling"""
         with tempfile.NamedTemporaryFile(suffix='.parquet', delete=False) as temp_parquet:
             temp_parquet_path = temp_parquet.name
         
@@ -368,21 +368,52 @@ class ExtractedFileManager:
             # Stream CSV from S3 to parquet
             response = self.s3_client.get_object(Bucket=self.s3_bucket, Key=csv_s3_key)
             
-            reader = pv.open_csv(response['Body'])
-            writer = None
+            # Use pandas with string_dtype to prevent type inference issues
+            chunk_size = 10000  # Process in chunks to manage memory
             
-            for batch in reader:
-                # Convert to pandas and apply model transformation
-                df_chunk = batch.to_pandas()
+            # Read CSV in chunks using pandas
+            csv_content = response['Body'].read().decode('utf-8')
+            lines = csv_content.split('\n')
+            header = lines[0]
+            
+            # Create a StringIO object for pandas
+            from io import StringIO
+            
+            writer = None
+            chunk_start = 1  # Skip header
+            
+            while chunk_start < len(lines):
+                chunk_end = min(chunk_start + chunk_size, len(lines))
+                chunk_lines = [header] + lines[chunk_start:chunk_end]
+                chunk_csv = '\n'.join(chunk_lines)
+                
+                # Read chunk with pandas, forcing string types for station IDs
+                df_chunk = pd.read_csv(StringIO(chunk_csv), dtype={
+                    'start station id': str,
+                    'end station id': str,
+                    'start_station_id': str,
+                    'end_station_id': str,
+                    'start_station_name': str,
+                    'end_station_name': str,
+                    'ride_id': str,
+                    'rideable_type': str,
+                    'member_casual': str,
+                    'usertype': str,
+                    'bikeid': str
+                })
+                
+                # Apply model transformation
                 df_transformed = model.to_dataframe(df_chunk, csv_s3_key)
                 
-                # Convert back to pyarrow
+                # Convert to pyarrow
                 table = pa.Table.from_pandas(df_transformed)
                 
                 if writer is None:
                     writer = pq.ParquetWriter(temp_parquet_path, table.schema)
                 
                 writer.write_table(table)
+                
+                chunk_start = chunk_end
             
             if writer:
                 writer.close()

@@ -244,6 +244,8 @@ manager = ExtractedFileManager(batch_size=2)  # Process fewer ZIPs at once
 - **No Tree Building**: Avoids building complex file tree structures in memory
 - **Streaming Processing**: Processes files one by one instead of loading all at once
 - **Immediate Cleanup**: Deletes temporary files and content immediately after use
+- **Chunked CSV Processing**: Processes large CSV files in manageable chunks
+- **String Type Preservation**: Forces string types for station IDs to prevent conversion errors
 
 ## API Reference
 
