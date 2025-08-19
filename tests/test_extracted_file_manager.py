@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 import botocore
 
 from extracted_file_manager import ExtractedFileManager
-from extracted_file_manager.models import FileMetadata, FileStatus, FileType, FileLocation, FileSummary
+from extracted_file_manager import FileMetadata, FileStatus, FileType, FileLocation, FileSummary
 from data_models.nyc_bike import NYCLegacyBikeShareRecord, NYCModernBikeShareRecord
 
 
