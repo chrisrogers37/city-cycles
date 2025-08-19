@@ -229,14 +229,21 @@ aws s3 ls s3://your-bucket/extracted_bike_ride_parquet/nyc/nycmodernbikesharerec
 The system includes built-in memory management to prevent OOM (Out of Memory) errors:
 
 - **Batch Processing**: ZIPs are processed in configurable batches (default: 5)
+- **Sequential Nested ZIP Processing**: Nested ZIPs are processed one at a time, not all simultaneously
 - **Garbage Collection**: Explicit cleanup after each ZIP and CSV operation
 - **Memory Monitoring**: Logs memory usage at each stage for debugging
 - **Temporary File Cleanup**: Ensures temporary files are properly deleted
+- **Content Cleanup**: CSV content is explicitly deleted from memory after upload
 
 If you encounter OOM errors, reduce the `batch_size` parameter:
 ```python
 manager = ExtractedFileManager(batch_size=2)  # Process fewer ZIPs at once
 ```
+
+**Key Memory Optimizations:**
+- **No Tree Building**: Avoids building complex file tree structures in memory
+- **Streaming Processing**: Processes files one by one instead of loading all at once
+- **Immediate Cleanup**: Deletes temporary files and content immediately after use
 
 ## API Reference
 

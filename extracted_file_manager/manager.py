@@ -8,6 +8,7 @@ Maintains backward compatibility while providing a much simpler and more reliabl
 import os
 import boto3
 import tempfile
+import zipfile
 import pandas as pd
 import pyarrow as pa
 import pyarrow.csv as pv
@@ -162,7 +163,7 @@ class ExtractedFileManager:
         }
     
     def _extract_zip_using_filetree(self, zip_s3_key: str):
-        """Extract ZIP using the existing filetree system"""
+        """Extract ZIP using memory-efficient approach"""
         # Download ZIP to temp file
         with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as temp_zip:
             temp_zip_path = temp_zip.name
@@ -171,51 +172,128 @@ class ExtractedFileManager:
             # Download ZIP from S3
             self.s3_client.download_file(self.s3_bucket, zip_s3_key, temp_zip_path)
             
-            # Read ZIP content
-            with open(temp_zip_path, 'rb') as f:
-                zip_content = f.read()
-            
-            # Use filetree system to extract
-            zip_node = ZipFileNode(os.path.basename(zip_s3_key), zip_content)
-            extracted_folder = zip_node.extract()
-            
-            # Walk through all extracted files and upload CSVs
+            # Process ZIP directly without loading everything into memory
             csv_count = 0
             skipped_count = 0
-            for file_node in walk_folder(extracted_folder):
-                if file_node.name.lower().endswith('.csv'):
-                    # Skip MacOSX artifacts (files starting with ._ or in __MACOSX directories)
-                    if file_node.name.startswith('._') or '__MACOSX' in file_node.name:
-                        print(f"  Skipping MacOSX artifact: {file_node.name}")
+            
+            with zipfile.ZipFile(temp_zip_path, 'r') as zf:
+                # List all files in ZIP
+                file_list = zf.namelist()
+                print(f"DEBUG: Files in ZIP '{os.path.basename(zip_s3_key)}':")
+                for filename in file_list:
+                    print(f"  - {filename} (dir: {filename.endswith('/')})")
+                
+                # Process files one by one
+                for filename in file_list:
+                    # Skip directories and MacOSX artifacts
+                    if filename.endswith('/') or filename.startswith('._') or '__MACOSX' in filename:
                         continue
                     
-                    # Upload CSV to flat structure
-                    csv_s3_key = f"extracted_bike_ride_csvs/nyc/{file_node.name}"
+                    # Handle nested ZIPs separately
+                    if filename.lower().endswith('.zip'):
+                        print(f"DEBUG: Found nested ZIP: {filename}")
+                        try:
+                            # Extract nested ZIP to temp file
+                            with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as nested_temp:
+                                nested_temp.write(zf.read(filename))
+                                nested_temp_path = nested_temp.name
+                            
+                            # Process nested ZIP
+                            nested_csv_count, nested_skipped_count = self._process_nested_zip(nested_temp_path, filename)
+                            csv_count += nested_csv_count
+                            skipped_count += nested_skipped_count
+                            
+                            # Clean up nested temp file
+                            os.unlink(nested_temp_path)
+                            
+                        except Exception as e:
+                            print(f"Failed to extract {filename}: {e}")
+                            continue
                     
-                    # Check if CSV already exists
-                    if self._file_exists_in_s3(csv_s3_key):
-                        print(f"  Skipping {file_node.name} - already exists")
-                        skipped_count += 1
-                        continue
-                    
-                    # Upload CSV content
-                    self.s3_client.put_object(
-                        Bucket=self.s3_bucket,
-                        Key=csv_s3_key,
-                        Body=file_node.content
-                    )
-                    print(f"  ✓ Uploaded {file_node.name}")
-                    csv_count += 1
+                    # Handle CSV files directly
+                    elif filename.lower().endswith('.csv'):
+                        print(f"DEBUG: Found CSV file: {filename}")
+                        
+                        # Skip MacOSX artifacts
+                        if filename.startswith('._') or '__MACOSX' in filename:
+                            print(f"  Skipping MacOSX artifact: {filename}")
+                            continue
+                        
+                        # Get just the filename (not the path)
+                        csv_filename = os.path.basename(filename)
+                        csv_s3_key = f"extracted_bike_ride_csvs/nyc/{csv_filename}"
+                        
+                        # Check if CSV already exists
+                        if self._file_exists_in_s3(csv_s3_key):
+                            print(f"  Skipping {csv_filename} - already exists")
+                            skipped_count += 1
+                            continue
+                        
+                        # Upload CSV content
+                        csv_content = zf.read(filename)
+                        self.s3_client.put_object(
+                            Bucket=self.s3_bucket,
+                            Key=csv_s3_key,
+                            Body=csv_content
+                        )
+                        print(f"  ✓ Uploaded {csv_filename}")
+                        csv_count += 1
+                        
+                        # Clean up CSV content from memory
+                        del csv_content
             
             print(f"  Processed {csv_count + skipped_count} CSV files from {os.path.basename(zip_s3_key)} ({csv_count} new, {skipped_count} skipped)")
             
         finally:
             # Clean up temp file
             os.unlink(temp_zip_path)
-            # Force cleanup of extracted folder
-            if 'extracted_folder' in locals():
-                del extracted_folder
             gc.collect()
+    
+    def _process_nested_zip(self, nested_zip_path: str, nested_zip_name: str):
+        """Process a nested ZIP file with memory management"""
+        csv_count = 0
+        skipped_count = 0
+        
+        try:
+            with zipfile.ZipFile(nested_zip_path, 'r') as nested_zf:
+                for filename in nested_zf.namelist():
+                    if filename.lower().endswith('.csv'):
+                        print(f"DEBUG: Found CSV file: {filename}")
+                        
+                        # Skip MacOSX artifacts
+                        if filename.startswith('._') or '__MACOSX' in filename:
+                            print(f"  Skipping MacOSX artifact: {filename}")
+                            continue
+                        
+                        # Get just the filename (not the path)
+                        csv_filename = os.path.basename(filename)
+                        csv_s3_key = f"extracted_bike_ride_csvs/nyc/{csv_filename}"
+                        
+                        # Check if CSV already exists
+                        if self._file_exists_in_s3(csv_s3_key):
+                            print(f"  Skipping {csv_filename} - already exists")
+                            skipped_count += 1
+                            continue
+                        
+                        # Upload CSV content
+                        csv_content = nested_zf.read(filename)
+                        self.s3_client.put_object(
+                            Bucket=self.s3_bucket,
+                            Key=csv_s3_key,
+                            Body=csv_content
+                        )
+                        print(f"  ✓ Uploaded {csv_filename}")
+                        csv_count += 1
+                        
+                        # Clean up CSV content from memory
+                        del csv_content
+            
+            print(f"DEBUG: Extracted folder '{nested_zip_name}' contains {csv_count + skipped_count} children")
+            
+        except Exception as e:
+            print(f"Failed to extract {nested_zip_name}: {e}")
+        
+        return csv_count, skipped_count
     
     def _convert_csv_to_parquet(self, csv_file: str):
         """Convert CSV to parquet with schema detection and proper organization"""
