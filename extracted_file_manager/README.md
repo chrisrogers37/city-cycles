@@ -207,6 +207,9 @@ run_full_pipeline()
 **ZIP processing**: The system always processes ZIPs but skips existing CSV files during upload
 - This ensures all files are extracted and prevents partial extractions
 - Only uploads CSV files that don't already exist in S3
+- Automatically filters out MacOSX artifacts (files starting with `._` or in `__MACOSX/` directories)
+- **Memory management**: Processes ZIPs in configurable batches with explicit garbage collection
+- **OOM protection**: Monitors memory usage and performs cleanup between operations
 
 ### Debugging
 
@@ -219,6 +222,20 @@ aws s3 ls s3://your-bucket/extracted_bike_ride_parquet/nyc/
 To check if a specific file was processed:
 ```bash
 aws s3 ls s3://your-bucket/extracted_bike_ride_parquet/nyc/nycmodernbikesharerecord/
+```
+
+### Memory Management
+
+The system includes built-in memory management to prevent OOM (Out of Memory) errors:
+
+- **Batch Processing**: ZIPs are processed in configurable batches (default: 5)
+- **Garbage Collection**: Explicit cleanup after each ZIP and CSV operation
+- **Memory Monitoring**: Logs memory usage at each stage for debugging
+- **Temporary File Cleanup**: Ensures temporary files are properly deleted
+
+If you encounter OOM errors, reduce the `batch_size` parameter:
+```python
+manager = ExtractedFileManager(batch_size=2)  # Process fewer ZIPs at once
 ```
 
 ## API Reference

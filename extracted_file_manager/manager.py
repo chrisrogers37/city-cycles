@@ -12,6 +12,8 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.csv as pv
 import pyarrow.parquet as pq
+import gc
+import psutil
 from datetime import datetime
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
@@ -30,12 +32,27 @@ class ExtractedFileManager:
     making the system much more reliable and easier to debug.
     """
     
-    def __init__(self, s3_bucket: Optional[str] = None):
+    def __init__(self, s3_bucket: Optional[str] = None, batch_size: int = 5):
         self.s3_bucket = s3_bucket or os.environ.get("S3_BUCKET")
         if not self.s3_bucket:
             raise ValueError("S3_BUCKET environment variable is not set!")
         
         self.s3_client = boto3.client("s3")
+        self.batch_size = batch_size  # Process ZIPs in batches to manage memory
+    
+    def _log_memory_usage(self, stage: str):
+        """Log current memory usage for debugging."""
+        process = psutil.Process()
+        memory_info = process.memory_info()
+        memory_mb = memory_info.rss / 1024 / 1024
+        print(f"Memory usage at {stage}: {memory_mb:.1f} MB")
+    
+    def _cleanup_memory(self):
+        """Force garbage collection and cleanup."""
+        gc.collect()
+        # Small delay to allow cleanup
+        import time
+        time.sleep(0.1)
     
     def extract_all_zips_simple(self) -> Dict[str, bool]:
         """
@@ -46,20 +63,36 @@ class ExtractedFileManager:
         
         # List all ZIP files
         zip_files = self._list_s3_files("extracted_bike_ride_zips/nyc/")
+        zip_files = [f for f in zip_files if f.endswith('.zip')]
         
         results = {}
-        for zip_file in zip_files:
-            if not zip_file.endswith('.zip'):
-                continue
+        total_zips = len(zip_files)
+        
+        print(f"Found {total_zips} ZIP files to process in batches of {self.batch_size}")
+        
+        for i in range(0, total_zips, self.batch_size):
+            batch = zip_files[i:i + self.batch_size]
+            print(f"\nProcessing batch {i//self.batch_size + 1}/{(total_zips + self.batch_size - 1)//self.batch_size}")
+            
+            for zip_file in batch:
+                print(f"Processing {zip_file}...")
+                self._log_memory_usage(f"before processing {zip_file}")
                 
-            # Always extract ZIP, but check during upload
-            print(f"Processing {zip_file}...")
-            try:
-                self._extract_zip_using_filetree(zip_file)
-                results[zip_file] = True
-            except Exception as e:
-                print(f"Failed to extract {zip_file}: {e}")
-                results[zip_file] = False
+                try:
+                    self._extract_zip_using_filetree(zip_file)
+                    results[zip_file] = True
+                except Exception as e:
+                    print(f"Failed to extract {zip_file}: {e}")
+                    results[zip_file] = False
+                
+                # Cleanup memory after each ZIP
+                self._cleanup_memory()
+                self._log_memory_usage(f"after processing {zip_file}")
+            
+            # Extra cleanup between batches
+            print(f"Batch {i//self.batch_size + 1} complete. Performing batch cleanup...")
+            self._cleanup_memory()
+            self._log_memory_usage(f"after batch {i//self.batch_size + 1}")
         
         return results
     
@@ -81,6 +114,12 @@ class ExtractedFileManager:
             if not csv_file.endswith('.csv'):
                 continue
             
+            # Skip MacOSX artifacts (files starting with ._ or in __MACOSX directories)
+            csv_filename = csv_file.split('/')[-1]
+            if csv_filename.startswith('._') or '__MACOSX' in csv_file:
+                print(f"Skipping MacOSX artifact: {csv_filename}")
+                continue
+            
             # Check if parquet already exists
             if self._parquet_exists_for_csv(csv_file):
                 print(f"Skipping {csv_file} - parquet already exists")
@@ -89,12 +128,18 @@ class ExtractedFileManager:
             
             # Convert to parquet
             print(f"Converting {csv_file}...")
+            self._log_memory_usage(f"before converting {csv_file}")
+            
             try:
                 self._convert_csv_to_parquet(csv_file)
                 results[csv_file] = True
             except Exception as e:
                 print(f"Failed to convert {csv_file}: {e}")
                 results[csv_file] = False
+            
+            # Cleanup memory after each CSV
+            self._cleanup_memory()
+            self._log_memory_usage(f"after converting {csv_file}")
         
         return results
     
@@ -139,6 +184,11 @@ class ExtractedFileManager:
             skipped_count = 0
             for file_node in walk_folder(extracted_folder):
                 if file_node.name.lower().endswith('.csv'):
+                    # Skip MacOSX artifacts (files starting with ._ or in __MACOSX directories)
+                    if file_node.name.startswith('._') or '__MACOSX' in file_node.name:
+                        print(f"  Skipping MacOSX artifact: {file_node.name}")
+                        continue
+                    
                     # Upload CSV to flat structure
                     csv_s3_key = f"extracted_bike_ride_csvs/nyc/{file_node.name}"
                     
@@ -162,6 +212,10 @@ class ExtractedFileManager:
         finally:
             # Clean up temp file
             os.unlink(temp_zip_path)
+            # Force cleanup of extracted folder
+            if 'extracted_folder' in locals():
+                del extracted_folder
+            gc.collect()
     
     def _convert_csv_to_parquet(self, csv_file: str):
         """Convert CSV to parquet with schema detection and proper organization"""
