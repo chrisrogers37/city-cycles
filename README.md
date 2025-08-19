@@ -102,11 +102,10 @@ flowchart TD
 
 - **Schema Validation:** Uses data models from `~/data_models/` to validate CSV schemas and organize Parquet files by schema type
 - **Memory Management:** Advanced memory monitoring and cleanup to prevent OOM errors
-- **Metadata Tracking:** Comprehensive tracking of file status and processing history
-- **Error Recovery:** Failed files can be reset and reprocessed without data loss
+- **Idempotent Processing:** Simple file existence checks ensure safe re-runs without complex metadata tracking
 - **Pipeline Separation:** Independent `extract_zips` and `convert_csvs` commands for granular control
-- **Streaming Processing:** Uses pyarrow streaming for memory-efficient large file processing
-- **Schema Overrides:** Manual schema assignment for problematic files
+- **Streaming Processing:** Uses pandas chunking with pyarrow for memory-efficient large file processing
+- **MacOSX Artifact Filtering:** Automatically filters out `._` files and `__MACOSX/` directories during processing
 
 ### Data Flow
 1. **ZIP Processing:** Extracts CSV files from downloaded ZIP archives (NYC)
@@ -197,8 +196,7 @@ The DuckDB pipeline handles the single concern of loading processed data into th
   - Bring in annotated events data to contextualize anomalies and visualize pandemic impact.
 
 ### Data Extraction
-- **Review File Metadata Tracking**
-  - Review and potentially refactor the file status flow to reduce complexity and risk of getting "stuck" in out of sync states
+- **Completed:** Simplified file processing with idempotent operations and file existence checks
 
 ### Database Load
 - **Improved Data Modeling**
