@@ -4,7 +4,9 @@ This directory contains the data models for London and NYC bike share data. The 
 
 ## Overview
 
-The data models are built on top of a base class (`BaseBikeShareRecord`) that provides common functionality for schema validation, data transformation, and integration with the broader analytics pipeline. Each model defines its own schema, validation rules, and transformation logic to handle the specific formats of bike share data from different cities and time periods.
+The data models are built on top of a base class (`BaseBikeShareRecord`) that provides common functionality for schema validation and data transformation. Each model defines its own schema, validation rules, and transformation logic to handle the specific formats of bike share data from different cities and time periods.
+
+**Note**: This package focuses solely on schema validation and data transformation. S3 operations are handled by the `extracted_file_manager` module, and database operations are handled by the `db_duckdb` module.
 
 ### Core Components
 
@@ -47,7 +49,7 @@ The data models are built on top of a base class (`BaseBikeShareRecord`) that pr
 ## Key Features
 
 ### Schema Validation
-- **Automatic Detection**: Models automatically validate CSV schemas using required column lists
+- **Automatic Detection**: Models automatically validate CSV schemas using required column lists stored in `_required_columns` attribute
 - **Debug Support**: Detailed validation output when `EXTRACTED_FILE_MANAGER_DEBUG=1` is set
 - **Flexible Matching**: Handles column name variations and missing fields gracefully
 
@@ -59,7 +61,7 @@ The data models are built on top of a base class (`BaseBikeShareRecord`) that pr
 
 ### Integration Points
 - **Extracted File Manager**: Used for schema validation during CSV to Parquet conversion
-- **DuckDB Pipeline**: Provides table schemas for raw table creation
+- **DuckDB Pipeline**: Provides data structures that match hardcoded table schemas
 - **dbt Transformations**: Serves as the foundation for staging and mart models
 
 ## Usage Examples
@@ -106,16 +108,6 @@ for model in BaseBikeShareRecord._registry:
     print(f"S3 Prefix: {model.s3_prefix}")
 ```
 
-### Schema Generation
-
-```python
-from data_models.nyc_bike import NYCLegacyBikeShareRecord
-
-# Generate SQL DDL for table creation
-ddl = NYCLegacyBikeShareRecord.get_schema_sql()
-print(ddl)
-```
-
 ## Integration with Extracted File Manager
 
 The data models are automatically used by the Extracted File Manager for:
@@ -149,14 +141,6 @@ DEBUG: ✓ Model NYCModernBikeShareRecord matched successfully
 ## Integration with DuckDB Pipeline
 
 The data models provide schema definitions for the DuckDB ETL pipeline:
-
-### Table Creation
-```python
-from data_models.base import BaseBikeShareRecord
-
-# Create all raw tables in DuckDB
-BaseBikeShareRecord.create_all_tables()
-```
 
 ### Schema Mapping
 The models define the exact column types and structures used in:
@@ -221,6 +205,36 @@ Key changes:
 - **Type Mismatches**: Automatic type conversion with error handling
 - **Date Parsing**: Multiple fallback strategies for date format variations
 - **Data Corruption**: Graceful handling of malformed or incomplete data
+
+## Important Notes
+
+### Module Exports
+The `__init__.py` file exports all models in `__all__` for easy access:
+```python
+from data_models import (
+    NYCModernBikeShareRecord,
+    NYCLegacyBikeShareRecord,
+    LondonModernBikeShareRecord,
+    LondonLegacyBikeShareRecord
+)
+```
+
+### Database Integration
+The data models are designed to work with DuckDB exclusively. The DuckDB pipeline in the `db_duckdb/` module handles all database operations using hardcoded schemas that match the data model structures.
+
+### Required Columns
+Each model stores its required columns in the `_required_columns` class attribute, which is used for detailed validation and error reporting.
+
+### Architecture Notes
+This package has been streamlined to focus on its core responsibilities:
+- **Schema Validation**: Validating CSV files against expected schemas
+- **Data Transformation**: Converting raw CSV data to standardized formats
+- **Model Registry**: Providing access to all available data models
+
+S3 operations, database operations, and other infrastructure concerns are handled by dedicated modules:
+- **S3 Operations**: `extracted_file_manager/` module
+- **Database Operations**: `db_duckdb/` module
+- **Data Extraction**: `extraction/` module
 
 ---
 
