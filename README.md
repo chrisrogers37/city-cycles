@@ -9,11 +9,11 @@ This project demonstrates a full-stack, automated analytics pipeline for compari
 I built an end-to-end, automatable flow that:
 
 - **Utilizes modern cloud infrastructure** 
-- **Extracts and ingests data from multiple sources:**
-- **Performs schema validation and data modeling:**
-- **Transforms and unifies data with dbt:** 
-- **Visualizes results in a modern dashboard:** 
-- **Automates and documents the entire process:**
+- **Extracts and ingests data from multiple sources**
+- **Performs schema validation and data modeling**
+- **Transforms and unifies data with dbt** 
+- **Visualizes results in a modern dashboard** 
+- **Automates and documents the entire process**
 
 ---
 
@@ -27,8 +27,8 @@ I built an end-to-end, automatable flow that:
 
 - **AWS S3:** Centralized storage for all raw and processed data.
 - **DuckDB on AWS EC2:** Embedded analytics database for data processing and transformation.
-  - **Migration Note:** Previously used AWS RDS (PostgreSQL) but migrated to DuckDB on EC2 for cost efficiency and improved performance.
-  - **Trade-offs:** DuckDB provides faster analytics queries and lower costs, though it's less production-grade and scalable than PostgreSQL RDS.
+  - **Architecture Note:** Uses DuckDB on EC2 for cost efficiency and improved performance.
+  - **Benefits:** DuckDB provides faster analytics queries and lower costs compared to traditional RDS solutions.
 - **AWS EC2 (Ubuntu):** Orchestration and processing environment.
 - **Streamlit Cloud:** Free public hosting for the dashboard.
 
@@ -49,6 +49,29 @@ The extraction module handles the single concern of scraping files from the web 
 - **Method:** Uses Playwright for headless browser automation (no direct S3 access)
 - **Storage:** Downloads CSV files directly to `extracted_bike_ride_csvs/london/` in project S3 bucket
 - **Features:** Dynamic page scrolling, file pattern matching, XLS-to-CSV conversion
+
+---
+
+## Data Models (`~/data_models/`)
+
+The data models package provides schema validation and data transformation for bike share data:
+
+### Architecture
+- **Focused Responsibility:** Handles schema validation and data transformation only
+- **Clean Separation:** S3 operations handled by `extracted_file_manager/`, database operations by `db_duckdb/`
+- **Model Registry:** Central registry of all available data models for automatic discovery
+
+### Supported Schemas
+- **NYC Legacy** (`NYCLegacyBikeShareRecord`): CitiBike data from 2013-2016
+- **NYC Modern** (`NYCModernBikeShareRecord`): CitiBike data from 2017-present
+- **London Legacy** (`LondonLegacyBikeShareRecord`): Santander Cycles data from 2010-2016
+- **London Modern** (`LondonModernBikeShareRecord`): Santander Cycles data from 2017-present
+
+### Core Functionality
+- **Schema Validation:** `validate_schema()` method ensures CSV files match expected column structures
+- **Data Transformation:** `to_dataframe()` method converts raw data to standardized format
+- **Required Columns:** `_required_columns` attribute defines mandatory fields for each schema
+- **Integration Points:** Used by `extracted_file_manager/` for validation and `db_duckdb/` for transformation
 
 ---
 
@@ -82,6 +105,8 @@ flowchart TD
 - **Metadata Tracking:** Comprehensive tracking of file status and processing history
 - **Error Recovery:** Failed files can be reset and reprocessed without data loss
 - **Pipeline Separation:** Independent `extract_zips` and `convert_csvs` commands for granular control
+- **Streaming Processing:** Uses pyarrow streaming for memory-efficient large file processing
+- **Schema Overrides:** Manual schema assignment for problematic files
 
 ### Data Flow
 1. **ZIP Processing:** Extracts CSV files from downloaded ZIP archives (NYC)
@@ -91,21 +116,23 @@ flowchart TD
 
 ---
 
-## Data Modeling & Loading
+## Data Loading (`~/db_duckdb/`)
 
-### DuckDB ETL Pipeline (`~/db_duckdb/`)
+The DuckDB pipeline handles the single concern of loading processed data into the analytics database:
+
+### ETL Pipeline
 
 - **Table Initialization:** Creates raw tables in DuckDB for NYC and London bike share data
 - **S3 Integration:** Loads raw data from S3 Parquet files into DuckDB tables
 - **Data Validation:** Verifies integrity and quality of loaded raw tables
 - **Mart Export:** Exports dbt-generated mart tables from DuckDB to S3 as Parquet files for dashboard consumption
 
-### Data Modeling
+### Data Loading Process
 
-- **Python data classes** represent each schema (legacy/modern, NYC/London).
-- **Validation** ensures only well-formed data is loaded.
-- **Automated table creation**: Table schemas are generated from the data models.
-- **Batch loading**: Efficient, chunked inserts from S3 to DuckDB.
+- **Schema Generation:** Table schemas are generated from the data models in `~/data_models/`
+- **Batch Loading:** Efficient, chunked inserts from S3 to DuckDB
+- **Data Transformation:** Uses data models' `to_dataframe()` method for standardization
+- **Quality Checks:** Validates data integrity after loading
 
 ---
 
@@ -133,7 +160,7 @@ flowchart TD
 
 ## Additional Documentation
 
-- See `data_models/README.md` for details on the data model architecture.
+- See `data_models/README.md` for details on the data model architecture and usage.
 - See `db_duckdb/README.md` for DuckDB ETL pipeline documentation.
 - See `extracted_file_manager/README.md` for file processing pipeline documentation.
 - See `resources/` for learnings, design notes, task flows, and architecture ideas that I accumulated along the way.
@@ -144,6 +171,7 @@ flowchart TD
 - **boto3** — AWS SDK for Python, used for S3 data access and management
 - **Playwright** — Headless browser automation for scraping London data
 - **pandas** — Data manipulation and validation
+- **pyarrow** — Parquet processing and streaming
 - **DuckDB** — Embedded analytics database for fast data processing
 - **dbt (Data Build Tool)** — SQL-based data transformation, modeling, and analytics marts
 - **AWS S3** — Cloud object storage for raw and processed data

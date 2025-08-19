@@ -4,5 +4,7 @@ from .nyc_bike import NYCLegacyBikeShareRecord, NYCModernBikeShareRecord
 
 __all__ = [
     'NYCModernBikeShareRecord',
-    'NYCLegacyBikeShareRecord'
+    'NYCLegacyBikeShareRecord',
+    'LondonModernBikeShareRecord',
+    'LondonLegacyBikeShareRecord'
 ] 

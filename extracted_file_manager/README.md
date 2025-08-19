@@ -12,6 +12,130 @@ The Extracted File Manager provides a complete pipeline for processing bike shar
 - **`cli.py`**: Command-line interface providing access to all manager functionality
 - **`models.py`**: Data models for file metadata, status tracking, and summary statistics
 - **`filetree.py`**: Utilities for processing ZIP file structures and nested archives
+- **`__init__.py`**: Package initialization and exports
+
+## Package Architecture
+
+### Data Models (`models.py`)
+
+The package defines several core data structures:
+
+#### Enums
+- **`FileStatus`**: Tracks file processing state
+  - `EXTRACTED` - File has been downloaded to S3
+  - `CSV_CONVERTED` - ZIP has been converted to CSV
+  - `VALIDATED` - File has been schema validated
+  - `PARQUET_CONVERTED` - CSV has been converted to Parquet
+  - `PROCESSED` - File has been loaded into database
+  - `FAILED` - File processing failed
+  - `DELETED` - File has been deleted
+
+- **`FileType`**: Identifies file types
+  - `ZIP` - ZIP archive files
+  - `CSV` - CSV data files
+  - `PARQUET` - Parquet data files
+
+- **`FileLocation`**: Geographic location
+  - `NYC` - New York City files
+  - `LONDON` - London files
+
+#### Classes
+- **`FileMetadata`**: Comprehensive file tracking
+  - File identification (filename, S3 key, type, location)
+  - Processing timestamps (extracted_at, validated_at, etc.)
+  - Error tracking (validation_errors, processing_errors)
+  - Custom metadata and schema overrides
+  - JSON serialization/deserialization methods
+
+- **`FileSummary`**: Aggregate statistics
+  - Counts by status and file type
+  - Total file count and size
+  - Summary generation from FileMetadata objects
+
+### File Tree Processing (`filetree.py`)
+
+Provides a hierarchical structure for processing ZIP archives:
+
+- **`Node`**: Base class for file tree elements
+- **`Folder`**: Represents directories with child nodes
+- **`File`**: Represents regular files with content
+- **`ZipFile`**: Specialized file class that can extract itself
+  - Handles nested ZIP files recursively
+  - Processes complex directory structures
+  - Skips Mac OS hidden files (`.DS_Store`, `._*`)
+  - Case-insensitive CSV detection
+- **`walk_folder()`**: Utility function to traverse folder trees
+
+### Manager Class (`manager.py`)
+
+The `ExtractedFileManager` class provides the core functionality:
+
+#### Initialization & Metadata Management
+- **`__init__()`**: Sets up S3 connection and loads metadata
+- **`_load_metadata()`**: Loads metadata from S3 JSON file
+- **`_save_metadata()`**: Persists metadata to S3
+- **`scan_s3_files()`**: Discovers new files in S3
+
+#### File Processing Pipeline
+- **`convert_zip_to_csv()`**: Extracts CSVs from ZIP files
+  - Handles nested ZIPs recursively
+  - Uses temporary files for memory efficiency
+  - Skips Mac OS artifacts
+  - Uploads extracted CSVs to S3
+  - Updates metadata with extraction results
+
+- **`validate_file_schema()`**: Validates CSV schemas
+  - Downloads 5MB samples for validation
+  - Uses data models from `~/data_models/`
+  - Supports schema overrides
+  - Updates validation status and errors
+
+- **`convert_csv_to_parquet()`**: Converts CSVs to Parquet
+  - Uses pyarrow streaming with 5MB chunks
+  - Applies data model transformations
+  - Organizes by schema in S3 structure
+  - Handles missing columns for schema overrides
+
+#### File Management
+- **`list_files()`**: Lists files with filtering options
+- **`get_file_metadata()`**: Retrieves metadata for specific file
+- **`get_file_summary()`**: Generates summary statistics
+- **`print_summary()`**: Displays formatted summary
+
+#### Error Recovery & Reprocessing
+- **`list_failed_files()`**: Lists files with failed status
+- **`reset_failed_files()`**: Resets failed files to extracted status
+- **`reprocess_file()`**: Resets single file for reprocessing
+- **`set_schema_override()`**: Sets manual schema override
+- **`clear_schema_override()`**: Removes schema override
+
+#### File Operations
+- **`wipe_files()`**: Unified file deletion method
+  - Supports filtering by type, location, or specific files
+  - Handles S3 deletion and metadata cleanup
+  - Special handling for Parquet files (resets CSV status)
+
+#### Utility Methods
+- **`_find_matching_model()`**: Identifies appropriate data model
+- **`_download_csv_sample()`**: Downloads file samples for validation
+- **`_get_column_types_for_model()`**: Maps data model fields to pyarrow types
+- **`_add_missing_columns_for_model()`**: Adds missing columns for schema overrides
+- **`_filter_files()`**: Centralized file filtering logic
+- **`_log_memory_usage()`**: Memory monitoring
+- **`_cleanup_memory()`**: Garbage collection and cleanup
+
+#### Batch Processing
+- **`process_files()`**: Unified processing method for all operations
+- **`extract_zips()`**: Batch ZIP extraction
+- **`convert_csvs()`**: Batch CSV conversion
+- **`validate_csvs()`**: Batch CSV validation
+- **`validate_all_files()`**: Validates all files or by type
+
+#### Status Management
+- **`update_file_status()`**: Updates file status and metadata
+  - Supports clearing errors
+  - Updates timestamps
+  - Persists changes to S3
 
 ## Pipeline Flow Diagram
 
@@ -48,6 +172,8 @@ flowchart TD
 - **🔍 Debug Support**: Detailed logging for troubleshooting validation and conversion issues
 - **📁 ZIP Processing**: Handles nested ZIP files and complex archive structures
 - **🎯 Schema Organization**: Parquet files automatically organized by schema type in S3
+- **⚡ Streaming Processing**: Uses pyarrow streaming for memory-efficient large file processing
+- **🔧 Schema Overrides**: Manual schema assignment for problematic files
 
 ## Data Model Integration
 
@@ -59,6 +185,19 @@ The system automatically determines the correct schema using your existing data 
 - **`LondonModernBikeShareRecord`** for modern London format (2017-present)
 
 Schema validation ensures CSV files match expected column structures before Parquet conversion, and files are organized by schema in the final S3 structure.
+
+## Environment Setup
+
+### Required Environment Variables
+- **`S3_BUCKET`**: AWS S3 bucket name for file storage
+- **`EXTRACTED_FILE_MANAGER_DEBUG`**: Set to '1' to enable debug logging
+
+### Dependencies
+- `boto3` - AWS S3 client
+- `pandas` - Data manipulation
+- `pyarrow` - Parquet processing and streaming
+- `psutil` - Memory monitoring
+- `python-dotenv` - Environment variable loading
 
 ## Quick Start
 
@@ -256,6 +395,7 @@ The system includes advanced memory management to prevent Out-of-Memory (OOM) is
 - **Sample Validation**: Downloads only 5MB samples for schema validation
 - **Explicit Cleanup**: DataFrames and buffers are explicitly deleted
 - **Batch Processing**: Forces garbage collection between files
+- **Temporary File Usage**: Uses temp files for ZIP processing to minimize memory
 
 ### Memory Usage Example
 ```
@@ -302,6 +442,7 @@ All operations are tracked in S3 at `extracted_file_manager/metadata.json`:
 - **Complex Structures**: Processes multi-level directory structures within archives
 - **Mac OS Compatibility**: Skips hidden files (`.DS_Store`, `._*`) automatically
 - **CSV Detection**: Case-insensitive CSV file detection and extraction
+- **Memory Efficiency**: Uses temporary files to avoid loading entire archives into memory
 
 ## Error Handling
 
@@ -310,6 +451,7 @@ All operations are tracked in S3 at `extracted_file_manager/metadata.json`:
 - Files can be reprocessed using `reset-failed` or `reprocess-failed`
 - Pipeline continues processing other files even if some fail
 - Memory cleanup ensures system stability
+- Schema overrides allow manual correction of validation issues
 
 ## Best Practices
 
@@ -319,6 +461,8 @@ All operations are tracked in S3 at `extracted_file_manager/metadata.json`:
 4. **Use Debug Mode**: Enable `--debug` when troubleshooting validation issues
 5. **Backup Before Wipe**: Always verify before running destructive operations
 6. **Check Status**: Use `list` and `summary` to monitor pipeline progress
+7. **Schema Overrides**: Use manual schema overrides for problematic files
+8. **Error Recovery**: Regularly check and reset failed files
 
 ## Troubleshooting
 
@@ -336,13 +480,55 @@ python -m extracted_file_manager.cli convert_csvs --location nyc  # Process one 
 
 **Failed Files**: Reset and reprocess failed files
 ```bash
-python -m extracted_file_manager.cli reprocess-failed --confirm
+python -m extracted_file_manager.cli reset-failed --confirm
 ```
 
 **Schema Mismatches**: Set manual schema override for problematic files
 ```bash
 python -m extracted_file_manager.cli set-schema --file "legacy.csv" --schema "NYCLegacyBikeShareRecord"
 ```
+
+**ZIP Processing Issues**: Check for nested ZIPs or complex directory structures
+```bash
+# Enable debug mode to see ZIP contents
+export EXTRACTED_FILE_MANAGER_DEBUG=1
+python -m extracted_file_manager.cli extract_zips --file "problematic.zip"
+```
+
+## API Reference
+
+### ExtractedFileManager Class
+
+#### Core Methods
+- `scan_s3_files()` → `List[FileMetadata]`
+- `convert_zip_to_csv(filename: str)` → `bool`
+- `validate_file_schema(filename: str)` → `bool`
+- `convert_csv_to_parquet(filename: str)` → `bool`
+
+#### File Management
+- `list_files(status=None, file_type=None, location=None)` → `List[FileMetadata]`
+- `get_file_metadata(filename: str)` → `Optional[FileMetadata]`
+- `get_file_summary()` → `FileSummary`
+- `print_summary()`
+
+#### Error Recovery
+- `list_failed_files(city=None, file_type=None)` → `List[Dict[str, Any]]`
+- `reset_failed_files(city=None, file_type=None)` → `int`
+- `reprocess_file(filename: str)` → `bool`
+
+#### Schema Management
+- `set_schema_override(filename: str, schema_name: str)` → `bool`
+- `clear_schema_override(filename: str)` → `bool`
+
+#### Batch Processing
+- `extract_zips(location=None, filenames=None)` → `Dict[str, bool]`
+- `convert_csvs(location=None, filenames=None)` → `Dict[str, bool]`
+- `validate_csvs(location=None, filenames=None)` → `Dict[str, bool]`
+- `validate_all_files(file_type=None)` → `Dict[str, bool]`
+
+#### File Operations
+- `wipe_files(file_type=None, location=None, filenames=None, delete_from_s3=True)` → `int`
+- `update_file_status(filename: str, status: FileStatus, clear_errors=False, **kwargs)` → `bool`
 
 ---
 
