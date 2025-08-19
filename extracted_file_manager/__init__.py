@@ -1,14 +1,19 @@
 """
-Extracted File Manager
+Simplified Extracted File Manager
 
-Manages extracted ZIP and CSV files on S3, including:
-- File tracking and metadata
-- Schema validation
-- Processing status
-- File management utilities
+A streamlined file management system for processing bike share data from ZIP archives 
+through CSV extraction to optimized Parquet storage.
+
+This package uses simple file existence checks instead of complex metadata tracking
+for better reliability and easier debugging.
 """
 
 from .manager import ExtractedFileManager
-from .models import FileStatus, FileMetadata
+from .simplified_pipeline import run_full_pipeline, run_extraction_only, run_conversion_only
 
-__all__ = ['ExtractedFileManager', 'FileStatus', 'FileMetadata'] 
+__all__ = [
+    'ExtractedFileManager',
+    'run_full_pipeline',
+    'run_extraction_only', 
+    'run_conversion_only'
+] 
