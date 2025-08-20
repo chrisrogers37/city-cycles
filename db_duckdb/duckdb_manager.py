@@ -33,8 +33,9 @@ class DuckDBManager:
             # Connect to DuckDB
             self.con = duckdb.connect(self.db_path)
             
-            # Set memory limits for low-RAM environments
-            self.con.execute("SET memory_limit='512MB'")
+            # Set memory limits based on configuration (default: 8GB, can be overridden via DUCKDB_MEMORY_LIMIT)
+            memory_limit = os.environ.get('DUCKDB_MEMORY_LIMIT', '8GB')
+            self.con.execute(f"SET memory_limit='{memory_limit}'")
             self.con.execute("SET temp_directory='./temp'")
             
             # Install and load required extensions
