@@ -34,6 +34,58 @@ I built an end-to-end, automatable flow that:
 
 ---
 
+## Pipeline Orchestrator (`~/orchestrator/`)
+
+The orchestrator provides a single entry point for managing the complete end-to-end pipeline:
+
+### Features
+- **Unified Coordination:** Manages all pipeline stages from a single command
+- **Flexible Execution:** Run complete pipeline or individual stages
+- **Production-Ready:** Designed for monthly batch runs on EC2 with cron scheduling
+- **Incremental Strategy:** Leverages dbt incremental models for 37% faster runtime
+- **Comprehensive Logging:** Detailed logging and error reporting at each stage
+
+### Pipeline Stages
+
+```
+1. Extract Data      → Download NYC & London bike data to S3
+2. File Management   → Unzip, validate schemas, convert to Parquet
+3. Database Load     → Load Parquet files into DuckDB raw tables
+4. dbt Transform     → Run incremental transformations (staging → marts)
+5. Mart Export       → Export analytics tables to S3 for dashboard
+```
+
+### Quick Start
+
+```bash
+# Run complete pipeline
+python -m orchestrator.cli run
+
+# Run with full dbt refresh (quarterly recommended)
+python -m orchestrator.cli run --dbt-full-refresh
+
+# Run individual stage
+python -m orchestrator.cli stage dbt
+
+# Check pipeline status
+python -m orchestrator.cli status
+```
+
+### Scheduling
+
+Monthly runs configured via cron on EC2:
+```bash
+# Monthly run (1st of each month at 2 AM)
+0 2 1 * * cd /home/ubuntu/city-cycles && python -m orchestrator.cli run
+
+# Quarterly full refresh (every 3 months at 3 AM)
+0 3 1 1,4,7,10 * cd /home/ubuntu/city-cycles && python -m orchestrator.cli run --dbt-full-refresh
+```
+
+**See `orchestrator/README.md` for complete documentation and `docs/ec2-deployment-guide.md` for deployment instructions.**
+
+---
+
 ## Data Extraction (`~/extraction/`)
 
 The extraction module handles the single concern of scraping files from the web and getting them into S3:
@@ -159,10 +211,16 @@ The DuckDB pipeline handles the single concern of loading processed data into th
 
 ## Additional Documentation
 
-- See `data_models/README.md` for details on the data model architecture and usage.
-- See `db_duckdb/README.md` for DuckDB ETL pipeline documentation.
-- See `extracted_file_manager/README.md` for file processing pipeline documentation.
-- See `resources/` for learnings, design notes, task flows, and architecture ideas that I accumulated along the way.
+### Core Components
+- `orchestrator/README.md` — Complete orchestrator documentation and usage guide
+- `data_models/README.md` — Data model architecture and schema validation
+- `db_duckdb/README.md` — DuckDB ETL pipeline documentation
+- `extracted_file_manager/README.md` — File processing pipeline documentation
+
+### Architecture & Deployment
+- `docs/incremental-pipeline-architecture.md` — Incremental dbt strategy and best practices
+- `docs/ec2-deployment-guide.md` — Production deployment on AWS EC2
+- `resources/` — Design notes, task flows, and architecture evolution
 
 ## Technologies Used
 
@@ -195,14 +253,18 @@ The DuckDB pipeline handles the single concern of loading processed data into th
 - **Covid**
   - Bring in annotated events data to contextualize anomalies and visualize pandemic impact.
 
+### Infrastructure & Automation
+- **Completed:** Production-ready orchestrator for end-to-end pipeline automation
+- **Completed:** Incremental dbt strategy for 37% faster monthly runs
+- **Completed:** EC2 deployment guide with cron scheduling
+
 ### Data Extraction
 - **Completed:** Simplified file processing with idempotent operations and file existence checks
 
 ### Database Load
-- **Improved Data Modeling**
-  - Fix schemas for better performance and investigate indexing at load.
-- **Utilize more efficient processing**
-  - Remove pandas from the process, if possible, for greater efficiency.
+- **Future:** Incremental raw table loading (track processed files, only load new)
+- **Future:** Improved data modeling (indexing, partitioning)
+- **Future:** Remove pandas dependency for greater efficiency
 
 ### Analytics
 - **Explore new metrics, categorizations, and areas of insight**
@@ -214,7 +276,10 @@ The DuckDB pipeline handles the single concern of loading processed data into th
   - Quantified seasonal effects
   - Quantified Covid effects (bring in external data source)
 
-- Further automate and productionize the pipeline.
+### Monitoring & Observability
+- **Future:** CloudWatch integration for metrics and alerting
+- **Future:** SNS notifications for pipeline failures
+- **Future:** Data quality tests with Great Expectations
 
 ---
 
