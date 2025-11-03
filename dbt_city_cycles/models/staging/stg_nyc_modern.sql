@@ -1,5 +1,6 @@
 {{ config(
-    materialized='table',
+    materialized='incremental',
+    unique_key='ride_id',
     indexes=[
         {'columns': ['start_time']},
         {'columns': ['ride_id'], 'unique': true},
@@ -10,6 +11,9 @@
 
 with source as (
     select * from {{ source('raw', 'raw_nyc_modern') }}
+    {% if is_incremental() %}
+    where source_file not in (select distinct source_file from {{ this }})
+    {% endif %}
 ),
 
 renamed as (
