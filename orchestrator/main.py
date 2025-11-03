@@ -216,6 +216,27 @@ class CityBikesOrchestrator:
         try:
             dbt_dir = self.project_root / "dbt_city_cycles"
             
+            # First, load seed data (population reference data)
+            logger.info("\n→ Loading dbt seeds...")
+            seed_process = subprocess.Popen(
+                ['dbt', 'seed'],
+                cwd=str(dbt_dir),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1
+            )
+            
+            # Stream seed output
+            for line in seed_process.stdout:
+                logger.info(line.rstrip())
+            
+            seed_return_code = seed_process.wait()
+            if seed_return_code != 0:
+                raise RuntimeError(f"dbt seed failed with return code {seed_return_code}")
+            
+            logger.info("\n✓ Seeds loaded successfully")
+            
             # Build dbt command
             cmd = ['dbt', 'run']
             if full_refresh:
@@ -224,31 +245,43 @@ class CityBikesOrchestrator:
             else:
                 logger.info("\n→ Running dbt (incremental)...")
             
-            # Run dbt
-            result = subprocess.run(
+            # Run dbt (stream output instead of capturing to avoid memory issues)
+            process = subprocess.Popen(
                 cmd,
                 cwd=str(dbt_dir),
-                check=True,
-                capture_output=True,
-                text=True
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1
             )
             
-            # Log output
-            logger.info("\n--- dbt Output ---")
-            logger.info(result.stdout)
+            # Stream output line by line
+            logger.info("\n--- dbt Output (streaming) ---")
+            output_lines = []
+            for line in process.stdout:
+                logger.info(line.rstrip())
+                output_lines.append(line)
+            
+            # Wait for process to complete
+            return_code = process.wait()
+            
+            if return_code != 0:
+                raise subprocess.CalledProcessError(
+                    return_code, cmd, output=''.join(output_lines)
+                )
             
             self.results['dbt'] = {
                 'status': 'success',
                 'full_refresh': full_refresh,
-                'output': result.stdout
+                'output': ''.join(output_lines)
             }
             logger.info("\n✓ dbt transformations completed")
             
         except subprocess.CalledProcessError as e:
             logger.error(f"\n✗ dbt transformations failed")
             logger.error(f"--- dbt Error Output ---")
-            logger.error(e.stderr)
-            raise RuntimeError(f"dbt phase failed: {e.stderr}")
+            logger.error(e.output if hasattr(e, 'output') else str(e))
+            raise RuntimeError(f"dbt phase failed: {e.output if hasattr(e, 'output') else str(e)}")
     
     def _run_mart_export(self):
         """

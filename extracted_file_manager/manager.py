@@ -15,15 +15,86 @@ import pyarrow.csv as pv
 import pyarrow.parquet as pq
 import gc
 import psutil
+import time
 from datetime import datetime
 from typing import List, Dict, Optional
+from functools import wraps
 from dotenv import load_dotenv
+from botocore.exceptions import ClientError, ReadTimeoutError, ConnectTimeoutError, EndpointConnectionError
 
 from .filetree import ZipFile as ZipFileNode, walk_folder
 from data_models.base import BaseBikeShareRecord
 
 # Load environment variables
 load_dotenv()
+
+
+# Retryable exception types (transient errors that are worth retrying)
+RETRYABLE_EXCEPTIONS = (
+    ReadTimeoutError,
+    ConnectTimeoutError,
+    EndpointConnectionError,
+    ConnectionError,
+)
+
+
+def retry_on_transient_error(max_attempts=3, initial_delay=1.0, backoff_factor=2.0):
+    """
+    Decorator that retries a function on transient errors with exponential backoff.
+    
+    Args:
+        max_attempts: Maximum number of attempts (default: 3)
+        initial_delay: Initial delay in seconds before first retry (default: 1.0)
+        backoff_factor: Multiplier for delay between retries (default: 2.0)
+    
+    Example:
+        With max_attempts=3, initial_delay=1, backoff_factor=2:
+        - Attempt 1: immediate
+        - Attempt 2: wait 1s
+        - Attempt 3: wait 2s
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            delay = initial_delay
+            last_exception = None
+            
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    return func(*args, **kwargs)
+                    
+                except RETRYABLE_EXCEPTIONS as e:
+                    last_exception = e
+                    
+                    if attempt < max_attempts:
+                        # Extract filename from args if available for better logging
+                        func_name = func.__name__
+                        context = ""
+                        if args and len(args) > 1:
+                            # For instance methods, args[0] is self, args[1] might be filename
+                            if isinstance(args[1], str):
+                                context = f" for {args[1]}"
+                        
+                        print(f"  ⚠ Transient error in {func_name}{context} (attempt {attempt}/{max_attempts}): {type(e).__name__}: {e}")
+                        print(f"  ⏳ Retrying in {delay:.1f}s...")
+                        time.sleep(delay)
+                        delay *= backoff_factor
+                    else:
+                        print(f"  ✗ Max retries ({max_attempts}) exceeded for {func.__name__}")
+                        raise
+                        
+                except Exception as e:
+                    # Non-retryable exception, raise immediately
+                    print(f"  ✗ Non-retryable error in {func.__name__}: {type(e).__name__}: {e}")
+                    raise
+            
+            # Should never reach here, but just in case
+            if last_exception:
+                raise last_exception
+                
+        return wrapper
+    return decorator
+
 
 class ExtractedFileManager:
     """
@@ -295,6 +366,7 @@ class ExtractedFileManager:
         
         return csv_count, skipped_count
     
+    @retry_on_transient_error(max_attempts=3, initial_delay=2.0, backoff_factor=2.0)
     def _convert_csv_to_parquet(self, csv_file: str):
         """Convert CSV to parquet with schema detection and proper organization"""
         # Download CSV sample to determine schema
@@ -359,6 +431,7 @@ class ExtractedFileManager:
         
         return None
     
+    @retry_on_transient_error(max_attempts=3, initial_delay=2.0, backoff_factor=2.0)
     def _stream_csv_to_parquet(self, csv_s3_key: str, parquet_s3_key: str, model):
         """Stream CSV to parquet using pyarrow with proper string handling"""
         with tempfile.NamedTemporaryFile(suffix='.parquet', delete=False) as temp_parquet:
@@ -379,7 +452,25 @@ class ExtractedFileManager:
             # Create a StringIO object for pandas
             from io import StringIO
             
-            writer = None
+            # Define explicit schema upfront to avoid NULL type inference issues
+            parquet_schema = pa.schema([
+                ('ride_id', pa.string()),
+                ('rideable_type', pa.string()),
+                ('started_at', pa.string()),
+                ('ended_at', pa.string()),
+                ('start_station_id', pa.string()),
+                ('start_station_name', pa.string()),
+                ('end_station_id', pa.string()),
+                ('end_station_name', pa.string()),
+                ('start_lat', pa.float64()),
+                ('start_lng', pa.float64()),
+                ('end_lat', pa.float64()),
+                ('end_lng', pa.float64()),
+                ('member_casual', pa.string()),
+                ('source_file', pa.string())
+            ])
+            
+            writer = pq.ParquetWriter(temp_parquet_path, parquet_schema)
             chunk_start = 1  # Skip header
             
             while chunk_start < len(lines):
@@ -387,7 +478,7 @@ class ExtractedFileManager:
                 chunk_lines = [header] + lines[chunk_start:chunk_end]
                 chunk_csv = '\n'.join(chunk_lines)
                 
-                # Read chunk with pandas, forcing string types for station IDs
+                # Read chunk with pandas, forcing string types for station IDs and float for lat/lng
                 df_chunk = pd.read_csv(StringIO(chunk_csv), dtype={
                     'start station id': str,
                     'end station id': str,
@@ -399,17 +490,18 @@ class ExtractedFileManager:
                     'rideable_type': str,
                     'member_casual': str,
                     'usertype': str,
-                    'bikeid': str
+                    'bikeid': str,
+                    'start_lat': 'float64',
+                    'start_lng': 'float64',
+                    'end_lat': 'float64',
+                    'end_lng': 'float64'
                 })
                 
                 # Apply model transformation
                 df_transformed = model.to_dataframe(df_chunk, csv_s3_key)
                 
-                # Convert to pyarrow
-                table = pa.Table.from_pandas(df_transformed)
-                
-                if writer is None:
-                    writer = pq.ParquetWriter(temp_parquet_path, table.schema)
+                # Convert to pyarrow with explicit schema casting
+                table = pa.Table.from_pandas(df_transformed, schema=parquet_schema)
                 
                 writer.write_table(table)
                 
