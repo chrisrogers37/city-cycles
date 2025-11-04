@@ -16,6 +16,7 @@ import pyarrow.parquet as pq
 import gc
 import psutil
 import time
+import shutil
 from datetime import datetime
 from typing import List, Dict, Optional
 from functools import wraps
@@ -264,9 +265,11 @@ class ExtractedFileManager:
                     if filename.lower().endswith('.zip'):
                         print(f"DEBUG: Found nested ZIP: {filename}")
                         try:
-                            # Extract nested ZIP to temp file
+                            # Extract nested ZIP to temp file using streaming (memory-efficient)
                             with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as nested_temp:
-                                nested_temp.write(zf.read(filename))
+                                # Stream the nested ZIP in chunks instead of loading all into memory
+                                with zf.open(filename) as nested_source:
+                                    shutil.copyfileobj(nested_source, nested_temp, length=8*1024*1024)  # 8MB chunks
                                 nested_temp_path = nested_temp.name
                             
                             # Process nested ZIP
@@ -300,18 +303,16 @@ class ExtractedFileManager:
                             skipped_count += 1
                             continue
                         
-                        # Upload CSV content
-                        csv_content = zf.read(filename)
-                        self.s3_client.put_object(
-                            Bucket=self.s3_bucket,
-                            Key=csv_s3_key,
-                            Body=csv_content
-                        )
+                        # Stream CSV content directly to S3 (memory-efficient)
+                        # Open the file from ZIP as a stream
+                        with zf.open(filename) as csv_stream:
+                            self.s3_client.upload_fileobj(
+                                csv_stream,
+                                self.s3_bucket,
+                                csv_s3_key
+                            )
                         print(f"  ✓ Uploaded {csv_filename}")
                         csv_count += 1
-                        
-                        # Clean up CSV content from memory
-                        del csv_content
             
             print(f"  Processed {csv_count + skipped_count} CSV files from {os.path.basename(zip_s3_key)} ({csv_count} new, {skipped_count} skipped)")
             
@@ -346,18 +347,15 @@ class ExtractedFileManager:
                             skipped_count += 1
                             continue
                         
-                        # Upload CSV content
-                        csv_content = nested_zf.read(filename)
-                        self.s3_client.put_object(
-                            Bucket=self.s3_bucket,
-                            Key=csv_s3_key,
-                            Body=csv_content
-                        )
+                        # Stream CSV content directly to S3 (memory-efficient)
+                        with nested_zf.open(filename) as csv_stream:
+                            self.s3_client.upload_fileobj(
+                                csv_stream,
+                                self.s3_bucket,
+                                csv_s3_key
+                            )
                         print(f"  ✓ Uploaded {csv_filename}")
                         csv_count += 1
-                        
-                        # Clean up CSV content from memory
-                        del csv_content
             
             print(f"DEBUG: Extracted folder '{nested_zip_name}' contains {csv_count + skipped_count} children")
             
