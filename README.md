@@ -82,7 +82,7 @@ Monthly runs configured via cron on EC2:
 0 3 1 1,4,7,10 * cd /home/ubuntu/city-cycles && python -m orchestrator.cli run --dbt-full-refresh
 ```
 
-**See `orchestrator/README.md` for complete documentation and `docs/ec2-deployment-guide.md` for deployment instructions.**
+**See `orchestrator/README.md` for complete documentation, `docs/ec2-deployment-guide.md` for deployment instructions, and `docs/incremental-processing-guide.md` for incremental update strategy.**
 
 ---
 
@@ -218,6 +218,7 @@ The DuckDB pipeline handles the single concern of loading processed data into th
 - `extracted_file_manager/README.md` — File processing pipeline documentation
 
 ### Architecture & Deployment
+- `docs/incremental-processing-guide.md` — **Incremental processing guide** (how to run monthly updates efficiently)
 - `docs/incremental-pipeline-architecture.md` — Incremental dbt strategy and best practices
 - `docs/ec2-deployment-guide.md` — Production deployment on AWS EC2
 - `resources/` — Design notes, task flows, and architecture evolution

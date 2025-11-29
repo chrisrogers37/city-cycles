@@ -1,5 +1,6 @@
 {{ config(
     materialized='incremental',
+    unique_key='ride_id',
     indexes=[
         {'columns': ['start_time']},
         {'columns': ['ride_id']},
