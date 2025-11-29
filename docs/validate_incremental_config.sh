@@ -6,7 +6,7 @@ echo "Validating Incremental Configuration"
 echo "======================================"
 echo ""
 
-cd "$(dirname "$0")/dbt_city_cycles/models"
+cd "$(dirname "$0")/../dbt_city_cycles/models"
 
 echo "✓ Checking staging models..."
 for file in staging/*.sql; do
