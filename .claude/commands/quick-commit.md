@@ -6,8 +6,11 @@ Follow these steps in order:
 
 1. Run `git status` to see what files have changed
 2. Run `git diff` to review the changes
-3. Stage all relevant files with `git add`
-4. Create a commit with a clear, descriptive message following conventional commits format:
+3. **Check CHANGELOG.md** - Verify that CHANGELOG.md has been updated with entries for these changes
+   - If not updated, remind the user to update it before committing
+   - Changes should go in the `[Unreleased]` section under appropriate category (Added, Changed, Fixed, Improved)
+4. Stage all relevant files with `git add` (including CHANGELOG.md if updated)
+5. Create a commit with a clear, descriptive message following conventional commits format:
    - `feat:` for new features
    - `fix:` for bug fixes
    - `refactor:` for code refactoring

@@ -100,6 +100,7 @@ Always give Claude a way to verify its work. Run these checks after making chang
 
 ### Important Files
 - `requirements.txt` — Python dependencies
+- `CHANGELOG.md` — Version history and changes (Keep a Changelog format)
 - `.env` — AWS credentials and configuration (DO NOT commit)
 - `README.md` — Project documentation
 - `city-cycles-ec2-key.pem` — EC2 SSH key (DO NOT commit or expose)
@@ -213,6 +214,57 @@ gh pr create            # Create pull request (using GitHub CLI)
 - Don't skip file existence checks (they enable idempotency)
 - Don't modify raw data tables directly (use dbt transformations)
 - Don't hardcode AWS bucket names or paths (use environment variables)
+
+## Changelog Maintenance (CRITICAL)
+
+**ALWAYS update CHANGELOG.md when making changes to the codebase.**
+
+**Format**: [Keep a Changelog](https://keepachangelog.com/) with [Semantic Versioning](https://semver.org/)
+
+**Version bump rules**:
+- **MAJOR** (X.0.0): Breaking changes (incompatible API changes, major schema changes)
+- **MINOR** (x.Y.0): New features (new data sources, pipeline stages, dashboard features)
+- **PATCH** (x.y.Z): Bug fixes, performance improvements, documentation updates
+
+**Entry categories**:
+- **Added** - New features, data sources, pipeline stages
+- **Changed** - Changes in existing functionality
+- **Fixed** - Bug fixes
+- **Improved** - Performance improvements, optimizations
+- **Technical Improvements** - Refactoring, test improvements, infrastructure changes
+
+**Workflow**:
+1. Make your changes
+2. Add entry to `[Unreleased]` section in CHANGELOG.md
+3. When ready to release, move `[Unreleased]` entries to new version section
+4. Commit CHANGELOG.md with your changes
+
+**Example entry**:
+```markdown
+## [Unreleased]
+
+### Added
+- **London Modern Schema Support** - Added support for London's 2024 bike share data schema
+  - Created LondonModern2024Record model in data_models/
+  - Updated file processor schema detection
+  - Added dbt staging model stg_london_modern_2024
+
+### Fixed
+- **Memory Leak in CSV Processing** - Fixed pandas chunking to properly release memory
+  - Reduced memory usage from 4GB to 500MB for large file processing
+  - Added gc.collect() calls after each chunk
+
+### Improved
+- **DuckDB Query Performance** - Optimized raw table loading by 40%
+  - Added indexes on date and station_id columns
+  - Switched to bulk INSERT FROM instead of row-by-row
+```
+
+**Before committing**: Always check that CHANGELOG.md is updated with your changes.
+
+**When creating PRs**: The PR description should reference the CHANGELOG entries.
+
+---
 
 ## Project-Specific Patterns
 
