@@ -1,0 +1,74 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest*)",
+      "Bash(python -m orchestrator*)",
+      "Bash(python -m extraction*)",
+      "Bash(python -m extracted_file_manager*)",
+      "Bash(python -m data_models*)",
+      "Bash(python -m db_duckdb*)",
+      "Bash(python -m mypy*)",
+      "Bash(python -m coverage*)",
+      "Bash(python -m streamlit*)",
+      "Bash(dbt run*)",
+      "Bash(dbt test*)",
+      "Bash(dbt compile*)",
+      "Bash(dbt docs*)",
+      "Bash(dbt debug*)",
+      "Bash(dbt build*)",
+      "Bash(pip install*)",
+      "Bash(pip list*)",
+      "Bash(pip show*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git branch*)",
+      "Bash(git checkout*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git push*)",
+      "Bash(git pull*)",
+      "Bash(git fetch*)",
+      "Bash(git stash*)",
+      "Bash(gh pr*)",
+      "Bash(gh issue*)",
+      "Bash(gh repo*)",
+      "Bash(ls*)",
+      "Bash(cat*)",
+      "Bash(head*)",
+      "Bash(tail*)",
+      "Bash(wc*)",
+      "Bash(grep*)",
+      "Bash(find*)",
+      "Bash(mkdir*)",
+      "Bash(touch*)",
+      "Bash(source venv/bin/activate*)",
+      "Bash(which python*)",
+      "Bash(python --version*)",
+      "Bash(aws s3 ls*)",
+      "Bash(aws s3 sync --dryrun*)",
+      "Bash(du -sh*)",
+      "Bash(df -h*)"
+    ],
+    "deny": [
+      "Bash(aws s3 rm*)",
+      "Bash(aws s3 rb*)",
+      "Bash(rm -rf*)",
+      "Bash(DROP TABLE*)",
+      "Bash(TRUNCATE TABLE*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [[ \"$CLAUDE_FILE_PATH\" == *.py ]]; then python -m black \"$CLAUDE_FILE_PATH\" 2>/dev/null || autopep8 --in-place \"$CLAUDE_FILE_PATH\" 2>/dev/null || true; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
