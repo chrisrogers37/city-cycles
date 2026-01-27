@@ -60,11 +60,8 @@ class NYCLegacyBikeShareRecord(BaseBikeShareRecord):
 
     @classmethod
     def to_dataframe(cls, df: pd.DataFrame, source_file: str) -> pd.DataFrame:
+        # Only rename columns that have different names in source
         df = df.rename(columns={
-            "tripduration": "tripduration",
-            "bikeid": "bikeid",
-            "starttime": "starttime",
-            "stoptime": "stoptime",
             "start station id": "start_station_id",
             "start station name": "start_station_name",
             "start station latitude": "start_station_latitude",
@@ -73,9 +70,7 @@ class NYCLegacyBikeShareRecord(BaseBikeShareRecord):
             "end station name": "end_station_name",
             "end station latitude": "end_station_latitude",
             "end station longitude": "end_station_longitude",
-            "usertype": "usertype",
             "birth year": "birth_year",
-            "gender": "gender"
         })
         df["source_file"] = source_file
         return df[list(cls.__dataclass_fields__.keys())]
@@ -130,21 +125,7 @@ class NYCModernBikeShareRecord(BaseBikeShareRecord):
 
     @classmethod
     def to_dataframe(cls, df: pd.DataFrame, source_file: str) -> pd.DataFrame:
-        df = df.rename(columns={
-            "ride_id": "ride_id",
-            "rideable_type": "rideable_type",
-            "started_at": "started_at",
-            "ended_at": "ended_at",
-            "start_station_id": "start_station_id",
-            "start_station_name": "start_station_name",
-            "end_station_id": "end_station_id",
-            "end_station_name": "end_station_name",
-            "start_lat": "start_lat",
-            "start_lng": "start_lng",
-            "end_lat": "end_lat",
-            "end_lng": "end_lng",
-            "member_casual": "member_casual"
-        })
+        # No column renames needed - modern schema uses correct names
         df["source_file"] = source_file
         
         # Ensure station IDs are treated as strings (handle alphanumeric values)

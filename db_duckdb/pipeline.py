@@ -5,7 +5,7 @@ Provides orchestration for running the complete ETL pipeline workflow.
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from .operations import DuckDBOperations
 
 logger = logging.getLogger(__name__)
@@ -146,7 +146,7 @@ class DuckDBPipeline:
             dry_run=dry_run
         )
     
-    def check_pipeline_status(self) -> Dict[str, any]:
+    def check_pipeline_status(self) -> Dict[str, Any]:
         """
         Check the current status of the pipeline.
         
@@ -289,7 +289,7 @@ def run_full_pipeline(skip_verify: bool = False,
     )
 
 
-def check_pipeline_status(db_path: Optional[str] = None) -> Dict[str, any]:
+def check_pipeline_status(db_path: Optional[str] = None) -> Dict[str, Any]:
     """
     Convenience function to check pipeline status.
     

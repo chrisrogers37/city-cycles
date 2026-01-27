@@ -28,7 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated module table with correct key files
 
 ### Fixed
-- Nothing yet
+- **Bare except clause** in `extracted_file_manager/manager.py` - Changed to specific `ClientError` exception handling
+- **Incorrect type hints** in `db_duckdb/pipeline.py` - Changed `Dict[str, any]` to `Dict[str, Any]` with proper import
+
+### Removed
+- **Vestigial intermediate dbt models** - Deleted `int_nyc_rides.sql` and `int_london_rides.sql` from `dbt_city_cycles/models/intermediate/`
+- **Intermediate table references** - Removed from `db_duckdb/operations.py` INTERMEDIATE_TABLES list
+- **No-op column renames** in `data_models/nyc_bike.py` - Removed self-referential renames like `"ride_id": "ride_id"` that served no purpose
 
 ---
 
