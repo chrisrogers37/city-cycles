@@ -89,13 +89,14 @@ Always give Claude a way to verify its work. Run these checks after making chang
 
 | Module | Purpose | Key Files |
 |--------|---------|-----------|
-| `orchestrator/` | Pipeline coordination & CLI | `cli.py`, `pipeline.py` |
-| `extraction/` | Download bike data to S3 | `extract_nyc_data.py`, `extract_london_data.py` |
-| `extracted_file_manager/` | ZIP → CSV → Parquet processing | `file_processor.py` |
-| `data_models/` | Schema validation (pydantic) | `nyc_models.py`, `london_models.py` |
-| `db_duckdb/` | DuckDB ETL operations | `load_raw_tables.py`, `export_marts.py` |
-| `dbt_city_cycles/` | dbt transformations | `models/staging/`, `models/marts/` |
-| `dashboard/` | Streamlit dashboard | `streamlit_app.py` (likely in streamlit_data_manager/) |
+| `orchestrator/` | Pipeline coordination & CLI | `cli.py`, `main.py`, `config.py` |
+| `extraction/` | Download bike data to S3 | `nyc.py`, `london.py`, `utils.py` |
+| `extracted_file_manager/` | ZIP → CSV → Parquet processing | `manager.py`, `simplified_pipeline.py`, `cli.py` |
+| `data_models/` | Schema validation (pydantic) | `nyc_bike.py`, `london_bike.py`, `base.py`, `registry.py` |
+| `db_duckdb/` | DuckDB ETL operations | `cli.py`, `duckdb_manager.py`, `operations.py`, `pipeline.py` |
+| `dbt_city_cycles/` | dbt transformations | `models/staging/`, `models/intermediate/`, `models/unified/`, `models/marts/` |
+| `dashboard/` | Streamlit dashboard | `app.py` |
+| `streamlit_data_manager/` | Dashboard data management | `parquet_file_manager.py` |
 | `tests/` | pytest test suite | Test files for each module |
 
 ### Important Files
@@ -128,11 +129,11 @@ python -m orchestrator.cli run
 python -m orchestrator.cli run --dbt-full-refresh
 
 # Run individual stage
-python -m orchestrator.cli stage extract
+python -m orchestrator.cli stage extraction
 python -m orchestrator.cli stage file_management
 python -m orchestrator.cli stage database_load
 python -m orchestrator.cli stage dbt
-python -m orchestrator.cli stage mart_export
+python -m orchestrator.cli stage export
 
 # Check pipeline status
 python -m orchestrator.cli status
@@ -141,10 +142,10 @@ python -m orchestrator.cli status
 ### Data Extraction
 ```bash
 # Extract NYC data
-python -m extraction.extract_nyc_data
+python -m extraction.nyc
 
 # Extract London data
-python -m extraction.extract_london_data
+python -m extraction.london
 ```
 
 ### File Processing
@@ -158,11 +159,26 @@ python -m extracted_file_manager.cli convert_csvs
 
 ### DuckDB Operations
 ```bash
-# Load raw tables
-python -m db_duckdb.load_raw_tables
+# Initialize raw tables
+python -m db_duckdb.cli init
+
+# Load data from S3 parquet files
+python -m db_duckdb.cli load
+
+# Verify data integrity
+python -m db_duckdb.cli verify
 
 # Export marts to S3
-python -m db_duckdb.export_marts
+python -m db_duckdb.cli export
+
+# List tables/marts
+python -m db_duckdb.cli list
+
+# Run complete ETL pipeline
+python -m db_duckdb.cli pipeline
+
+# Check pipeline status
+python -m db_duckdb.cli status
 ```
 
 ### dbt Operations

@@ -14,8 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated `/commit-push-pr` command to reference CHANGELOG entries in PR descriptions
   - Added CHANGELOG.md to Important Files section in CLAUDE.md
 
+- **Project Planning Documentation** - Created comprehensive planning docs in `docs/planning/`
+  - `ROADMAP.md` - Full project enhancement roadmap with phases and timelines
+  - `COST-OPTIMIZATION.md` - Detailed AWS cost reduction strategies ($130 → <$10/month)
+  - `QUICK-START-PRIORITIES.md` - Immediate action items for quick wins
+
 ### Changed
-- Nothing yet
+- **CLAUDE.md Documentation Accuracy** - Fixed multiple file references to match actual codebase
+  - Fixed orchestrator stage name from `extract` to `extraction`
+  - Fixed export stage name from `mart_export` to `export`
+  - Updated module file names (nyc.py, london.py, nyc_bike.py, etc.)
+  - Added undocumented db_duckdb CLI commands (verify, list, pipeline, status)
+  - Updated module table with correct key files
 
 ### Fixed
 - Nothing yet
