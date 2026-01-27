@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Intermediate table references** - Removed from `db_duckdb/operations.py` INTERMEDIATE_TABLES list
 - **No-op column renames** in `data_models/nyc_bike.py` - Removed self-referential renames like `"ride_id": "ride_id"` that served no purpose
 
+### Technical Improvements
+- **Test Suite Enhancement** - Improved test coverage from 49 to 83 tests
+  - Added 34 new tests for `orchestrator` module (config, main, CLI)
+  - Fixed S3 exception handling tests to use proper `ClientError` instead of generic `Exception`
+  - All 83 tests now pass (3 skipped for dry-run output capture issues)
+
 ---
 
 ## [1.0.0] - 2026-01-26

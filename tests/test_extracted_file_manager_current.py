@@ -14,6 +14,8 @@ from io import StringIO
 import zipfile
 from datetime import datetime
 
+from botocore.exceptions import ClientError
+
 from extracted_file_manager import ExtractedFileManager
 from data_models.nyc_bike import NYCLegacyBikeShareRecord, NYCModernBikeShareRecord
 from data_models.london_bike import LondonLegacyBikeShareRecord, LondonModernBikeShareRecord
@@ -163,8 +165,11 @@ class TestExtractedFileManager:
     
     def test_file_exists_in_s3_not_exists(self, manager, mock_s3_client):
         """Test checking if file exists in S3 (not exists)"""
-        mock_s3_client.head_object.side_effect = Exception("Not found")
-        
+        mock_s3_client.head_object.side_effect = ClientError(
+            error_response={'Error': {'Code': '404', 'Message': 'Not Found'}},
+            operation_name='HeadObject'
+        )
+
         result = manager._file_exists_in_s3("test/path/file.csv")
         assert result is False
     
@@ -198,8 +203,11 @@ class TestExtractedFileManager:
     def test_parquet_exists_for_csv_not_found(self, manager, mock_s3_client):
         """Test checking if parquet exists for CSV (not found)"""
         # Mock that no parquet file exists
-        mock_s3_client.head_object.side_effect = Exception("Not found")
-        
+        mock_s3_client.head_object.side_effect = ClientError(
+            error_response={'Error': {'Code': '404', 'Message': 'Not Found'}},
+            operation_name='HeadObject'
+        )
+
         result = manager._parquet_exists_for_csv("extracted_bike_ride_csvs/nyc/test.csv")
         assert result is False
 

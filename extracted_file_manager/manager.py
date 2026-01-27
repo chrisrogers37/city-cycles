@@ -540,7 +540,7 @@ class ExtractedFileManager:
         try:
             self.s3_client.head_object(Bucket=self.s3_bucket, Key=s3_key)
             return True
-        except self.s3_client.exceptions.ClientError:
+        except ClientError:
             return False
     
     def _list_s3_files(self, prefix: str) -> List[str]:
