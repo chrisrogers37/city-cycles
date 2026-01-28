@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `COST-OPTIMIZATION.md` - Detailed AWS cost reduction strategies ($130 → <$10/month)
   - `QUICK-START-PRIORITIES.md` - Immediate action items for quick wins
 
+- **System Guide** - Created `docs/SYSTEM-GUIDE.md` with comprehensive operational documentation
+  - Quick start commands for running tests and pipeline
+  - Summary of recent refactoring changes
+  - Complete commands reference for all modules
+  - Troubleshooting guide for common issues
+  - Environment setup instructions
+
 ### Changed
 - **CLAUDE.md Documentation Accuracy** - Fixed multiple file references to match actual codebase
   - Fixed orchestrator stage name from `extract` to `extraction`
