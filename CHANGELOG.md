@@ -33,14 +33,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated module file names (nyc.py, london.py, nyc_bike.py, etc.)
   - Added undocumented db_duckdb CLI commands (verify, list, pipeline, status)
   - Updated module table with correct key files
+  - Fixed extracted_file_manager CLI commands (`extract_zips` → `extract`, `convert_csvs` → `convert`)
+  - Updated Documentation References to reflect actual existing files
+
+- **Documentation Audit** - Comprehensive review and correction of all project docs
+  - Fixed SYSTEM-GUIDE.md incorrect claims about deleted intermediate models (models still exist)
+  - Updated ROADMAP.md with actual implementation status (checkboxes marked complete/pending)
+  - Archived FEATURE-SUMMARY.md as historical document with note pointing to SYSTEM-GUIDE.md
+  - Updated INCREMENTAL_STATUS.md with current review date
 
 ### Fixed
 - **Bare except clause** in `extracted_file_manager/manager.py` - Changed to specific `ClientError` exception handling
 - **Incorrect type hints** in `db_duckdb/pipeline.py` - Changed `Dict[str, any]` to `Dict[str, Any]` with proper import
+- **CHANGELOG.md Error** - Removed incorrect claim that intermediate dbt models were deleted (they still exist and are used)
 
 ### Removed
-- **Vestigial intermediate dbt models** - Deleted `int_nyc_rides.sql` and `int_london_rides.sql` from `dbt_city_cycles/models/intermediate/`
-- **Intermediate table references** - Removed from `db_duckdb/operations.py` INTERMEDIATE_TABLES list
 - **No-op column renames** in `data_models/nyc_bike.py` - Removed self-referential renames like `"ride_id": "ride_id"` that served no purpose
 
 ### Technical Improvements

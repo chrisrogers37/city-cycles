@@ -150,11 +150,14 @@ python -m extraction.london
 
 ### File Processing
 ```bash
-# Extract ZIPs to CSVs
-python -m extracted_file_manager.cli extract_zips
+# Run full file processing pipeline (ZIPs → CSVs → Parquet)
+python -m extracted_file_manager.cli run
 
-# Convert CSVs to Parquet
-python -m extracted_file_manager.cli convert_csvs
+# Run extraction phase only (ZIPs → CSVs)
+python -m extracted_file_manager.cli extract
+
+# Run conversion phase only (CSVs → Parquet)
+python -m extracted_file_manager.cli convert
 ```
 
 ### DuckDB Operations
@@ -383,10 +386,12 @@ S3_BUCKET_NAME=city-cycles-bucket
 
 - `orchestrator/README.md` — Orchestrator usage and pipeline coordination
 - `data_models/README.md` — Schema validation and data models
-- `db_duckdb/README.md` — DuckDB ETL pipeline
 - `extracted_file_manager/README.md` — File processing pipeline
+- `extraction/README.md` — Data extraction from web sources
+- `docs/SYSTEM-GUIDE.md` — System overview and quick start guide
 - `docs/incremental-processing-guide.md` — Monthly update strategy
 - `docs/ec2-deployment-guide.md` — Production deployment guide
+- `docs/planning/ROADMAP.md` — Project enhancement roadmap
 
 ---
 

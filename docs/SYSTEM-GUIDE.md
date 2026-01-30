@@ -1,7 +1,7 @@
 # City Cycles System Guide
 
-> Last updated: 2026-01-28
-> This document summarizes recent refactoring work and provides guidance for running the system.
+> Last updated: 2026-01-30
+> This document provides operational guidance for running the City Cycles system.
 
 ## Quick Start
 
@@ -34,25 +34,22 @@ python -m orchestrator.cli run
 
 **Test Coverage:** 83 tests passing (up from 49)
 
-### Architecture Changes (Prior Session)
+### Current Architecture
 
-The intermediate dbt layer was removed to reduce data duplication:
+The dbt pipeline uses incremental models to efficiently process new data:
 
-**Before:**
 ```
 Raw → Staging → Intermediate → Unified → Marts
-      (200M)    (200M)         (200M)    (aggregated)
+      (incr.)   (incr.)        (incr.)   (table rebuild)
 ```
 
-**After:**
-```
-Raw → Staging → Unified → Marts
-      (200M)    (200M)    (aggregated)
-```
+**Incremental Models:**
+- Staging: `stg_nyc_modern`, `stg_nyc_legacy`, `stg_london_modern`, `stg_london_legacy`
+- Intermediate: `int_nyc_rides`, `int_london_rides`
+- Unified: `unified_rides`
 
-**Deleted Files:**
-- `dbt_city_cycles/models/intermediate/int_nyc_rides.sql`
-- `dbt_city_cycles/models/intermediate/int_london_rides.sql`
+**Mart Models (full rebuild each run):**
+- `mart_daily_metrics`, `mart_hourly_patterns`, `mart_station_growth`, etc.
 
 ## System Architecture
 
