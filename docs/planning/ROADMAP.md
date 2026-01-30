@@ -1,8 +1,28 @@
 # City Cycles: Project Roadmap & Enhancement Plan
 
 **Created:** January 27, 2026
-**Last Updated:** January 27, 2026
+**Last Updated:** January 30, 2026
 **Status:** Active Planning Document
+
+## Implementation Status Summary
+
+### ✅ COMPLETED
+- Production orchestrator with single entry point (`orchestrator/`)
+- Incremental dbt strategy (37% runtime savings)
+- Full pipeline coordination (extraction → marts)
+- EC2 deployment documentation
+- Comprehensive test suite (83 tests)
+- Claude Code setup with slash commands and agents
+
+### 🔄 IN PROGRESS
+- Documentation review and cleanup
+
+### ⏳ PENDING
+- Cost optimization (EC2 stop/start automation)
+- Dashboard enhancements (geospatial, filtering)
+- Incremental raw table loading
+- SNS failure notifications
+- CI/CD pipeline setup
 
 ---
 
@@ -530,35 +550,35 @@ models:
 
 ### Phase 1: Cost Optimization (Week 1-2)
 
-- [ ] Implement EC2 stop/start automation
-- [ ] Test local development workflow
-- [ ] Document cost-saving procedures
+- [ ] Implement EC2 stop/start automation (Lambda + EventBridge)
+- [x] Document cost-saving procedures (COST-OPTIMIZATION.md)
 - [ ] Set up billing alerts
+- [ ] Test local development workflow
 
 ### Phase 2: Dashboard Enhancements (Week 3-4)
 
 - [ ] Add station map visualization
-- [ ] Implement enhanced filtering
+- [ ] Implement enhanced filtering (day-of-week, season)
 - [ ] Add automated insights
 - [ ] Deploy updated dashboard
 
 ### Phase 3: Pipeline Improvements (Week 5-6)
 
 - [ ] Implement incremental raw table loading
-- [ ] Add parallel extraction
+- [ ] Add parallel extraction (NYC + London concurrent)
 - [ ] Set up SNS failure notifications
-- [ ] Add pipeline metrics
+- [ ] Add pipeline metrics/CloudWatch
 
 ### Phase 4: Quality & Testing (Week 7-8)
 
-- [ ] Expand unit test coverage to 70%
+- [x] Expand unit test coverage (83 tests, up from 49)
 - [ ] Add dbt data quality tests
 - [ ] Implement Great Expectations suite
 - [ ] Set up CI/CD pipeline
 
 ### Phase 5: Documentation & Polish (Week 9-10)
 
-- [ ] Update all READMEs with current state
+- [x] Update all READMEs with current state
 - [ ] Create architecture diagrams
 - [ ] Record demo video
 - [ ] Prepare portfolio presentation
@@ -569,13 +589,13 @@ models:
 
 ### Technical Metrics
 
-| Metric | Current | Target |
-|--------|---------|--------|
-| Monthly AWS Cost | ~$130 | <$10 |
-| Monthly Pipeline Runtime | ~68 min | <30 min |
-| Test Coverage | ~30% | >70% |
-| Dashboard Load Time | ~3s | <1s |
-| Data Freshness | Monthly | Weekly capable |
+| Metric | Current | Target | Status |
+|--------|---------|--------|--------|
+| Monthly AWS Cost | ~$130 | <$10 | ⏳ Pending (stop EC2) |
+| Monthly Pipeline Runtime | ~36 min | <30 min | 🔄 Incremental dbt done |
+| Test Coverage | 83 tests | >70% coverage | ✅ Tests improved |
+| Dashboard Load Time | ~3s | <1s | ⏳ Pending |
+| Data Freshness | Monthly | Weekly capable | ✅ Ready |
 
 ### Portfolio Metrics
 
