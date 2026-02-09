@@ -305,17 +305,17 @@ When bike share data schemas change:
 
 ### AWS S3 Structure
 ```
-s3://city-cycles-bucket/
+s3://city-cycles-data-ctr37/
 ├── extracted_bike_ride_zips/nyc/*.zip
 ├── extracted_bike_ride_csvs/
 │   ├── nyc/*.csv
 │   └── london/*.csv
 ├── extracted_bike_ride_parquet/
-│   ├── nyc_legacy/*.parquet
-│   ├── nyc_modern/*.parquet
-│   ├── london_legacy/*.parquet
-│   └── london_modern/*.parquet
-└── mart_exports/*.parquet
+│   ├── nyc/nyclegacybikesharerecord/*.parquet
+│   ├── nyc/nycmodernbikesharerecord/*.parquet
+│   ├── london/londonlegacybikesharerecord/*.parquet
+│   └── london/londonmodernbikesharerecord/*.parquet
+└── marts/*.parquet
 ```
 
 ### Memory Management Pattern (from extracted_file_manager)
@@ -360,13 +360,13 @@ python -m playwright install
 AWS_ACCESS_KEY_ID=your_access_key
 AWS_SECRET_ACCESS_KEY=your_secret_key
 AWS_DEFAULT_REGION=us-east-1
-S3_BUCKET_NAME=city-cycles-bucket
+S3_BUCKET=city-cycles-data-ctr37
 ```
 
 ## Common Issues & Solutions
 
 ### Issue: Out of Memory during CSV processing
-**Solution:** Use pandas chunking with smaller chunk sizes (see `extracted_file_manager/file_processor.py`)
+**Solution:** Use pandas chunking with smaller chunk sizes (see `extracted_file_manager/manager.py`)
 
 ### Issue: Schema validation failures
 **Solution:** Check if upstream data source changed schema, create new model if needed

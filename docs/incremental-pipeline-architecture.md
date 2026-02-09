@@ -151,7 +151,7 @@ where source_file not in (select distinct source_file from {{ this }})
 | `stg_nyc_legacy` | `['bike_id', 'start_time', 'stop_time', 'start_station_id']` | Composite key |
 | `stg_london_modern` | `ride_id` (mapped from `number`) | Natural unique ID |
 | `stg_london_legacy` | `ride_id` (mapped from `rental_id`) | Natural unique ID |
-| `int_nyc_rides` | None (append-only via source_file) | Relies on staging dedup |
+| `int_nyc_rides` | `ride_id` | Natural unique ID (added post-initial release) |
 | `int_london_rides` | `ride_id` | Natural unique ID |
 | `unified_rides` | `ride_id` | Natural unique ID |
 

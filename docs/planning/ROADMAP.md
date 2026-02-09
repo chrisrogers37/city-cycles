@@ -1,7 +1,7 @@
 # City Cycles: Project Roadmap & Enhancement Plan
 
 **Created:** January 27, 2026
-**Last Updated:** January 30, 2026
+**Last Updated:** February 9, 2026
 **Status:** Active Planning Document
 
 ## Implementation Status Summary
@@ -14,8 +14,8 @@
 - Comprehensive test suite (83 tests)
 - Claude Code setup with slash commands and agents
 
-### 🔄 IN PROGRESS
-- Documentation review and cleanup
+### ✅ RECENTLY COMPLETED
+- Documentation review and cleanup (February 2026)
 
 ### ⏳ PENDING
 - Cost optimization (EC2 stop/start automation)
@@ -476,7 +476,7 @@ def render_station_map(station_df):
 | extraction | Minimal | Needs mocking for S3/web |
 | extracted_file_manager | Moderate | Has current tests |
 | db_duckdb | Basic | CLI tests only |
-| orchestrator | None | Needs unit tests |
+| orchestrator | Good | 34 tests added (config, main, CLI) |
 | dashboard | None | Needs functional tests |
 
 ### 5.2 Testing Roadmap
