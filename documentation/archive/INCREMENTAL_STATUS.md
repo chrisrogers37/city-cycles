@@ -129,7 +129,7 @@ This works across all 7 incremental models:
 ### Created
 - **`docs/incremental-processing-guide.md`**
   - Comprehensive guide to incremental processing
-- **`validate_incremental_config.sh`**
+- **`docs/validate_incremental_config.sh`**
   - Validation script to check model configurations
 - **`INCREMENTAL_STATUS.md`** (this file)
   - Quick reference for incremental status

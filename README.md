@@ -116,8 +116,8 @@ The data models package provides schema validation and data transformation for b
 ### Supported Schemas
 - **NYC Legacy** (`NYCLegacyBikeShareRecord`): CitiBike data from 2013-2016
 - **NYC Modern** (`NYCModernBikeShareRecord`): CitiBike data from 2017-present
-- **London Legacy** (`LondonLegacyBikeShareRecord`): Santander Cycles data from 2010-2016
-- **London Modern** (`LondonModernBikeShareRecord`): Santander Cycles data from 2017-present
+- **London Legacy** (`LondonLegacyBikeShareRecord`): Santander Cycles data from 2010-2022
+- **London Modern** (`LondonModernBikeShareRecord`): Santander Cycles data from 2022-present
 
 ### Core Functionality
 - **Schema Validation:** `validate_schema()` method ensures CSV files match expected column structures
@@ -180,10 +180,10 @@ The DuckDB pipeline handles the single concern of loading processed data into th
 
 ### Data Loading Process
 
-- **Schema Generation:** Table schemas are generated from the data models in `~/data_models/`
-- **Batch Loading:** Efficient, chunked inserts from S3 to DuckDB
-- **Data Transformation:** Uses data models' `to_dataframe()` method for standardization
-- **Quality Checks:** Validates data integrity after loading
+- **Table Schemas:** Defined in `db_duckdb/config/duckdb_config.py`, matching structures from `data_models/`
+- **Direct S3 Loading:** DuckDB reads Parquet files directly from S3 via httpfs extension (no intermediate downloads)
+- **Full Replace:** Raw tables are rebuilt each run; incremental logic is handled by dbt downstream
+- **Quality Checks:** Validates data integrity after loading (null counts, duplicates, date ranges)
 
 ---
 
@@ -216,12 +216,19 @@ The DuckDB pipeline handles the single concern of loading processed data into th
 - `data_models/README.md` — Data model architecture and schema validation
 - `db_duckdb/README.md` — DuckDB ETL pipeline documentation
 - `extracted_file_manager/README.md` — File processing pipeline documentation
+- `extraction/README.md` — Data extraction from web sources
+- `streamlit_data_manager/README.md` — Dashboard data management
 
 ### Architecture & Deployment
+- `docs/SYSTEM-GUIDE.md` — System overview and quick start guide
 - `docs/incremental-processing-guide.md` — **Incremental processing guide** (how to run monthly updates efficiently)
 - `docs/incremental-pipeline-architecture.md` — Incremental dbt strategy and best practices
 - `docs/ec2-deployment-guide.md` — Production deployment on AWS EC2
-- `resources/` — Design notes, task flows, and architecture evolution
+
+### Planning
+- `docs/planning/ROADMAP.md` — Project enhancement roadmap
+- `docs/planning/COST-OPTIMIZATION.md` — AWS cost reduction strategies
+- `docs/planning/QUICK-START-PRIORITIES.md` — Immediate action items
 
 ## Technologies Used
 

@@ -13,13 +13,13 @@ The City Cycles pipeline is fully configured for incremental processing. After t
 
 ### Stage 2: File Management (S3 Processing)
 - **Behavior**: Only processes new ZIPs (unzip, convert to Parquet)
-- **Mechanism**: Tracks processed files in `extracted_files` table
+- **Mechanism**: Simple file existence checks in S3 (skips if output already exists)
 - **Time**: ~2-5 minutes per new month of data
 
 ### Stage 3: Database Load (Parquet → DuckDB)
-- **Behavior**: Only loads new Parquet files not already in raw tables
-- **Mechanism**: Checks `source_file` column in raw tables
-- **Time**: ~1 minute per new month of data
+- **Behavior**: Loads all Parquet files from S3 into raw tables (full replace)
+- **Mechanism**: Raw tables are rebuilt each run; incremental logic is handled downstream by dbt
+- **Time**: ~20-30 minutes (full load of all parquet files)
 
 ### Stage 4: dbt Transformations
 - **Behavior**: **INCREMENTAL** - Only processes new `source_file` values
@@ -164,5 +164,5 @@ Your pipeline is now fully incremental! To test it:
 ---
 
 **Status**: ✅ Incremental processing fully configured and tested
-**Last Updated**: November 29, 2025
+**Last Updated**: February 9, 2026
 

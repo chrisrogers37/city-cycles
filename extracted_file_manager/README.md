@@ -256,12 +256,6 @@ manager = ExtractedFileManager(batch_size=2)  # Process fewer ZIPs at once
 - `convert_all_csvs_simple()` → `Dict[str, bool]`
 - `run_simplified_pipeline()` → `Dict[str, Dict[str, bool]]`
 
-#### Backward Compatibility (Deprecated)
-- `scan_s3_files()` → `List[dict]` (returns empty with warning)
-- `convert_zip_to_csv(filename)` → `bool` (returns False with warning)
-- `convert_csv_to_parquet(filename)` → `bool` (returns False with warning)
-- `list_files()` → `List[dict]` (returns empty with warning)
-
 ### Pipeline Functions
 
 - `run_full_pipeline()` → `Dict[str, Any]`

@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated `/commit-push-pr` command to reference CHANGELOG entries in PR descriptions
   - Added CHANGELOG.md to Important Files section in CLAUDE.md
 
+- **db_duckdb/README.md** - Created comprehensive module documentation (~270 lines)
+  - CLI reference for all 7 commands with options
+  - Raw table definitions with S3 paths
+  - Programmatic usage examples
+  - Configuration (environment variables, database location)
+  - Data loading strategy explanation (full replace design decision)
+  - Pipeline integration context
+  - Troubleshooting guide (OOM, S3 access, database issues, full reset)
+
+- **Archived Documentation** - Moved stale one-time documents to `documentation/archive/`
+  - `FEATURE-SUMMARY.md` - Historical record of incremental processing feature (marked as historical)
+  - `INCREMENTAL_STATUS.md` - One-time announcement of incremental config completion
+
 - **Project Planning Documentation** - Created comprehensive planning docs in `docs/planning/`
   - `ROADMAP.md` - Full project enhancement roadmap with phases and timelines
   - `COST-OPTIMIZATION.md` - Detailed AWS cost reduction strategies ($130 → <$10/month)
@@ -41,6 +54,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated ROADMAP.md with actual implementation status (checkboxes marked complete/pending)
   - Archived FEATURE-SUMMARY.md as historical document with note pointing to SYSTEM-GUIDE.md
   - Updated INCREMENTAL_STATUS.md with current review date
+
+- **Full Documentation Review & Handoff Preparation** (February 2026) - Verified all doc assertions against code
+  - Fixed CLAUDE.md: `S3_BUCKET_NAME` → `S3_BUCKET`, bucket name to `city-cycles-data-ctr37`, corrected S3 parquet paths, fixed `file_processor.py` → `manager.py`
+  - Fixed README.md: removed nonexistent `resources/` reference, added missing module README links, fixed London data date ranges (Legacy 2010-2022, Modern 2022-present), corrected DuckDB loading description to "Direct S3 Loading via httpfs / Full Replace"
+  - Fixed incremental-processing-guide.md: Stage 2 file tracking mechanism (uses S3 existence checks, not DB table), Stage 3 loading strategy (full replace, not incremental)
+  - Fixed incremental-pipeline-architecture.md: `int_nyc_rides` unique_key is `ride_id`, not "None (append-only)"
+  - Fixed data_models/README.md: replaced reference to nonexistent `db_duckdb/init_raw_tables.py` with `db_duckdb/operations.py`
+  - Fixed extracted_file_manager/README.md: removed deprecated methods section listing 4 methods that don't exist in code
+  - Updated ROADMAP.md: orchestrator test coverage from "None" to "Good (34 tests)", marked documentation review as completed
+  - Updated SYSTEM-GUIDE.md: refreshed date, fixed S3 parquet path format to `{city}/{model_class_name}/`
 
 ### Fixed
 - **Bare except clause** in `extracted_file_manager/manager.py` - Changed to specific `ClientError` exception handling

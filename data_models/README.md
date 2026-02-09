@@ -144,9 +144,8 @@ The data models provide schema definitions for the DuckDB ETL pipeline:
 
 ### Schema Mapping
 The models define the exact column types and structures used in:
-- `db_duckdb/config/duckdb_config.py` for table schemas
-- `db_duckdb/init_raw_tables.py` for table initialization
-- S3 URI patterns for data loading
+- `db_duckdb/config/duckdb_config.py` for table schemas and S3 URI patterns
+- `db_duckdb/operations.py` for table initialization and data loading
 
 ## Data Quality Features
 

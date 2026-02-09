@@ -1,6 +1,6 @@
 # City Cycles System Guide
 
-> Last updated: 2026-01-30
+> Last updated: 2026-02-09
 > This document provides operational guidance for running the City Cycles system.
 
 ## Quick Start
@@ -72,7 +72,7 @@ S3: extracted_bike_ride_zips/
     ↓
 S3: extracted_bike_ride_csvs/
     ↓
-S3: extracted_bike_ride_parquet/{city}/{schema}/
+S3: extracted_bike_ride_parquet/{city}/{model_class_name}/
     ↓
 DuckDB: raw_nyc_legacy, raw_nyc_modern, raw_london_legacy, raw_london_modern
     ↓
