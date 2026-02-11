@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Railway Cron Job Deployment** - Migrated pipeline from EC2 to Railway for ~$125+/month savings
+  - Created `Dockerfile` using Playwright v1.52.0 base image with all pipeline dependencies
+  - Created `scripts/railway_entrypoint.sh` wrapper for ephemeral cron execution
+  - Created `railway.toml` with monthly cron schedule (3rd of each month at 2AM UTC)
+  - Created `.dockerignore` to keep build context minimal
+  - Created `.env.example` documenting all required/optional environment variables
+  - Ephemeral architecture: fresh DuckDB each run, no persistent volume needed
+  - Container runs `--dbt-full-refresh` every time since DB is rebuilt from S3
+  - Verified end-to-end: full pipeline ran successfully in Docker (301M+ rows loaded, all 12 dbt models built, 5 marts exported to S3)
+
+### Changed
+- **`.gitignore` Update** - Added exception for `railway.toml` (was blocked by `*.toml` rule)
+
+### Technical Improvements
+- **Docker stdout buffering fix** - Added `PYTHONUNBUFFERED=1` to Dockerfile for real-time log output in containers (extraction modules use `print()` which buffers in non-TTY environments)
+
 - **Changelog Workflow Integration** - Integrated changelog maintenance into development workflow
   - Added "Changelog Maintenance" section to CLAUDE.md with version bump rules and entry categories
   - Updated `/quick-commit` command to verify CHANGELOG.md is updated before committing
