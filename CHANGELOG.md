@@ -40,6 +40,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added proper `click.ClickException` re-raise to prevent double-wrapping
 
 ### Added
+- **Test Coverage Expansion** - Added 44 new tests across 5 files covering previously untested modules
+  - `tests/conftest.py`: Shared fixtures (temp DuckDB, mock S3, sample DataFrames for all 4 schemas)
+  - `tests/test_extraction.py`: 13 tests for extraction/utils.py, nyc.py, and london.py
+  - `tests/test_db_duckdb_operations.py`: 19 tests for DuckDBManager, DuckDBOperations, DuckDBPipeline, and utils
+  - `tests/test_dashboard.py`: 6 tests for dashboard query patterns (DuckDB aggregation, date filtering, Parquet reads)
+  - `tests/test_streamlit_data_manager.py`: 6 tests for ensure_local_parquet_files() with mocked S3
+  - Total tests: 79 → 135 (132 pass, 3 skip)
 - **CLI List Command** - Implemented previously stubbed `--exports` and `--marts` flags
   - `--exports` lists mart Parquet files in S3 with sizes and timestamps
   - `--marts` lists mart tables in the database with optional row counts
