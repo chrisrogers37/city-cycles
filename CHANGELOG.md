@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **SQL Injection in Dashboard** - Parameterized all user-controlled values in DuckDB queries
+  - Replaced f-string interpolation with `$1, $2, ...` positional parameters across 22 queries
+  - Added `run_query_params` helper for parameterized query execution
+  - Location, date, and year values now passed safely as query parameters
+- **Hardcoded S3 Bucket** - `streamlit_data_manager/parquet_file_manager.py` now reads `S3_BUCKET` from environment variable with fallback to default
+
+### Changed
+- **Dashboard Code Quality** - Decomposed repeated patterns into helper functions
+  - Extracted `get_date_range()` helper, reducing 30 lines of duplicate code to 8
+  - Consolidated session state initialization into dict-driven `set_default_state()`
+  - Replaced `date_filter_sql()` f-string helper with clamped date parameter values
+
 ### Added
 - **dbt Schema Documentation** - Added schema.yml files for all model layers
   - Documented all 4 staging models with column descriptions
