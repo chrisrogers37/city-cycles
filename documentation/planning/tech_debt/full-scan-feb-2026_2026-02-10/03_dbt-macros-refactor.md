@@ -1,5 +1,8 @@
 # Phase 03: dbt Macros, Unique Key Fix, and SQL Refactor
 
+**Status:** 🔧 IN PROGRESS
+**Started:** 2026-02-11
+
 **PR Title:** `refactor(dbt): extract macros, fix unique keys, refactor SQL`
 **Risk Level:** Low
 **Estimated Effort:** Medium (3-4 hours)

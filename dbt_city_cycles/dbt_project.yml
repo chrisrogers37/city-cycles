@@ -49,5 +49,5 @@ on-run-start:
   - "PRAGMA memory_limit='512MB';"
   - "PRAGMA threads=1;"
   - "PRAGMA max_temp_directory_size='10GB';"
-  - "PRAGMA temp_directory='/tmp';"
+  - "PRAGMA temp_directory='{{ env_var(\"DBT_TEMP_DIR\", \"/tmp\") }}';"
   - "PRAGMA preserve_insertion_order=false;"
