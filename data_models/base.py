@@ -1,9 +1,7 @@
 import os
-import sys
 import pandas as pd
 from typing import Type, List
 from datetime import datetime
-import numpy as np
 
 class BaseBikeShareRecord:
     staging_table: str = None
