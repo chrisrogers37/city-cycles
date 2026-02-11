@@ -1,6 +1,6 @@
 {{ config(
     materialized='incremental',
-    unique_key=['bike_id', 'start_time', 'stop_time', 'start_station_id'],
+    unique_key='ride_id',
     indexes=[
         {'columns': ['start_time']},
         {'columns': ['ride_id'], 'unique': true},
@@ -37,18 +37,14 @@ renamed as (
         end_station_longitude::double precision as end_longitude,
         bikeid as bike_id,
         -- Map legacy user types to modern nomenclature
-        case 
-            when usertype = 'Subscriber' then 'member'
-            when usertype = 'Customer' then 'casual'
-            else usertype
-        end as user_type,
+        {{ user_type_mapping('usertype') }} as user_type,
         birth_year::integer AS birth_year,
         gender::integer as gender,
         -- Date-derived fields
         date_trunc('day', starttime::timestamp) as date,
         extract(month from starttime::timestamp) as month,
         extract(year from starttime::timestamp) as year,
-        CASE WHEN extract(isodow from starttime::timestamp) < 6 THEN 'weekday' ELSE 'weekend' END AS day_type,
+        {{ day_type('starttime') }} AS day_type,
         extract(isodow from starttime::timestamp) - 1 as day_of_week, -- 0=Monday
         extract(hour from starttime::timestamp) as hour_of_day,
         -- Add metadata

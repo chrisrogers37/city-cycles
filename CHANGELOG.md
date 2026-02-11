@@ -25,10 +25,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **dbt Project Config** - Added intermediate and unified model layer configuration to dbt_project.yml
 
 ### Changed
+- **dbt Macros** - Extracted repeated SQL logic into reusable Jinja macros
+  - `day_type(timestamp_column)` macro for weekday/weekend classification (used in all 4 staging models)
+  - `user_type_mapping(column_name)` macro for legacy Subscriber/Customer to member/casual mapping
+- **stg_nyc_legacy Unique Key** - Changed unique_key from composite 4-column key to `ride_id` for consistency with all other staging models
 - **Data Models Base Class** - Consolidated duplicate `validate_schema` methods into `BaseBikeShareRecord`
   - Replaced 4 identical subclass implementations with a single base class method
   - Replaced `EXTRACTED_FILE_MANAGER_DEBUG` env-var-gated `print()` calls with `logging.debug()`
   - Subclasses now inherit validation behavior via `_required_columns` class attribute
+
+### Improved
+- **mart_station_growth SQL** - Refactored repeated `lag()` window function (4 occurrences) into a single CTE
+- **dbt_project.yml Portability** - Replaced hardcoded `/tmp` temp directory with `env_var("DBT_TEMP_DIR", "/tmp")`
 
 ### Technical Improvements
 - **Dead Code Cleanup** - Removed unused imports, dead variables, and placeholder files
