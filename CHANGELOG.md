@@ -37,8 +37,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Improved
 - **mart_station_growth SQL** - Refactored repeated `lag()` window function (4 occurrences) into a single CTE
 - **dbt_project.yml Portability** - Replaced hardcoded `/tmp` temp directory with `env_var("DBT_TEMP_DIR", "/tmp")`
+- **Orchestrator Logging** - Consolidated 26+ repeated separator patterns into `_log_section` and `_log_step` helpers
+  - Reduced boilerplate in `orchestrator/main.py` by ~20 lines
+  - Pipeline step headers are now generated consistently from a single function
+
+### Fixed
+- **London Extraction UnboundLocalError** - Moved `local_path` assignment before `try` block in `extraction/london.py`
+  - Previously, if an exception occurred before `local_path` was assigned, the `finally` block would raise `UnboundLocalError`
 
 ### Technical Improvements
+- **Logging Consistency** - Replaced `print()` with `logging` across orchestrator and extraction modules
+  - `orchestrator/cli.py`: `check_pipeline_status` now uses `logger` (18 print calls replaced)
+  - `extraction/nyc.py`: All 11 `print()` calls replaced with `logger.info()` / `logger.error()`
+  - `extraction/london.py`: All 9 `print()` calls replaced with `logger.info()` / `logger.error()`
+  - `extraction/utils.py`: `print()` and `logging.error()` calls replaced with named `logger`
+- **Exception Handling** - Narrowed bare `except Exception` to specific exception types
+  - `extraction/nyc.py`: Now catches `(ClientError, ConnectionError, OSError)`
+  - `extraction/london.py`: Now catches `(RequestException, ConnectionError, OSError)`
+
 - **Dead Code Cleanup** - Removed unused imports, dead variables, and placeholder files
   - Removed unused `sys`, `numpy`, `boto3`, `pyarrow.csv`, `re`, `Dict`, `Any`, `datetime` imports across 5 files
   - Removed unused `ZipFileNode` and `walk_folder` filetree imports from file manager
