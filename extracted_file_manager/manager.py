@@ -11,7 +11,6 @@ import tempfile
 import zipfile
 import pandas as pd
 import pyarrow as pa
-import pyarrow.csv as pv
 import pyarrow.parquet as pq
 import gc
 import psutil
@@ -23,7 +22,6 @@ from functools import wraps
 from dotenv import load_dotenv
 from botocore.exceptions import ClientError, ReadTimeoutError, ConnectTimeoutError, EndpointConnectionError
 
-from .filetree import ZipFile as ZipFileNode, walk_folder
 from data_models.base import BaseBikeShareRecord
 
 # Load environment variables
@@ -124,7 +122,6 @@ class ExtractedFileManager:
         """Force garbage collection and cleanup."""
         gc.collect()
         # Small delay to allow cleanup
-        import time
         time.sleep(0.1)
     
     def extract_all_zips_simple(self) -> Dict[str, bool]:

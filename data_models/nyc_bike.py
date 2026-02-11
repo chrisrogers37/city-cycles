@@ -1,9 +1,7 @@
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional
 import pandas as pd
 from data_models.base import BaseBikeShareRecord
-import re
 import os
 
 @dataclass

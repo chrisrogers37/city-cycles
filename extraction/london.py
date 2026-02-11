@@ -27,8 +27,7 @@ async def list_london_csv_files():
         page = await context.new_page()
         await page.goto(LONDON_BASE_URL)
         
-        # Scroll the #full-width-content container for up to 30 seconds
-        start_time = time.time()
+        # Scroll the #full-width-content container 30 times (once per second)
         for _ in range(30):
             await page.evaluate("""
                 var el = document.querySelector('#full-width-content');

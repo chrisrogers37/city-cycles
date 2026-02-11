@@ -1,5 +1,4 @@
 import duckdb
-import boto3
 import os
 from typing import List, Dict, Optional
 from dotenv import load_dotenv

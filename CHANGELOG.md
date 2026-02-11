@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Technical Improvements
+- **Dead Code Cleanup** - Removed unused imports, dead variables, and placeholder files
+  - Removed unused `sys`, `numpy`, `boto3`, `pyarrow.csv`, `re`, `Dict`, `Any`, `datetime` imports across 5 files
+  - Removed unused `ZipFileNode` and `walk_folder` filetree imports from file manager
+  - Removed redundant local `import time` in `_cleanup_memory()`
+  - Deleted empty placeholder `extraction/weather.py`
+  - Removed dead variable `start_time` in `extraction/london.py`
+
 ### Added
 - **Railway Cron Job Deployment** - Migrated pipeline from EC2 to Railway for ~$125+/month savings
   - Created `Dockerfile` using Playwright v1.52.0 base image with all pipeline dependencies
