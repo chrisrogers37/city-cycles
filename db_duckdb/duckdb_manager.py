@@ -1,5 +1,6 @@
 import duckdb
 import os
+import re
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
 import logging
@@ -7,6 +8,32 @@ import logging
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def _validate_aws_credential(value: str, name: str) -> str:
+    """Validate that an AWS credential value contains only safe characters.
+
+    AWS access keys contain only alphanumeric characters, forward slashes,
+    plus signs, and equals signs. Region names contain only lowercase
+    letters, digits, and hyphens.
+
+    Args:
+        value: The credential value to validate
+        name: Human-readable name for error messages
+
+    Returns:
+        The validated value (unchanged)
+
+    Raises:
+        ValueError: If the value contains unexpected characters
+    """
+    if not re.match(r'^[A-Za-z0-9_/+=\-]+$', value):
+        raise ValueError(
+            f"AWS credential '{name}' contains invalid characters. "
+            f"Expected only alphanumeric, _, /, +, =, - characters."
+        )
+    return value
+
 
 class DuckDBManager:
     """Manages DuckDB connections and operations for the City Cycles analytics pipeline."""
@@ -59,7 +86,12 @@ class DuckDBManager:
         aws_region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
         
         if aws_access_key_id and aws_secret_access_key:
-            # Set S3 credentials
+            # Validate credentials before interpolating into SQL
+            _validate_aws_credential(aws_region, "AWS_DEFAULT_REGION")
+            _validate_aws_credential(aws_access_key_id, "AWS_ACCESS_KEY_ID")
+            _validate_aws_credential(aws_secret_access_key, "AWS_SECRET_ACCESS_KEY")
+
+            # Set S3 credentials (SET does not support parameterized queries)
             self.con.execute(f"SET s3_region='{aws_region}'")
             self.con.execute(f"SET s3_access_key_id='{aws_access_key_id}'")
             self.con.execute(f"SET s3_secret_access_key='{aws_secret_access_key}'")
