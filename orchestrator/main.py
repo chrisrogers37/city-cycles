@@ -22,6 +22,20 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _log_section(title: str, level: str = "info", width: int = 80):
+    """Log a section header with separator lines above and below."""
+    log_fn = getattr(logger, level)
+    log_fn("=" * width)
+    log_fn(title)
+    log_fn("=" * width)
+
+
+def _log_step(step: int, total: int, description: str):
+    """Log a pipeline step header with separator lines."""
+    logger.info("")
+    _log_section(f"[STEP {step}/{total}] {description}")
+
+
 class CityBikesOrchestrator:
     """
     Global orchestrator for the City Cycles ETL pipeline.
@@ -67,9 +81,7 @@ class CityBikesOrchestrator:
         """
         self.pipeline_start = datetime.now()
         
-        logger.info("=" * 80)
-        logger.info(f"CITY CYCLES PIPELINE - Starting at {self.pipeline_start}")
-        logger.info("=" * 80)
+        _log_section(f"CITY CYCLES PIPELINE - Starting at {self.pipeline_start}")
         
         try:
             # Step 1: Extract data from web to S3
@@ -111,9 +123,7 @@ class CityBikesOrchestrator:
         - NYC CitiBike data from public S3 bucket
         - London Santander Cycles data from TfL website
         """
-        logger.info("\n" + "=" * 80)
-        logger.info("[STEP 1/5] EXTRACTING BIKE DATA FROM WEB TO S3")
-        logger.info("=" * 80)
+        _log_step(1, 5, "EXTRACTING BIKE DATA FROM WEB TO S3")
         
         try:
             # Import extraction modules
@@ -154,9 +164,7 @@ class CityBikesOrchestrator:
         - Convert CSVs to Parquet
         - Organize by schema type
         """
-        logger.info("\n" + "=" * 80)
-        logger.info("[STEP 2/5] PROCESSING FILES (UNZIP, SCHEMA VALIDATION, PARQUET)")
-        logger.info("=" * 80)
+        _log_step(2, 5, "PROCESSING FILES (UNZIP, SCHEMA VALIDATION, PARQUET)")
         
         try:
             from extracted_file_manager.simplified_pipeline import run_full_pipeline
@@ -179,9 +187,7 @@ class CityBikesOrchestrator:
         - Parquet files from S3 into DuckDB raw tables
         - Validates data integrity (optional)
         """
-        logger.info("\n" + "=" * 80)
-        logger.info("[STEP 3/5] LOADING DATA INTO DUCKDB")
-        logger.info("=" * 80)
+        _log_step(3, 5, "LOADING DATA INTO DUCKDB")
         
         try:
             from db_duckdb.pipeline import run_full_pipeline
@@ -209,9 +215,7 @@ class CityBikesOrchestrator:
         - Unified models (incremental)
         - Mart models (full rebuild)
         """
-        logger.info("\n" + "=" * 80)
-        logger.info("[STEP 4/5] RUNNING DBT TRANSFORMATIONS")
-        logger.info("=" * 80)
+        _log_step(4, 5, "RUNNING DBT TRANSFORMATIONS")
         
         try:
             dbt_dir = self.project_root / "dbt_city_cycles"
@@ -291,9 +295,7 @@ class CityBikesOrchestrator:
         - Mart tables from DuckDB to S3 as Parquet files
         - Used by Streamlit dashboard
         """
-        logger.info("\n" + "=" * 80)
-        logger.info("[STEP 5/5] EXPORTING DATA MARTS TO S3")
-        logger.info("=" * 80)
+        _log_step(5, 5, "EXPORTING DATA MARTS TO S3")
         
         try:
             from db_duckdb.operations import DuckDBOperations
@@ -313,9 +315,8 @@ class CityBikesOrchestrator:
         """Report successful pipeline completion."""
         duration = (datetime.now() - self.pipeline_start).total_seconds()
         
-        logger.info("\n" + "=" * 80)
-        logger.info("✓ PIPELINE COMPLETED SUCCESSFULLY")
-        logger.info("=" * 80)
+        logger.info("")
+        _log_section("PIPELINE COMPLETED SUCCESSFULLY")
         logger.info(f"Duration: {duration:.2f} seconds ({duration/60:.1f} minutes)")
         logger.info("\n--- Pipeline Summary ---")
         
@@ -327,15 +328,13 @@ class CityBikesOrchestrator:
         logger.info("1. Verify data in DuckDB")
         logger.info("2. Check Streamlit dashboard for updated data")
         logger.info("3. Review logs for any warnings")
-        logger.info("=" * 80)
     
     def _report_failure(self, error: Exception):
         """Report pipeline failure."""
         duration = (datetime.now() - self.pipeline_start).total_seconds()
         
-        logger.error("\n" + "=" * 80)
-        logger.error("✗ PIPELINE FAILED")
-        logger.error("=" * 80)
+        logger.error("")
+        _log_section("PIPELINE FAILED", level="error")
         logger.error(f"Error: {error}")
         logger.error(f"Duration before failure: {duration:.2f} seconds ({duration/60:.1f} minutes)")
         logger.error("\n--- Pipeline Summary ---")
@@ -349,7 +348,6 @@ class CityBikesOrchestrator:
         logger.error("2. Verify AWS credentials and S3 access")
         logger.error("3. Check DuckDB database file permissions")
         logger.error("4. Try running individual stages manually")
-        logger.error("=" * 80)
     
     def run_stage(self, stage: str, **kwargs) -> bool:
         """

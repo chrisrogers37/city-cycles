@@ -3,12 +3,16 @@ load_dotenv()
 import os
 import re
 import asyncio
+import logging
 from datetime import datetime
 from urllib.parse import urljoin
 from extraction.utils import upload_to_s3, file_exists_in_s3
 from playwright.async_api import async_playwright
 import time
 import requests
+from requests.exceptions import RequestException
+
+logger = logging.getLogger(__name__)
 
 LONDON_BASE_URL = "https://cycling.data.tfl.gov.uk/"
 LOCAL_TMP_DIR = "/tmp/extracted_bike_ride_csvs/london/"
@@ -65,15 +69,15 @@ def download_and_store_csv(file_url: str, filename: str) -> bool:
         s3_filename = os.path.basename(filename)
     
     s3_key = f"{RAW_CSV_PREFIX}/{s3_filename}"
-    
+    local_path = os.path.join(LOCAL_TMP_DIR, os.path.basename(filename))
+
     # Check if we already have this CSV file
     if file_exists_in_s3(s3_key):
-        print(f"CSV file already exists in S3: {s3_key}")
+        logger.info(f"CSV file already exists in S3: {s3_key}")
         return False
-        
+
     try:
-        local_path = os.path.join(LOCAL_TMP_DIR, os.path.basename(filename))
-        print(f"Downloading {file_url} to {local_path} ...")
+        logger.info(f"Downloading {file_url} to {local_path} ...")
         
         # Download the file
         response = requests.get(file_url)
@@ -89,11 +93,11 @@ def download_and_store_csv(file_url: str, filename: str) -> bool:
             
         # Upload to S3
         upload_to_s3(local_path, s3_key)
-        print(f"Stored CSV file in S3: {s3_key}")
+        logger.info(f"Stored CSV file in S3: {s3_key}")
         return True
         
-    except Exception as e:
-        print(f"ERROR: Failed to process {file_url}: {e}")
+    except (RequestException, ConnectionError, OSError) as e:
+        logger.error(f"Failed to process {file_url}: {e}")
         return False
     finally:
         # Clean up local file
@@ -104,10 +108,10 @@ async def download_all_csvs():
     """
     Download all CSV files from TfL and store them in S3.
     """
-    print(f"Using S3 bucket: {os.environ.get('S3_BUCKET')}")
-    print("Attempting to download all CSV files from TfL...")
+    logger.info(f"Using S3 bucket: {os.environ.get('S3_BUCKET')}")
+    logger.info("Attempting to download all CSV files from TfL...")
     files = await list_london_csv_files()
-    print(f"Found {len(files)} files to process.")
+    logger.info(f"Found {len(files)} files to process.")
     
     downloaded_count = 0
     skipped_count = 0
@@ -119,10 +123,10 @@ async def download_all_csvs():
             skipped_count += 1
         await asyncio.sleep(1)  # Respectful delay
         
-    print(f"\nDownload Summary:")
-    print(f"Total files found: {len(files)}")
-    print(f"New files downloaded: {downloaded_count}")
-    print(f"Files already in S3: {skipped_count}")
+    logger.info("Download Summary:")
+    logger.info(f"Total files found: {len(files)}")
+    logger.info(f"New files downloaded: {downloaded_count}")
+    logger.info(f"Files already in S3: {skipped_count}")
 
 def process_and_upload_london_files():
     asyncio.run(download_all_csvs())

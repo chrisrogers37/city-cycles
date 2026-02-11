@@ -9,7 +9,9 @@ import sys
 import argparse
 import logging
 from pathlib import Path
-from .main import CityBikesOrchestrator
+from .main import CityBikesOrchestrator, _log_section
+
+logger = logging.getLogger(__name__)
 
 
 def setup_logging(verbose: bool = False):
@@ -159,45 +161,43 @@ Examples:
 def check_pipeline_status(orchestrator: CityBikesOrchestrator):
     """Check and display pipeline status."""
     from db_duckdb.pipeline import check_pipeline_status
-    
-    print("=" * 80)
-    print("CITY CYCLES PIPELINE STATUS")
-    print("=" * 80)
-    
+
+    _log_section("CITY CYCLES PIPELINE STATUS")
+
     try:
         status = check_pipeline_status()
-        
-        print("\nDatabase Status:")
-        print(f"  Tables exist: {'✓' if status['tables_exist'] else '✗'}")
-        print(f"  Tables loaded: {'✓' if status['tables_loaded'] else '✗'}")
-        print(f"  Marts available: {'✓' if status['marts_available'] else '✗'}")
-        
+
+        logger.info("\nDatabase Status:")
+        logger.info(f"  Tables exist: {'✓' if status['tables_exist'] else '✗'}")
+        logger.info(f"  Tables loaded: {'✓' if status['tables_loaded'] else '✗'}")
+        logger.info(f"  Marts available: {'✓' if status['marts_available'] else '✗'}")
+
         if 'details' in status:
             details = status['details']
-            
+
             if 'total_rows' in details:
-                print(f"\nData Volume:")
-                print(f"  Total rows: {details['total_rows']:,}")
-            
+                logger.info("\nData Volume:")
+                logger.info(f"  Total rows: {details['total_rows']:,}")
+
             if 'existing_tables' in details:
-                print(f"\nExisting Tables:")
+                logger.info("\nExisting Tables:")
                 for table in details['existing_tables']:
-                    print(f"  - {table}")
-            
+                    logger.info(f"  - {table}")
+
             if 'missing_tables' in details and details['missing_tables']:
-                print(f"\nMissing Tables:")
+                logger.info("\nMissing Tables:")
                 for table in details['missing_tables']:
-                    print(f"  - {table}")
-            
+                    logger.info(f"  - {table}")
+
             if 'mart_tables' in details and details['mart_tables']:
-                print(f"\nAvailable Marts:")
+                logger.info("\nAvailable Marts:")
                 for table in details['mart_tables']:
-                    print(f"  - {table}")
-        
-        print("\n" + "=" * 80)
-        
+                    logger.info(f"  - {table}")
+
+        logger.info("")
+
     except Exception as e:
-        print(f"\nError checking status: {e}")
+        logger.error(f"Error checking status: {e}")
 
 
 if __name__ == '__main__':
