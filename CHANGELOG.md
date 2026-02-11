@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - loaded_at_field configured for each source table
 - **dbt Project Config** - Added intermediate and unified model layer configuration to dbt_project.yml
 
+### Changed
+- **Data Models Base Class** - Consolidated duplicate `validate_schema` methods into `BaseBikeShareRecord`
+  - Replaced 4 identical subclass implementations with a single base class method
+  - Replaced `EXTRACTED_FILE_MANAGER_DEBUG` env-var-gated `print()` calls with `logging.debug()`
+  - Subclasses now inherit validation behavior via `_required_columns` class attribute
+
 ### Technical Improvements
 - **Dead Code Cleanup** - Removed unused imports, dead variables, and placeholder files
   - Removed unused `sys`, `numpy`, `boto3`, `pyarrow.csv`, `re`, `Dict`, `Any`, `datetime` imports across 5 files
