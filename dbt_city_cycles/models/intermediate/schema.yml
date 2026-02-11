@@ -1,0 +1,56 @@
+version: 2
+
+models:
+  - name: int_nyc_rides
+    description: >
+      Combined NYC rides from both legacy and modern staging models.
+      Unions stg_nyc_legacy and stg_nyc_modern into a single NYC ride table.
+      Includes all columns from both schemas with NULLs where data is unavailable
+      (e.g., birth_year and gender are NULL for modern rides, bike_id is NULL for modern rides).
+    columns:
+      - name: ride_id
+        description: Unique ride identifier (synthetic for legacy, native for modern)
+        tests:
+          - unique
+          - not_null
+      - name: start_time
+        description: Ride start timestamp
+        tests:
+          - not_null
+      - name: stop_time
+        description: Ride end timestamp
+      - name: user_type
+        description: "Rider type: member or casual"
+      - name: location
+        description: City identifier (always 'nyc')
+        tests:
+          - not_null
+      - name: source_file
+        description: Original source file for lineage tracking
+      - name: schema_version
+        description: "Source schema version: legacy or modern"
+
+  - name: int_london_rides
+    description: >
+      Combined London rides from both legacy and modern staging models.
+      Unions stg_london_legacy and stg_london_modern into a single London ride table.
+    columns:
+      - name: ride_id
+        description: Unique ride identifier (rental_id for legacy, number for modern)
+        tests:
+          - unique
+          - not_null
+      - name: start_time
+        description: Ride start timestamp
+        tests:
+          - not_null
+      - name: stop_time
+        description: Ride end timestamp
+      - name: location
+        description: City identifier (always 'london')
+        tests:
+          - not_null
+      - name: source_file
+        description: Original source file for lineage tracking
+      - name: schema_version
+        description: "Source schema version: legacy or modern"

@@ -1,0 +1,137 @@
+version: 2
+
+models:
+  - name: mart_daily_metrics
+    description: >
+      Daily aggregated ride metrics for both NYC and London.
+      Includes total rides, average duration, member/casual splits, and per-capita
+      normalization using population seed data.
+    columns:
+      - name: location
+        description: City identifier (nyc or london)
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['nyc', 'london']
+      - name: date
+        description: Calendar date
+        tests:
+          - not_null
+      - name: year
+        description: Year
+      - name: day_type
+        description: "weekday or weekend"
+      - name: total_rides
+        description: Total number of rides on this date for this location
+        tests:
+          - not_null
+      - name: avg_duration_minutes
+        description: Average ride duration in minutes
+      - name: member_rides
+        description: Number of rides by members (NULL for London)
+      - name: casual_rides
+        description: Number of rides by casual users (NULL for London)
+      - name: unknown_user_type_rides
+        description: Number of rides with unknown or NULL user type
+      - name: total_minutes_biked
+        description: Total minutes of bike usage
+      - name: population
+        description: City population for the year (from population seed)
+      - name: rides_per_1000
+        description: Rides per 1,000 population (normalized metric)
+
+  - name: mart_daily_metrics_long
+    description: >
+      Long-format version of mart_daily_metrics where each metric is a separate row.
+      Used by the Streamlit dashboard for flexible Plotly charting.
+    columns:
+      - name: location
+        description: City identifier
+        tests:
+          - not_null
+      - name: date
+        description: Calendar date
+        tests:
+          - not_null
+      - name: year
+        description: Year
+      - name: day_type
+        description: "weekday or weekend"
+      - name: metric_name
+        description: Name of the metric
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - total_rides
+                - avg_duration_minutes
+                - member_rides
+                - casual_rides
+                - total_minutes_biked
+                - population
+                - rides_per_1000
+      - name: metric_value
+        description: Numeric value of the metric
+
+  - name: mart_hourly_patterns
+    description: >
+      Ride counts aggregated by hour of day and location.
+      Used to visualize peak usage hours across cities.
+    columns:
+      - name: location
+        description: City identifier
+        tests:
+          - not_null
+      - name: hour_of_day
+        description: Hour of day (0-23)
+        tests:
+          - not_null
+      - name: ride_count
+        description: Total number of rides in this hour across all dates
+        tests:
+          - not_null
+
+  - name: mart_station_growth
+    description: >
+      Year-over-year station count growth by location.
+      Calculates distinct station counts per year, joins population data,
+      and computes year-over-year growth percentage.
+    columns:
+      - name: location
+        description: City identifier
+        tests:
+          - not_null
+      - name: year
+        description: Year
+        tests:
+          - not_null
+      - name: station_count
+        description: Number of distinct stations active in this year
+        tests:
+          - not_null
+      - name: population
+        description: City population for the year (from population seed)
+      - name: stations_per_1000
+        description: Stations per 1,000 population
+      - name: prev_year_count
+        description: Station count from the previous year (NULL for first year)
+      - name: yoy_growth
+        description: Year-over-year growth percentage (NULL for first year)
+
+  - name: mart_nyc_member_analysis
+    description: >
+      Monthly member percentage analysis for NYC.
+      Calculates what percentage of NYC rides in each month were by members.
+    columns:
+      - name: location
+        description: City identifier (always 'nyc')
+        tests:
+          - not_null
+      - name: month
+        description: Month (truncated to first of month)
+        tests:
+          - not_null
+      - name: member_percentage
+        description: Percentage of rides by members in this month
+        tests:
+          - not_null

@@ -1,0 +1,259 @@
+version: 2
+
+models:
+  - name: stg_nyc_legacy
+    description: >
+      Staged NYC bike share rides from the legacy CitiBike format (pre-February 2021).
+      Includes subscriber/customer user types, birth year, gender, and station coordinates.
+      Ride IDs are synthetically generated from bike_id + station + timestamps.
+    columns:
+      - name: ride_id
+        description: Synthetically generated unique ride identifier (legacy data has no native ride_id)
+        tests:
+          - unique
+          - not_null
+      - name: start_time
+        description: Ride start timestamp
+        tests:
+          - not_null
+      - name: stop_time
+        description: Ride end timestamp
+      - name: duration_seconds
+        description: Ride duration in seconds, calculated from start_time and stop_time
+      - name: start_station_id
+        description: Starting station ID
+      - name: start_station_name
+        description: Starting station name
+      - name: start_latitude
+        description: Starting station latitude
+      - name: start_longitude
+        description: Starting station longitude
+      - name: end_station_id
+        description: Ending station ID
+      - name: end_station_name
+        description: Ending station name
+      - name: end_latitude
+        description: Ending station latitude
+      - name: end_longitude
+        description: Ending station longitude
+      - name: bike_id
+        description: Bike identifier
+      - name: user_type
+        description: "Rider membership type: member (was Subscriber) or casual (was Customer)"
+        tests:
+          - accepted_values:
+              values: ['member', 'casual', 'unknown']
+      - name: birth_year
+        description: Rider birth year (legacy data only)
+      - name: gender
+        description: "Rider gender code (legacy data only): 0=unknown, 1=male, 2=female"
+      - name: date
+        description: Ride date (truncated to day)
+      - name: month
+        description: Month number extracted from start_time
+      - name: year
+        description: Year extracted from start_time
+      - name: day_type
+        description: "weekday or weekend based on ISO day of week"
+        tests:
+          - accepted_values:
+              values: ['weekday', 'weekend']
+      - name: day_of_week
+        description: "Day of week (0=Monday, 6=Sunday)"
+      - name: hour_of_day
+        description: Hour of day (0-23) extracted from start_time
+      - name: source_file
+        description: Original source file name for lineage tracking
+      - name: location
+        description: City identifier
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['nyc', 'london']
+      - name: schema_version
+        description: "Source schema version: legacy or modern"
+      - name: dbt_updated_at
+        description: Timestamp of when dbt last processed this row
+
+  - name: stg_nyc_modern
+    description: >
+      Staged NYC bike share rides from the modern CitiBike format (February 2021 onward).
+      Includes rideable_type and member/casual user classification. Has native ride_id.
+    columns:
+      - name: ride_id
+        description: Native unique ride identifier from CitiBike
+        tests:
+          - unique
+          - not_null
+      - name: start_time
+        description: Ride start timestamp
+        tests:
+          - not_null
+      - name: stop_time
+        description: Ride end timestamp
+      - name: duration_seconds
+        description: Ride duration in seconds, calculated from start_time and stop_time
+      - name: start_station_id
+        description: Starting station ID
+      - name: start_station_name
+        description: Starting station name
+      - name: start_latitude
+        description: Starting station latitude
+      - name: start_longitude
+        description: Starting station longitude
+      - name: end_station_id
+        description: Ending station ID
+      - name: end_station_name
+        description: Ending station name
+      - name: end_latitude
+        description: Ending station latitude
+      - name: end_longitude
+        description: Ending station longitude
+      - name: user_type
+        description: "Rider membership type: member or casual"
+        tests:
+          - accepted_values:
+              values: ['member', 'casual', 'unknown']
+      - name: rideable_type
+        description: Type of bike used (e.g., classic_bike, electric_bike, docked_bike)
+      - name: date
+        description: Ride date (truncated to day)
+      - name: month
+        description: Month number extracted from start_time
+      - name: year
+        description: Year extracted from start_time
+      - name: day_type
+        description: "weekday or weekend based on ISO day of week"
+        tests:
+          - accepted_values:
+              values: ['weekday', 'weekend']
+      - name: day_of_week
+        description: "Day of week (0=Monday, 6=Sunday)"
+      - name: hour_of_day
+        description: Hour of day (0-23) extracted from start_time
+      - name: source_file
+        description: Original source file name for lineage tracking
+      - name: location
+        description: City identifier
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['nyc', 'london']
+      - name: schema_version
+        description: "Source schema version: legacy or modern"
+      - name: dbt_updated_at
+        description: Timestamp of when dbt last processed this row
+
+  - name: stg_london_legacy
+    description: >
+      Staged London bike share rides from the legacy Santander Cycles format (pre-2021).
+      Uses rental_id as ride_id. No coordinates or user type information available.
+    columns:
+      - name: ride_id
+        description: Unique ride identifier (mapped from rental_id)
+        tests:
+          - unique
+          - not_null
+      - name: start_time
+        description: Ride start timestamp
+        tests:
+          - not_null
+      - name: stop_time
+        description: Ride end timestamp
+      - name: duration_seconds
+        description: Ride duration in seconds, calculated from start_time and stop_time
+      - name: start_station_id
+        description: Starting station ID
+      - name: start_station_name
+        description: Starting station name
+      - name: end_station_id
+        description: Ending station ID
+      - name: end_station_name
+        description: Ending station name
+      - name: bike_id
+        description: Bike identifier
+      - name: date
+        description: Ride date (truncated to day)
+      - name: month
+        description: Month number extracted from start_time
+      - name: year
+        description: Year extracted from start_time
+      - name: day_type
+        description: "weekday or weekend based on ISO day of week"
+        tests:
+          - accepted_values:
+              values: ['weekday', 'weekend']
+      - name: day_of_week
+        description: "Day of week (0=Monday, 6=Sunday)"
+      - name: hour_of_day
+        description: Hour of day (0-23) extracted from start_time
+      - name: source_file
+        description: Original source file name for lineage tracking
+      - name: location
+        description: City identifier
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['nyc', 'london']
+      - name: schema_version
+        description: "Source schema version: legacy or modern"
+      - name: dbt_updated_at
+        description: Timestamp of when dbt last processed this row
+
+  - name: stg_london_modern
+    description: >
+      Staged London bike share rides from the modern Santander Cycles format (2021 onward).
+      Includes bike_model field. Uses number field as ride_id. No coordinates or user type.
+    columns:
+      - name: ride_id
+        description: Unique ride identifier (mapped from the number field)
+        tests:
+          - unique
+          - not_null
+      - name: start_time
+        description: Ride start timestamp
+        tests:
+          - not_null
+      - name: stop_time
+        description: Ride end timestamp
+      - name: duration_seconds
+        description: Ride duration in seconds, calculated from start_time and stop_time
+      - name: start_station_id
+        description: Starting station ID (mapped from start_station_number)
+      - name: start_station_name
+        description: Starting station name (mapped from start_station)
+      - name: end_station_id
+        description: Ending station ID (mapped from end_station_number)
+      - name: end_station_name
+        description: Ending station name (mapped from end_station)
+      - name: bike_id
+        description: Bike identifier (mapped from bike_number)
+      - name: bike_model
+        description: Type of bike (e.g., CLASSIC, PBSC_EBIKE)
+      - name: date
+        description: Ride date (truncated to day)
+      - name: month
+        description: Month number extracted from start_time
+      - name: year
+        description: Year extracted from start_time
+      - name: day_type
+        description: "weekday or weekend based on ISO day of week"
+        tests:
+          - accepted_values:
+              values: ['weekday', 'weekend']
+      - name: day_of_week
+        description: "Day of week (0=Monday, 6=Sunday)"
+      - name: hour_of_day
+        description: Hour of day (0-23) extracted from start_time
+      - name: source_file
+        description: Original source file name for lineage tracking
+      - name: location
+        description: City identifier
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['nyc', 'london']
+      - name: schema_version
+        description: "Source schema version: legacy or modern"
+      - name: dbt_updated_at
+        description: Timestamp of when dbt last processed this row

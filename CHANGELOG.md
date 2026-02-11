@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **dbt Schema Documentation** - Added schema.yml files for all model layers
+  - Documented all 4 staging models with column descriptions
+  - Documented 2 intermediate models (int_nyc_rides, int_london_rides)
+  - Documented unified_rides model with full column descriptions
+  - Documented all 5 mart models with column descriptions
+  - Documented population seed with column descriptions
+- **dbt Data Tests** - Added data quality tests across all model layers
+  - unique and not_null tests on ride_id for staging, intermediate, and unified models
+  - accepted_values tests on location, user_type, day_type, and metric_name columns
+  - not_null tests on key mart columns (location, date, ride_count, etc.)
+  - not_null tests on source table primary keys
+- **dbt Source Freshness** - Added freshness monitoring to all 4 raw source tables
+  - warn_after: 45 days, error_after: 90 days
+  - loaded_at_field configured for each source table
+- **dbt Project Config** - Added intermediate and unified model layer configuration to dbt_project.yml
+
 ### Technical Improvements
 - **Dead Code Cleanup** - Removed unused imports, dead variables, and placeholder files
   - Removed unused `sys`, `numpy`, `boto3`, `pyarrow.csv`, `re`, `Dict`, `Any`, `datetime` imports across 5 files

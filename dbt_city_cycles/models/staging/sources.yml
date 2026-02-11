@@ -4,12 +4,111 @@ sources:
   - name: raw
     schema: main
     database: city_cycles
+    description: >
+      Raw bike share data loaded from S3 Parquet files into DuckDB.
+      Four tables representing legacy and modern schemas for NYC and London.
+    freshness:
+      warn_after:
+        count: 45
+        period: day
+      error_after:
+        count: 90
+        period: day
     tables:
       - name: raw_nyc_legacy
-        description: Raw NYC bike share data (legacy format)
+        description: >
+          Raw NYC bike share data in the legacy CitiBike format (pre-February 2021).
+          Contains trip duration, station details, coordinates, user type, and demographics.
+        loaded_at_field: "starttime::timestamp"
+        columns:
+          - name: bikeid
+            description: Bike identifier
+          - name: starttime
+            description: Ride start timestamp
+            tests:
+              - not_null
+          - name: stoptime
+            description: Ride end timestamp
+          - name: start_station_id
+            description: Starting station ID
+          - name: start_station_name
+            description: Starting station name
+          - name: end_station_id
+            description: Ending station ID
+          - name: end_station_name
+            description: Ending station name
+          - name: usertype
+            description: "User type: Subscriber or Customer"
+          - name: source_file
+            description: Original source file path in S3
+
       - name: raw_nyc_modern
-        description: Raw NYC bike share data (modern format)
+        description: >
+          Raw NYC bike share data in the modern CitiBike format (February 2021 onward).
+          Contains ride_id, rideable_type, station details, coordinates, and member/casual classification.
+        loaded_at_field: "started_at::timestamp"
+        columns:
+          - name: ride_id
+            description: Unique ride identifier
+            tests:
+              - not_null
+          - name: started_at
+            description: Ride start timestamp
+            tests:
+              - not_null
+          - name: ended_at
+            description: Ride end timestamp
+          - name: start_station_id
+            description: Starting station ID
+          - name: end_station_id
+            description: Ending station ID
+          - name: member_casual
+            description: "Membership type: member or casual"
+          - name: source_file
+            description: Original source file path in S3
+
       - name: raw_london_legacy
-        description: Raw London bike share data (legacy format)
+        description: >
+          Raw London bike share data in the legacy Santander Cycles format (pre-2021).
+          Contains rental_id, bike_id, station details, and duration.
+        loaded_at_field: "start_date::timestamp"
+        columns:
+          - name: rental_id
+            description: Unique rental identifier
+            tests:
+              - not_null
+          - name: start_date
+            description: Ride start timestamp
+            tests:
+              - not_null
+          - name: end_date
+            description: Ride end timestamp
+          - name: start_station_id
+            description: Starting station ID
+          - name: end_station_id
+            description: Ending station ID
+          - name: source_file
+            description: Original source file path in S3
+
       - name: raw_london_modern
-        description: Raw London bike share data (modern format) 
+        description: >
+          Raw London bike share data in the modern Santander Cycles format (2021 onward).
+          Contains number, bike_number, bike_model, station details, and duration.
+        loaded_at_field: "start_date::timestamp"
+        columns:
+          - name: number
+            description: Unique ride number
+            tests:
+              - not_null
+          - name: start_date
+            description: Ride start timestamp
+            tests:
+              - not_null
+          - name: end_date
+            description: Ride end timestamp
+          - name: start_station_number
+            description: Starting station ID
+          - name: end_station_number
+            description: Ending station ID
+          - name: source_file
+            description: Original source file path in S3
