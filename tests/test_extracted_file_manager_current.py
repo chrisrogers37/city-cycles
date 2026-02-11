@@ -193,20 +193,30 @@ class TestExtractedFileManager:
         assert files == []
     
     def test_parquet_exists_for_csv(self, manager, mock_s3_client):
-        """Test checking if parquet exists for CSV"""
-        # Mock that a parquet file exists
-        mock_s3_client.head_object.return_value = {}
-        
+        """Test checking if parquet exists for CSV (cache-based)"""
+        # Mock the paginator for list_objects_v2
+        mock_paginator = MagicMock()
+        mock_paginator.paginate.return_value = [
+            {
+                'Contents': [
+                    {'Key': 'extracted_bike_ride_parquet/nyc/nycmodernbikesharerecord/test.parquet'}
+                ]
+            }
+        ]
+        mock_s3_client.get_paginator.return_value = mock_paginator
+
         result = manager._parquet_exists_for_csv("extracted_bike_ride_csvs/nyc/test.csv")
         assert result is True
-    
+        mock_s3_client.get_paginator.assert_called_once_with('list_objects_v2')
+
     def test_parquet_exists_for_csv_not_found(self, manager, mock_s3_client):
-        """Test checking if parquet exists for CSV (not found)"""
-        # Mock that no parquet file exists
-        mock_s3_client.head_object.side_effect = ClientError(
-            error_response={'Error': {'Code': '404', 'Message': 'Not Found'}},
-            operation_name='HeadObject'
-        )
+        """Test checking if parquet exists for CSV (not found, cache-based)"""
+        # Mock an empty paginator result (no parquet files exist)
+        mock_paginator = MagicMock()
+        mock_paginator.paginate.return_value = [
+            {'Contents': []}
+        ]
+        mock_s3_client.get_paginator.return_value = mock_paginator
 
         result = manager._parquet_exists_for_csv("extracted_bike_ride_csvs/nyc/test.csv")
         assert result is False

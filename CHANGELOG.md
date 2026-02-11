@@ -28,6 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Replaced `date_filter_sql()` f-string helper with clamped date parameter values
 
 ### Improved
+- **File Manager Memory Efficiency** - Fixed `_stream_csv_to_parquet` loading entire CSV into memory
+  - Now downloads CSV to temp file and uses `pd.read_csv(chunksize=50_000)` for true streaming
+  - Memory usage is now proportional to chunk size, not total file size
+  - Removed hardcoded PyArrow schema that only worked for NYC Modern data; schema is now inferred from model transformation output
+- **S3 Existence Check Performance** - Replaced O(n*m) HEAD requests with cached S3 listing
+  - `_parquet_exists_for_csv` now uses a single paginated `list_objects_v2` call instead of up to 8 HEAD requests per CSV
+  - Reduces ~1,600 S3 API calls to ~2 for a typical pipeline run
 - **CLI Error Handling** - Consolidated duplicated error handling across 7 CLI commands
   - Extracted `_cli_error()` helper function for consistent error logging and exception raising
   - Added proper `click.ClickException` re-raise to prevent double-wrapping
@@ -74,6 +81,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Previously, if an exception occurred before `local_path` was assigned, the `finally` block would raise `UnboundLocalError`
 
 ### Technical Improvements
+- **Extracted Duplicated ZIP Upload Logic** - Consolidated identical CSV-from-ZIP upload code into `_upload_csv_from_zip_entry` helper
+  - Removed ~50 lines of duplicated code between `_extract_zip_using_filetree` and `_process_nested_zip`
 - **Logging Consistency** - Replaced `print()` with `logging` across orchestrator and extraction modules
   - `orchestrator/cli.py`: `check_pipeline_status` now uses `logger` (18 print calls replaced)
   - `extraction/nyc.py`: All 11 `print()` calls replaced with `logger.info()` / `logger.error()`
