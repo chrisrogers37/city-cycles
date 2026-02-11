@@ -15,6 +15,31 @@ from .utils import log_memory_usage
 
 logger = logging.getLogger(__name__)
 
+# Quality check configuration for each raw table.
+# Used by _run_data_quality_checks to generate SQL dynamically.
+TABLE_QUALITY_CONFIG = {
+    'raw_nyc_legacy': {
+        'null_check_columns': ['tripduration', 'bikeid', 'starttime', 'stoptime'],
+        'duplicate_key': None,
+        'date_columns': ('starttime', 'stoptime'),
+    },
+    'raw_nyc_modern': {
+        'null_check_columns': ['ride_id', 'started_at', 'ended_at'],
+        'duplicate_key': 'ride_id',
+        'date_columns': ('started_at', 'ended_at'),
+    },
+    'raw_london_legacy': {
+        'null_check_columns': ['rental_id', 'bike_id', 'start_date', 'end_date'],
+        'duplicate_key': 'rental_id',
+        'date_columns': ('start_date', 'end_date'),
+    },
+    'raw_london_modern': {
+        'null_check_columns': ['number', 'bike_number', 'start_date', 'end_date'],
+        'duplicate_key': 'number',
+        'date_columns': ('start_date', 'end_date'),
+    },
+}
+
 
 class DuckDBOperations:
     """Main operations class for DuckDB ETL pipeline."""
@@ -252,126 +277,60 @@ class DuckDBOperations:
             }
     
     def _run_data_quality_checks(self, table_name: str, db: DuckDBManager) -> Dict:
-        """Run data quality checks for a table."""
+        """Run data quality checks for a table using metadata-driven SQL generation.
+
+        Checks performed:
+        - Null value counts for key columns
+        - Duplicate record counts (where a natural key exists)
+        - Date range boundaries
+        """
         quality_checks = {}
-        
+        config = TABLE_QUALITY_CONFIG.get(table_name)
+        if not config:
+            return quality_checks
+
         try:
-            # Check for null values in key columns
-            if table_name == 'raw_nyc_legacy':
-                null_check_query = """
-                    SELECT 
-                        COUNT(*) as total_rows,
-                        SUM(CASE WHEN tripduration IS NULL THEN 1 ELSE 0 END) as null_tripduration,
-                        SUM(CASE WHEN bikeid IS NULL THEN 1 ELSE 0 END) as null_bikeid,
-                        SUM(CASE WHEN starttime IS NULL THEN 1 ELSE 0 END) as null_starttime,
-                        SUM(CASE WHEN stoptime IS NULL THEN 1 ELSE 0 END) as null_stoptime
-                    FROM raw_nyc_legacy
-                """
-            elif table_name == 'raw_nyc_modern':
-                null_check_query = """
-                    SELECT 
-                        COUNT(*) as total_rows,
-                        SUM(CASE WHEN ride_id IS NULL THEN 1 ELSE 0 END) as null_ride_id,
-                        SUM(CASE WHEN started_at IS NULL THEN 1 ELSE 0 END) as null_started_at,
-                        SUM(CASE WHEN ended_at IS NULL THEN 1 ELSE 0 END) as null_ended_at
-                    FROM raw_nyc_modern
-                """
-            elif table_name == 'raw_london_legacy':
-                null_check_query = """
-                    SELECT 
-                        COUNT(*) as total_rows,
-                        SUM(CASE WHEN rental_id IS NULL THEN 1 ELSE 0 END) as null_rental_id,
-                        SUM(CASE WHEN bike_id IS NULL THEN 1 ELSE 0 END) as null_bike_id,
-                        SUM(CASE WHEN start_date IS NULL THEN 1 ELSE 0 END) as null_start_date,
-                        SUM(CASE WHEN end_date IS NULL THEN 1 ELSE 0 END) as null_end_date
-                    FROM raw_london_legacy
-                """
-            elif table_name == 'raw_london_modern':
-                null_check_query = """
-                    SELECT 
-                        COUNT(*) as total_rows,
-                        SUM(CASE WHEN number IS NULL THEN 1 ELSE 0 END) as null_number,
-                        SUM(CASE WHEN bike_number IS NULL THEN 1 ELSE 0 END) as null_bike_number,
-                        SUM(CASE WHEN start_date IS NULL THEN 1 ELSE 0 END) as null_start_date,
-                        SUM(CASE WHEN end_date IS NULL THEN 1 ELSE 0 END) as null_end_date
-                    FROM raw_london_modern
-                """
-            else:
-                return quality_checks
-            
-            null_check_result = db.execute_query(null_check_query)
-            if null_check_result:
-                quality_checks['null_checks'] = null_check_result[0]
-            
-            # Check for duplicate records
-            if table_name == 'raw_nyc_modern':
-                duplicate_check_query = """
-                    SELECT COUNT(*) as duplicate_ride_ids
-                    FROM (
-                        SELECT ride_id, COUNT(*) as cnt
-                        FROM raw_nyc_modern
-                        GROUP BY ride_id
+            # 1. Null checks
+            null_cases = ", ".join(
+                f"SUM(CASE WHEN {col} IS NULL THEN 1 ELSE 0 END) as null_{col}"
+                for col in config['null_check_columns']
+            )
+            null_query = f"SELECT COUNT(*) as total_rows, {null_cases} FROM {table_name}"
+            null_result = db.execute_query(null_query)
+            if null_result:
+                quality_checks['null_checks'] = null_result[0]
+
+            # 2. Duplicate checks (only if a natural key is defined)
+            if config['duplicate_key']:
+                key_col = config['duplicate_key']
+                dup_query = f"""
+                    SELECT COUNT(*) as duplicate_count FROM (
+                        SELECT {key_col}, COUNT(*) as cnt
+                        FROM {table_name}
+                        GROUP BY {key_col}
                         HAVING COUNT(*) > 1
                     )
                 """
-            elif table_name == 'raw_london_legacy':
-                duplicate_check_query = """
-                    SELECT COUNT(*) as duplicate_rental_ids
-                    FROM (
-                        SELECT rental_id, COUNT(*) as cnt
-                        FROM raw_london_legacy
-                        GROUP BY rental_id
-                        HAVING COUNT(*) > 1
-                    )
-                """
-            elif table_name == 'raw_london_modern':
-                duplicate_check_query = """
-                    SELECT COUNT(*) as duplicate_numbers
-                    FROM (
-                        SELECT number, COUNT(*) as cnt
-                        FROM raw_london_modern
-                        GROUP BY number
-                        HAVING COUNT(*) > 1
-                    )
-                """
-            else:
-                duplicate_check_query = "SELECT 0 as duplicate_count"
-            
-            duplicate_check_result = db.execute_query(duplicate_check_query)
-            if duplicate_check_result:
-                quality_checks['duplicate_checks'] = duplicate_check_result[0]
-            
-            # Check date ranges
-            if table_name == 'raw_nyc_legacy':
-                date_range_query = """
-                    SELECT 
-                        MIN(starttime) as earliest_date,
-                        MAX(stoptime) as latest_date
-                    FROM raw_nyc_legacy
-                """
-            elif table_name == 'raw_nyc_modern':
-                date_range_query = """
-                    SELECT 
-                        MIN(started_at) as earliest_date,
-                        MAX(ended_at) as latest_date
-                    FROM raw_nyc_modern
-                """
-            else:
-                date_range_query = f"""
-                    SELECT 
-                        MIN(start_date) as earliest_date,
-                        MAX(end_date) as latest_date
-                    FROM {table_name}
-                """
-            
-            date_range_result = db.execute_query(date_range_query)
-            if date_range_result:
-                quality_checks['date_ranges'] = date_range_result[0]
-            
+                dup_result = db.execute_query(dup_query)
+                if dup_result:
+                    quality_checks['duplicate_checks'] = dup_result[0]
+
+            # 3. Date range checks
+            start_col, end_col = config['date_columns']
+            date_query = f"""
+                SELECT
+                    MIN({start_col}) as earliest_date,
+                    MAX({end_col}) as latest_date
+                FROM {table_name}
+            """
+            date_result = db.execute_query(date_query)
+            if date_result:
+                quality_checks['date_ranges'] = date_result[0]
+
         except Exception as e:
             logger.warning(f"Data quality checks failed for {table_name}: {e}")
             quality_checks['error'] = str(e)
-        
+
         return quality_checks
     
     def _generate_summary_report(self, verification_results: List[Dict]) -> str:
@@ -571,8 +530,8 @@ class DuckDBOperations:
             try:
                 table_info = db.get_table_info(table_name)
                 row_count = table_info['row_count']
-            except Exception:
-                logger.error(f"Table {table_name} does not exist in DuckDB")
+            except Exception as e:
+                logger.error(f"Table {table_name} does not exist in DuckDB: {e}")
                 return False
             
             if dry_run:

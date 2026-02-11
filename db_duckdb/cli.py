@@ -9,12 +9,22 @@ import logging
 from typing import Optional
 from pathlib import Path
 
+from .duckdb_manager import DuckDBManager
 from .operations import DuckDBOperations
 from .pipeline import DuckDBPipeline, run_full_pipeline, check_pipeline_status
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+
+def _cli_error(operation_name: str, error: Exception = None, message: str = None):
+    """Log a CLI operation failure and raise a ClickException."""
+    detail = str(error) if error else (message or "Unknown error")
+    logger.error("=" * 60)
+    logger.error(f"✗ {operation_name} FAILED: {detail}")
+    logger.error("=" * 60)
+    raise click.ClickException(detail)
 
 
 @click.group()
@@ -81,11 +91,10 @@ def init(ctx, verify: bool, dry_run: bool):
         logger.info("✓ INITIALIZATION COMPLETED SUCCESSFULLY")
         logger.info("=" * 60)
         
+    except click.ClickException:
+        raise
     except Exception as e:
-        logger.error("=" * 60)
-        logger.error(f"✗ INITIALIZATION FAILED: {e}")
-        logger.error("=" * 60)
-        raise click.ClickException(str(e))
+        _cli_error("INITIALIZATION", error=e)
 
 
 @cli.command()
@@ -135,21 +144,14 @@ def load(ctx, table: Optional[str], dry_run: bool, append: bool):
                 logger.info("1. Run 'db_duckdb verify' to validate data integrity")
                 logger.info("2. Test dbt pipeline with: dbt run --select staging")
             else:
-                logger.error("=" * 60)
-                logger.error(f"✗ DATA LOADING FAILED: {successful_loads}/{total_loads} tables loaded successfully")
-                logger.error("=" * 60)
-                raise click.ClickException("Data loading failed")
+                _cli_error("DATA LOADING", message=f"{successful_loads}/{total_loads} tables loaded successfully")
         else:
-            logger.error("=" * 60)
-            logger.error("✗ DATA LOADING FAILED: No results returned")
-            logger.error("=" * 60)
-            raise click.ClickException("Data loading failed")
-        
+            _cli_error("DATA LOADING", message="No results returned")
+
+    except click.ClickException:
+        raise
     except Exception as e:
-        logger.error("=" * 60)
-        logger.error(f"✗ DATA LOADING FAILED: {e}")
-        logger.error("=" * 60)
-        raise click.ClickException(str(e))
+        _cli_error("DATA LOADING", error=e)
 
 
 @cli.command()
@@ -197,21 +199,14 @@ def verify(ctx, table: Optional[str], detailed: bool):
                 logger.info("1. Test dbt pipeline with: dbt run --select staging")
                 logger.info("2. Run full dbt pipeline: dbt run")
             else:
-                logger.error("=" * 60)
-                logger.error(f"✗ DATA VERIFICATION FAILED: {failed_verifications}/{total_verifications} tables failed verification")
-                logger.error("=" * 60)
-                raise click.ClickException("Data verification failed")
+                _cli_error("DATA VERIFICATION", message=f"{failed_verifications}/{total_verifications} tables failed verification")
         else:
-            logger.error("=" * 60)
-            logger.error("✗ DATA VERIFICATION FAILED: No results returned")
-            logger.error("=" * 60)
-            raise click.ClickException("Data verification failed")
-        
+            _cli_error("DATA VERIFICATION", message="No results returned")
+
+    except click.ClickException:
+        raise
     except Exception as e:
-        logger.error("=" * 60)
-        logger.error(f"✗ DATA VERIFICATION FAILED: {e}")
-        logger.error("=" * 60)
-        raise click.ClickException(str(e))
+        _cli_error("DATA VERIFICATION", error=e)
 
 
 @cli.command()
@@ -259,21 +254,14 @@ def export(ctx, include_intermediate: bool, table: Optional[str], dry_run: bool)
                 logger.info("1. Use httpfs_connector.py to query the exported Parquet files")
                 logger.info("2. Update dashboard to use S3 Parquet files instead of local database")
             else:
-                logger.error("=" * 60)
-                logger.error(f"✗ EXPORT FAILED: {successful_exports}/{total_exports} tables exported successfully")
-                logger.error("=" * 60)
-                raise click.ClickException("Export failed")
+                _cli_error("EXPORT", message=f"{successful_exports}/{total_exports} tables exported successfully")
         else:
-            logger.error("=" * 60)
-            logger.error("✗ EXPORT FAILED: No results returned")
-            logger.error("=" * 60)
-            raise click.ClickException("Export failed")
-        
+            _cli_error("EXPORT", message="No results returned")
+
+    except click.ClickException:
+        raise
     except Exception as e:
-        logger.error("=" * 60)
-        logger.error(f"✗ EXPORT FAILED: {e}")
-        logger.error("=" * 60)
-        raise click.ClickException(str(e))
+        _cli_error("EXPORT", error=e)
 
 
 @cli.command()
@@ -322,26 +310,53 @@ def list(ctx, tables: bool, exports: bool, marts: bool, verbose: bool):
         if exports:
             logger.info("Existing exports in S3:")
             logger.info("=" * 50)
-            # TODO: Implement S3 export listing
-            logger.info("  S3 export listing not yet implemented")
+            try:
+                import boto3
+                from .config.duckdb_config import S3_BUCKET
+                s3_client = boto3.client('s3')
+                response = s3_client.list_objects_v2(Bucket=S3_BUCKET, Prefix='marts/')
+                if 'Contents' in response:
+                    for obj in response['Contents']:
+                        size_mb = obj['Size'] / (1024 * 1024)
+                        last_modified = obj['LastModified'].strftime('%Y-%m-%d %H:%M:%S')
+                        logger.info(f"  s3://{S3_BUCKET}/{obj['Key']} ({size_mb:.1f} MB, {last_modified})")
+                else:
+                    logger.info("  No exports found in S3")
+            except Exception as e:
+                logger.warning(f"  Could not list S3 exports: {e}")
             logger.info("")
-        
+
         if marts:
             logger.info("Available mart tables in database:")
             logger.info("=" * 50)
-            # TODO: Implement mart table listing
-            logger.info("  Mart table listing not yet implemented")
+            try:
+                with DuckDBManager(db_path=db_path) as db:
+                    mart_tables = db.list_tables(schema='main_marts')
+                if mart_tables:
+                    for table_name_item in sorted(mart_tables):
+                        if verbose:
+                            try:
+                                with DuckDBManager(db_path=db_path) as db:
+                                    info = db.get_table_info(f"main_marts.{table_name_item}")
+                                    logger.info(f"  {table_name_item} ({info['row_count']:,} rows, {info['size_mb']} MB)")
+                            except Exception:
+                                logger.info(f"  {table_name_item}")
+                        else:
+                            logger.info(f"  {table_name_item}")
+                else:
+                    logger.info("  No mart tables found (run dbt first)")
+            except Exception as e:
+                logger.warning(f"  Could not list mart tables: {e}")
             logger.info("")
         
         logger.info("=" * 60)
         logger.info("✓ LIST COMPLETED")
         logger.info("=" * 60)
         
+    except click.ClickException:
+        raise
     except Exception as e:
-        logger.error("=" * 60)
-        logger.error(f"✗ LIST FAILED: {e}")
-        logger.error("=" * 60)
-        raise click.ClickException(str(e))
+        _cli_error("LIST", error=e)
 
 
 @cli.command()
@@ -373,11 +388,10 @@ def pipeline(ctx, skip_verify: bool, skip_export: bool, dry_run: bool):
         logger.info("✓ PIPELINE COMPLETED SUCCESSFULLY")
         logger.info("=" * 60)
         
+    except click.ClickException:
+        raise
     except Exception as e:
-        logger.error("=" * 60)
-        logger.error(f"✗ PIPELINE FAILED: {e}")
-        logger.error("=" * 60)
-        raise click.ClickException(str(e))
+        _cli_error("PIPELINE", error=e)
 
 
 @cli.command()
@@ -424,11 +438,10 @@ def status(ctx):
         logger.info("✓ STATUS CHECK COMPLETED")
         logger.info("=" * 60)
         
+    except click.ClickException:
+        raise
     except Exception as e:
-        logger.error("=" * 60)
-        logger.error(f"✗ STATUS CHECK FAILED: {e}")
-        logger.error("=" * 60)
-        raise click.ClickException(str(e))
+        _cli_error("STATUS CHECK", error=e)
 
 
 if __name__ == '__main__':

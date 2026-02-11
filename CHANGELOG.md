@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **SQL Injection in DuckDB Credential Setup** - Added input validation for AWS credentials before SQL interpolation
+  - New `_validate_aws_credential()` ensures only safe characters in credential values
+  - Prevents potential SQL injection via malformed environment variables
+- **Bare Exception in Export** - Added exception details to error log in `_export_table_to_s3`
 - **SQL Injection in Dashboard** - Parameterized all user-controlled values in DuckDB queries
   - Replaced f-string interpolation with `$1, $2, ...` positional parameters across 22 queries
   - Added `run_query_params` helper for parameterized query execution
@@ -15,12 +19,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Hardcoded S3 Bucket** - `streamlit_data_manager/parquet_file_manager.py` now reads `S3_BUCKET` from environment variable with fallback to default
 
 ### Changed
+- **Data Quality Checks** - Refactored `_run_data_quality_checks` from 122-line if-elif chain to metadata-driven approach
+  - Added `TABLE_QUALITY_CONFIG` dictionary defining null-check columns, duplicate keys, and date columns per table
+  - Reduced function from 122 lines to ~50 lines with identical behavior
 - **Dashboard Code Quality** - Decomposed repeated patterns into helper functions
   - Extracted `get_date_range()` helper, reducing 30 lines of duplicate code to 8
   - Consolidated session state initialization into dict-driven `set_default_state()`
   - Replaced `date_filter_sql()` f-string helper with clamped date parameter values
 
+### Improved
+- **CLI Error Handling** - Consolidated duplicated error handling across 7 CLI commands
+  - Extracted `_cli_error()` helper function for consistent error logging and exception raising
+  - Added proper `click.ClickException` re-raise to prevent double-wrapping
+
 ### Added
+- **CLI List Command** - Implemented previously stubbed `--exports` and `--marts` flags
+  - `--exports` lists mart Parquet files in S3 with sizes and timestamps
+  - `--marts` lists mart tables in the database with optional row counts
 - **dbt Schema Documentation** - Added schema.yml files for all model layers
   - Documented all 4 staging models with column descriptions
   - Documented 2 intermediate models (int_nyc_rides, int_london_rides)
