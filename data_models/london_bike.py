@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from datetime import datetime
 import pandas as pd
 from data_models.base import BaseBikeShareRecord
-import os
 
 @dataclass
 class LondonLegacyBikeShareRecord(BaseBikeShareRecord):
@@ -33,17 +32,6 @@ class LondonLegacyBikeShareRecord(BaseBikeShareRecord):
         "EndStation Name",
         "Duration"
     ]
-
-    @classmethod
-    def validate_schema(cls, df: pd.DataFrame) -> bool:
-        """Validate if the dataframe contains all required columns for legacy London format."""
-        debug_mode = os.environ.get('EXTRACTED_FILE_MANAGER_DEBUG') == '1'
-        
-        missing_columns = [col for col in cls._required_columns if col not in df.columns]
-        if missing_columns and debug_mode:
-            print(f"DEBUG: LondonLegacyBikeShareRecord validation failed - missing columns: {missing_columns}")
-            print(f"DEBUG: Available columns: {list(df.columns)}")
-        return not missing_columns
 
     @classmethod
     def to_dataframe(cls, df: pd.DataFrame, source_file: str) -> pd.DataFrame:
@@ -94,17 +82,6 @@ class LondonModernBikeShareRecord(BaseBikeShareRecord):
         "End station",
         "Total duration"
     ]
-
-    @classmethod
-    def validate_schema(cls, df: pd.DataFrame) -> bool:
-        """Validate if the dataframe contains all required columns for modern London format."""
-        debug_mode = os.environ.get('EXTRACTED_FILE_MANAGER_DEBUG') == '1'
-        
-        missing_columns = [col for col in cls._required_columns if col not in df.columns]
-        if missing_columns and debug_mode:
-            print(f"DEBUG: LondonModernBikeShareRecord validation failed - missing columns: {missing_columns}")
-            print(f"DEBUG: Available columns: {list(df.columns)}")
-        return not missing_columns
 
     @classmethod
     def to_dataframe(cls, df: pd.DataFrame, source_file: str) -> pd.DataFrame:

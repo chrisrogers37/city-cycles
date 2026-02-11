@@ -1,11 +1,16 @@
 import os
+import logging
 import pandas as pd
 from typing import Type, List
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
+
+
 class BaseBikeShareRecord:
     staging_table: str = None
     s3_prefix: str = None
+    _required_columns: list = []
     _registry: List[Type['BaseBikeShareRecord']] = []
 
     def __init_subclass__(cls, **kwargs):
@@ -16,11 +21,20 @@ class BaseBikeShareRecord:
     @classmethod
     def validate_schema(cls, df: pd.DataFrame) -> bool:
         """Validate if the dataframe contains all required columns.
-        
-        This method should be implemented by subclasses to check if the dataframe
-        contains the expected columns. Type validation is handled during transformation.
+
+        Uses cls._required_columns defined in each subclass to check whether
+        the given DataFrame has every expected column. Logs missing columns
+        at DEBUG level so diagnostics are available without custom env vars.
         """
-        raise NotImplementedError("Subclasses must implement validate_schema")
+        missing_columns = [col for col in cls._required_columns if col not in df.columns]
+        if missing_columns:
+            logger.debug(
+                "%s validation failed - missing columns: %s. Available: %s",
+                cls.__name__,
+                missing_columns,
+                list(df.columns),
+            )
+        return not missing_columns
 
     @classmethod
     def to_dataframe(cls, df: pd.DataFrame, source_file: str) -> pd.DataFrame:
