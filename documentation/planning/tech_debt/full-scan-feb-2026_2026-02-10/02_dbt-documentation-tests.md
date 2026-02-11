@@ -1,5 +1,8 @@
 # Phase 02: dbt Documentation, Data Tests, and Source Freshness
 
+**Status:** 🔧 IN PROGRESS
+**Started:** 2026-02-11
+
 **PR Title:** `feat(dbt): add schema documentation, data tests, and source freshness`
 **Risk Level:** Low
 **Estimated Effort:** Medium (3-4 hours)

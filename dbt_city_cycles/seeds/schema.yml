@@ -1,0 +1,23 @@
+version: 2
+
+seeds:
+  - name: population
+    description: >
+      Annual population data for NYC and London. Used to normalize ride metrics
+      on a per-capita basis (rides per 1,000 population, stations per 1,000 population).
+      Manually maintained -- update annually when new census/estimate data is available.
+    columns:
+      - name: location
+        description: "City identifier: nyc or london"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['nyc', 'london']
+      - name: year
+        description: Calendar year
+        tests:
+          - not_null
+      - name: population
+        description: Estimated population for the city in the given year
+        tests:
+          - not_null

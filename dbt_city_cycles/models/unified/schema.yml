@@ -1,0 +1,71 @@
+version: 2
+
+models:
+  - name: unified_rides
+    description: >
+      All bike share rides from both NYC and London unified into a single table.
+      NYC rides include lat/lng coordinates and user_type. London rides have NULLs
+      for coordinates, user_type, birth_year, and gender. This is the primary table
+      consumed by all mart models.
+    columns:
+      - name: ride_id
+        description: Unique ride identifier across both cities
+        tests:
+          - unique
+          - not_null
+      - name: start_time
+        description: Ride start timestamp
+        tests:
+          - not_null
+      - name: stop_time
+        description: Ride end timestamp
+      - name: start_station_id
+        description: Starting station ID
+      - name: start_station_name
+        description: Starting station name
+      - name: end_station_id
+        description: Ending station ID
+      - name: end_station_name
+        description: Ending station name
+      - name: start_latitude
+        description: Starting station latitude (NYC only, NULL for London)
+      - name: start_longitude
+        description: Starting station longitude (NYC only, NULL for London)
+      - name: end_latitude
+        description: Ending station latitude (NYC only, NULL for London)
+      - name: end_longitude
+        description: Ending station longitude (NYC only, NULL for London)
+      - name: user_type
+        description: "Rider type: member, casual, or NULL (London has no user type data)"
+      - name: bike_id
+        description: Bike identifier (NULL for NYC modern rides)
+      - name: duration_seconds
+        description: Ride duration in seconds
+      - name: birth_year
+        description: Rider birth year (NYC legacy only)
+      - name: gender
+        description: Rider gender code (NYC legacy only)
+      - name: date
+        description: Ride date (truncated to day)
+      - name: month
+        description: Month number
+      - name: year
+        description: Year
+      - name: day_type
+        description: "weekday or weekend"
+      - name: day_of_week
+        description: "Day of week (0=Monday, 6=Sunday)"
+      - name: hour_of_day
+        description: Hour of day (0-23)
+      - name: source_file
+        description: Original source file for lineage tracking
+      - name: location
+        description: City identifier
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['nyc', 'london']
+      - name: schema_version
+        description: "Source schema version: legacy or modern"
+      - name: dbt_updated_at
+        description: Timestamp of when dbt last processed this row
