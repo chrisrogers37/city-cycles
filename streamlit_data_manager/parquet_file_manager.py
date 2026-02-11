@@ -9,7 +9,7 @@ enabling the dashboard to query mart data without loading the full database.
 import boto3
 import os
 
-S3_BUCKET = "city-cycles-data-ctr37"
+S3_BUCKET = os.environ.get("S3_BUCKET", "city-cycles-data-ctr37")
 MARTS = [
     "mart_daily_metrics.parquet",
     "mart_hourly_patterns.parquet",
