@@ -1,6 +1,8 @@
 {
   "permissions": {
     "allow": [
+      "Bash(venv/bin/python*)",
+      "Bash(/Users/chris/Projects/city-cycles/venv/bin/python*)",
       "Bash(python -m pytest*)",
       "Bash(python -m orchestrator*)",
       "Bash(python -m extraction*)",
@@ -19,6 +21,9 @@
       "Bash(pip install*)",
       "Bash(pip list*)",
       "Bash(pip show*)",
+      "Bash(git rm*)",
+      "Bash(git mv*)",
+      "Bash(git merge*)",
       "Bash(git status*)",
       "Bash(git diff*)",
       "Bash(git log*)",
@@ -45,6 +50,9 @@
       "Bash(source venv/bin/activate*)",
       "Bash(which python*)",
       "Bash(python --version*)",
+      "Bash(python3 --version*)",
+      "Bash(python3 -c*)",
+      "Bash(python3 -m*)",
       "Bash(aws s3 ls*)",
       "Bash(aws s3 sync --dryrun*)",
       "Bash(du -sh*)",
