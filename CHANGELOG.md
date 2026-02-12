@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Technical Improvements
+- **Dependency Updates** - Updated outdated Python packages across three risk tiers
+  - Tier 1 (safe): Updated 15 security/utility packages (certifi, urllib3, requests, click, GitPython, psutil, pillow, PyYAML, etc.)
+  - Tier 2 (moderate): Updated core dependencies (boto3 1.38→1.42, duckdb 1.3→1.4, pandas 2.2→2.3, numpy 2.2→2.4, pyarrow 20→23, streamlit 1.45→1.54, plotly 6.1→6.5, pydantic 2.11→2.12, playwright 1.52→1.58)
+  - Tier 3 (high risk): Updated dbt ecosystem from 1.9 to 1.10 (dbt-core 1.9.6→1.10.19, dbt-duckdb 1.9.4→1.10.0), updated deepdiff 7.0→8.6
+  - All 132 existing tests pass after updates (0 regressions)
+  - dbt compile succeeds (deprecation warnings for test argument format, non-blocking)
+
 ### Fixed
 - **SQL Injection in DuckDB Credential Setup** - Added input validation for AWS credentials before SQL interpolation
   - New `_validate_aws_credential()` ensures only safe characters in credential values
