@@ -22,7 +22,7 @@ from functools import wraps
 from dotenv import load_dotenv
 from botocore.exceptions import ClientError, ReadTimeoutError, ConnectTimeoutError, EndpointConnectionError
 
-from data_models.base import BaseBikeShareRecord
+from data_models.base import BaseDataRecord
 
 # Load environment variables
 load_dotenv()
@@ -406,7 +406,7 @@ class ExtractedFileManager:
     def _find_matching_model(self, df: pd.DataFrame, csv_file: str):
         """Find matching data model for CSV"""
         # Get all registered models
-        models = BaseBikeShareRecord._registry
+        models = BaseDataRecord._registry
         
         # Filter by location
         if "nyc" in csv_file:

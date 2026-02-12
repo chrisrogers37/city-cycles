@@ -7,16 +7,16 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 
-class BaseBikeShareRecord:
+class BaseDataRecord:
     staging_table: str = None
     s3_prefix: str = None
     _required_columns: list = []
-    _registry: List[Type['BaseBikeShareRecord']] = []
+    _registry: List[Type['BaseDataRecord']] = []
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if cls not in BaseBikeShareRecord._registry:
-            BaseBikeShareRecord._registry.append(cls)
+        if cls not in BaseDataRecord._registry:
+            BaseDataRecord._registry.append(cls)
 
     @classmethod
     def validate_schema(cls, df: pd.DataFrame) -> bool:

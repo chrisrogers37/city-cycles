@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from datetime import datetime
 import pandas as pd
-from data_models.base import BaseBikeShareRecord
+from data_models.base import BaseDataRecord
 
 @dataclass
-class LondonLegacyBikeShareRecord(BaseBikeShareRecord):
+class LondonLegacyBikeShareRecord(BaseDataRecord):
     """Model for London bike share data from 2018-2020 (legacy schema)."""
     rental_id: str
     bike_id: str
@@ -52,7 +52,7 @@ class LondonLegacyBikeShareRecord(BaseBikeShareRecord):
         return df[list(cls.__dataclass_fields__.keys())]
 
 @dataclass
-class LondonModernBikeShareRecord(BaseBikeShareRecord):
+class LondonModernBikeShareRecord(BaseDataRecord):
     """Model for London bike share data from 2021+ (modern schema)."""
     number: str
     bike_number: str

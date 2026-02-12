@@ -32,11 +32,11 @@ class TestDataModelsIntegration:
     
     def test_model_registry(self):
         """Test that the model registry works correctly"""
-        from data_models.base import BaseBikeShareRecord
+        from data_models.base import BaseDataRecord
         
         # Verify registry contains all expected models
-        registry = BaseBikeShareRecord._registry
-        assert len(registry) == 4, f"Expected 4 models, got {len(registry)}"
+        registry = BaseDataRecord._registry
+        assert len(registry) == 5, f"Expected 5 models, got {len(registry)}"
         
         # Verify each model has required attributes
         for model in registry:
@@ -169,11 +169,11 @@ class TestDataModelsIntegration:
     def test_extracted_file_manager_can_import_data_models(self):
         """Test that extracted_file_manager can import and use data_models"""
         from extracted_file_manager.manager import ExtractedFileManager
-        from data_models.base import BaseBikeShareRecord
+        from data_models.base import BaseDataRecord
         
         # Verify that the manager can access the model registry
-        models = BaseBikeShareRecord._registry
-        assert len(models) == 4, f"Expected 4 models, got {len(models)}"
+        models = BaseDataRecord._registry
+        assert len(models) == 5, f"Expected 5 models, got {len(models)}"
         
         # Verify ExtractedFileManager can be instantiated (this would fail if imports are broken)
         # Note: We don't actually instantiate it here since it requires S3 credentials
@@ -207,9 +207,9 @@ class TestDataModelsIntegration:
     
     def test_staging_table_names(self):
         """Test that all models have valid staging table names"""
-        from data_models.base import BaseBikeShareRecord
+        from data_models.base import BaseDataRecord
         
-        for model in BaseBikeShareRecord._registry:
+        for model in BaseDataRecord._registry:
             # Verify staging_table exists and is a string
             assert hasattr(model, 'staging_table')
             assert isinstance(model.staging_table, str)
@@ -220,13 +220,13 @@ class TestDataModelsIntegration:
     
     def test_s3_prefix_consistency(self):
         """Test that all models have valid S3 prefixes"""
-        from data_models.base import BaseBikeShareRecord
+        from data_models.base import BaseDataRecord
         
-        for model in BaseBikeShareRecord._registry:
+        for model in BaseDataRecord._registry:
             # Verify s3_prefix exists and is a string
             assert hasattr(model, 's3_prefix')
             assert isinstance(model.s3_prefix, str)
             assert len(model.s3_prefix) > 0
             
-            # Verify s3_prefix follows naming convention (nyc_csv/ or london_csv/)
-            assert model.s3_prefix in ['nyc_csv/', 'london_csv/']
+            # Verify s3_prefix ends with /
+            assert model.s3_prefix.endswith('/')

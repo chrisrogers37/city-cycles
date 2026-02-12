@@ -171,3 +171,28 @@ def sample_london_modern_df():
         "End station number": ["300", "400"],
         "End station": ["Kings Cross", "Paddington"],
     })
+
+
+@pytest.fixture
+def sample_weather_df():
+    """
+    Sample DataFrame matching the hourly weather schema.
+
+    Contains 2 rows of weather data as output by extraction/weather.py.
+    """
+    return pd.DataFrame({
+        "timestamp": ["2023-06-15T12:00", "2023-06-15T13:00"],
+        "city": ["nyc", "nyc"],
+        "temperature_2m": [25.0, 26.5],
+        "relative_humidity_2m": [65.0, 60.0],
+        "apparent_temperature": [24.0, 25.5],
+        "precipitation": [0.0, 2.5],
+        "rain": [0.0, 2.5],
+        "snowfall": [0.0, 0.0],
+        "snow_depth": [0.0, 0.0],
+        "weather_code": [0, 61],
+        "cloud_cover": [25.0, 80.0],
+        "wind_speed_10m": [10.0, 20.0],
+        "wind_gusts_10m": [15.0, 30.0],
+        "source_file": ["weather_nyc_2023.parquet", "weather_nyc_2023.parquet"],
+    })

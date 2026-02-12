@@ -147,9 +147,19 @@ class CityBikesOrchestrator:
                 logger.error(f"✗ London extraction failed: {e}")
                 # Log but continue - we may have partial data
             
+            # Weather extraction
+            logger.info("\n→ Extracting weather data from Open-Meteo...")
+            try:
+                from extraction import weather
+                weather.incremental_update_all(days_back=35)
+                logger.info("✓ Weather extraction completed")
+            except Exception as e:
+                logger.error(f"✗ Weather extraction failed: {e}")
+                # Continue -- weather is supplementary data
+
             self.results['extraction'] = {'status': 'success'}
             logger.info("\n✓ Data extraction phase completed")
-            
+
         except Exception as e:
             logger.error(f"\n✗ Extraction phase failed: {e}")
             raise RuntimeError(f"Extraction phase failed: {e}")
@@ -349,6 +359,26 @@ class CityBikesOrchestrator:
         logger.error("3. Check DuckDB database file permissions")
         logger.error("4. Try running individual stages manually")
     
+    def _run_weather_extraction(self):
+        """Run weather data extraction independently."""
+        _log_step(1, 1, "EXTRACTING WEATHER DATA FROM OPEN-METEO")
+
+        try:
+            from extraction import weather
+
+            logger.info("\n→ Running weather incremental update...")
+            results = weather.incremental_update_all(days_back=35)
+
+            self.results['weather_extraction'] = {
+                'status': 'success',
+                'results': results
+            }
+            logger.info("\n✓ Weather extraction phase completed")
+
+        except Exception as e:
+            logger.error(f"\n✗ Weather extraction phase failed: {e}")
+            raise RuntimeError(f"Weather extraction phase failed: {e}")
+
     def run_stage(self, stage: str, **kwargs) -> bool:
         """
         Run a specific pipeline stage.
@@ -374,6 +404,8 @@ class CityBikesOrchestrator:
                 self._run_dbt_transformations(full_refresh=kwargs.get('full_refresh', False))
             elif stage == 'export':
                 self._run_mart_export()
+            elif stage == 'weather_extraction':
+                self._run_weather_extraction()
             else:
                 raise ValueError(f"Unknown stage: {stage}")
             

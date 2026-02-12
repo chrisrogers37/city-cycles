@@ -4,7 +4,7 @@ This directory contains the data models for London and NYC bike share data. The 
 
 ## Overview
 
-The data models are built on top of a base class (`BaseBikeShareRecord`) that provides common functionality for schema validation and data transformation. Each model defines its own schema, validation rules, and transformation logic to handle the specific formats of bike share data from different cities and time periods.
+The data models are built on top of a base class (`BaseDataRecord`) that provides common functionality for schema validation and data transformation. Each model defines its own schema, validation rules, and transformation logic to handle the specific formats of bike share data from different cities and time periods.
 
 **Note**: This package focuses solely on schema validation and data transformation. S3 operations are handled by the `extracted_file_manager` module, and database operations are handled by the `db_duckdb` module.
 
@@ -99,10 +99,10 @@ print(transformed_df.columns)
 ### Model Registry Access
 
 ```python
-from data_models.base import BaseBikeShareRecord
+from data_models.base import BaseDataRecord
 
 # Access all registered models
-for model in BaseBikeShareRecord._registry:
+for model in BaseDataRecord._registry:
     print(f"Model: {model.__name__}")
     print(f"Table: {model.staging_table}")
     print(f"S3 Prefix: {model.s3_prefix}")

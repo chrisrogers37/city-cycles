@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from typing import Optional
 import pandas as pd
-from data_models.base import BaseBikeShareRecord
+from data_models.base import BaseDataRecord
 
 @dataclass
-class NYCLegacyBikeShareRecord(BaseBikeShareRecord):
+class NYCLegacyBikeShareRecord(BaseDataRecord):
     tripduration: int
     bikeid: str
     starttime: str
@@ -62,7 +62,7 @@ class NYCLegacyBikeShareRecord(BaseBikeShareRecord):
         return df[list(cls.__dataclass_fields__.keys())]
 
 @dataclass
-class NYCModernBikeShareRecord(BaseBikeShareRecord):
+class NYCModernBikeShareRecord(BaseDataRecord):
     ride_id: str
     rideable_type: str
     started_at: str

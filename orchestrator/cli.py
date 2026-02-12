@@ -83,7 +83,7 @@ Examples:
     stage_parser = subparsers.add_parser('stage', help='Run a specific pipeline stage')
     stage_parser.add_argument(
         'stage_name',
-        choices=['extraction', 'file_management', 'database_load', 'dbt', 'export'],
+        choices=['extraction', 'weather_extraction', 'file_management', 'database_load', 'dbt', 'export'],
         help='Name of the stage to run'
     )
     stage_parser.add_argument(
