@@ -112,3 +112,30 @@ sources:
             description: Ending station ID
           - name: source_file
             description: Original source file path in S3
+
+      - name: raw_weather_hourly
+        description: >
+          Raw hourly weather observations from Open-Meteo API for NYC and London.
+          Contains temperature, precipitation, wind, cloud cover, and WMO weather codes.
+        loaded_at_field: "timestamp::timestamp"
+        columns:
+          - name: timestamp
+            description: Observation timestamp (local time for each city)
+            tests:
+              - not_null
+          - name: city
+            description: City identifier (nyc or london)
+            tests:
+              - not_null
+              - accepted_values:
+                  values: ['nyc', 'london']
+          - name: temperature_2m
+            description: Air temperature at 2 meters above ground (Celsius)
+          - name: precipitation
+            description: Total precipitation (mm)
+          - name: weather_code
+            description: WMO weather interpretation code
+          - name: wind_speed_10m
+            description: Wind speed at 10 meters above ground (km/h)
+          - name: source_file
+            description: Source Parquet file name for lineage tracking

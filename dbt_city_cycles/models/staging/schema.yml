@@ -257,3 +257,90 @@ models:
         description: "Source schema version: legacy or modern"
       - name: dbt_updated_at
         description: Timestamp of when dbt last processed this row
+
+  - name: stg_weather_hourly
+    description: >
+      Staged hourly weather observations for NYC and London from Open-Meteo.
+      Includes raw measurements plus derived fields: weather_condition (from WMO code),
+      is_precipitation, precipitation_intensity, temperature_band, and wind_category.
+    columns:
+      - name: weather_record_id
+        description: Unique identifier for each weather observation (city_YYYYMMDDHH)
+        tests:
+          - unique
+          - not_null
+      - name: timestamp
+        description: Observation timestamp
+        tests:
+          - not_null
+      - name: city
+        description: City identifier (nyc or london)
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['nyc', 'london']
+      - name: temperature_celsius
+        description: Air temperature at 2m above ground in Celsius
+      - name: apparent_temperature_celsius
+        description: Feels-like temperature in Celsius
+      - name: relative_humidity_pct
+        description: Relative humidity as percentage
+      - name: precipitation_mm
+        description: Total precipitation in millimeters
+      - name: rain_mm
+        description: Rainfall in millimeters
+      - name: snowfall_cm
+        description: Snowfall in centimeters
+      - name: snow_depth_m
+        description: Snow depth in meters
+      - name: weather_code
+        description: WMO weather interpretation code (0-99)
+      - name: cloud_cover_pct
+        description: Cloud cover as percentage
+      - name: wind_speed_kmh
+        description: Wind speed at 10m in km/h
+      - name: wind_gusts_kmh
+        description: Wind gusts at 10m in km/h
+      - name: weather_condition
+        description: Human-readable weather condition derived from WMO code
+        tests:
+          - accepted_values:
+              values: ['clear', 'partly_cloudy', 'fog', 'drizzle', 'freezing_drizzle', 'rain', 'freezing_rain', 'snow', 'snow_grains', 'rain_showers', 'snow_showers', 'thunderstorm', 'thunderstorm_hail', 'unknown']
+      - name: is_precipitation
+        description: Boolean flag indicating whether any precipitation occurred
+      - name: precipitation_intensity
+        description: "Precipitation intensity category: none, light, moderate, heavy, extreme"
+        tests:
+          - accepted_values:
+              values: ['none', 'light', 'moderate', 'heavy', 'extreme']
+      - name: temperature_band
+        description: "Temperature category: freezing, cold, mild, warm, hot"
+        tests:
+          - accepted_values:
+              values: ['freezing', 'cold', 'mild', 'warm', 'hot']
+      - name: wind_category
+        description: "Wind category: calm, light, moderate, strong, severe"
+        tests:
+          - accepted_values:
+              values: ['calm', 'light', 'moderate', 'strong', 'severe']
+      - name: date
+        description: Observation date (truncated to day)
+      - name: hour
+        description: Observation hour (truncated to hour)
+      - name: month
+        description: Month number
+      - name: year
+        description: Year
+      - name: day_type
+        description: "weekday or weekend"
+        tests:
+          - accepted_values:
+              values: ['weekday', 'weekend']
+      - name: day_of_week
+        description: "Day of week (0=Monday, 6=Sunday)"
+      - name: hour_of_day
+        description: "Hour of day (0-23)"
+      - name: source_file
+        description: Source file for lineage tracking
+      - name: dbt_updated_at
+        description: Timestamp of when dbt last processed this row
