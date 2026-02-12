@@ -73,10 +73,43 @@ models:
       - name: metric_value
         description: Numeric value of the metric
 
-  - name: mart_hourly_patterns
+  - name: mart_hourly_rides
     description: >
-      Ride counts aggregated by hour of day and location.
-      Used to visualize peak usage hours across cities.
+      Granular ride metrics aggregated by location, date, and hour of day.
+      This is the date-aware replacement for mart_hourly_patterns, enabling
+      time-series analysis and weather correlation joins.
+    columns:
+      - name: location
+        description: City identifier (nyc or london)
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['nyc', 'london']
+      - name: date
+        description: Calendar date
+        tests:
+          - not_null
+      - name: hour_of_day
+        description: Hour of day (0-23)
+        tests:
+          - not_null
+      - name: ride_count
+        description: Total number of rides in this hour on this date
+        tests:
+          - not_null
+      - name: avg_duration_seconds
+        description: Average ride duration in seconds for this hour on this date
+      - name: member_rides
+        description: Number of rides by members (0 for London, which has no user type data)
+      - name: casual_rides
+        description: Number of rides by casual users (0 for London, which has no user type data)
+
+  - name: mart_hourly_patterns_summary
+    description: >
+      Ride counts aggregated by hour of day and location across all dates.
+      Backward-compatible replacement for the original mart_hourly_patterns.
+      Derived from mart_hourly_rides by aggregating out the date dimension.
+      Used by the Streamlit dashboard Time of Day Analysis chart.
     columns:
       - name: location
         description: City identifier
@@ -90,6 +123,120 @@ models:
         description: Total number of rides in this hour across all dates
         tests:
           - not_null
+
+  - name: mart_weather_ride_correlation
+    description: >
+      Hourly ride metrics joined with weather data for ride-weather correlation analysis.
+      Inner join of mart_hourly_rides and stg_weather_hourly on (location, date, hour_of_day).
+      Contains both ride and weather metrics at hourly granularity.
+    columns:
+      - name: location
+        description: City identifier (nyc or london)
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['nyc', 'london']
+      - name: date
+        description: Calendar date
+        tests:
+          - not_null
+      - name: hour_of_day
+        description: Hour of day (0-23)
+        tests:
+          - not_null
+      - name: ride_count
+        description: Total rides in this hour
+        tests:
+          - not_null
+      - name: avg_duration_seconds
+        description: Average ride duration in seconds
+      - name: member_rides
+        description: Member ride count (0 for London)
+      - name: casual_rides
+        description: Casual ride count (0 for London)
+      - name: temperature_celsius
+        description: Temperature at 2 meters (Celsius)
+      - name: apparent_temperature_celsius
+        description: Feels-like temperature (Celsius)
+      - name: relative_humidity_pct
+        description: Relative humidity percentage
+      - name: precipitation_mm
+        description: Precipitation amount (mm)
+      - name: rain_mm
+        description: Rain amount (mm)
+      - name: snowfall_cm
+        description: Snowfall amount (cm)
+      - name: snow_depth_m
+        description: Snow depth (meters)
+      - name: weather_code
+        description: WMO weather code
+      - name: weather_condition
+        description: Human-readable weather condition (lowercase)
+      - name: cloud_cover_pct
+        description: Cloud cover percentage
+      - name: wind_speed_kmh
+        description: Wind speed (km/h)
+      - name: wind_gusts_kmh
+        description: Wind gust speed (km/h)
+      - name: is_precipitation
+        description: Boolean flag for precipitation
+      - name: precipitation_intensity
+        description: Precipitation intensity category
+      - name: temperature_band
+        description: Temperature band category
+      - name: wind_category
+        description: Wind intensity category
+
+  - name: mart_weather_impact_summary
+    description: >
+      Pre-computed weather impact statistics for ride recommendations.
+      Shows how ride counts and durations change relative to clear-weather baseline
+      for each (location, hour_of_day) broken down by weather condition and by
+      precipitation/temperature band combinations.
+      Powers dashboard insights like "34% fewer rides when raining at 9am."
+    columns:
+      - name: location
+        description: City identifier (nyc or london)
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['nyc', 'london']
+      - name: hour_of_day
+        description: Hour of day (0-23)
+        tests:
+          - not_null
+      - name: dimension_type
+        description: "Type of grouping: 'weather_condition' or 'precip_temp'"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['weather_condition', 'precip_temp']
+      - name: dimension_value
+        description: Weather condition name (when dimension_type is 'weather_condition'), NULL otherwise
+      - name: is_precipitation
+        description: Boolean precipitation flag (when dimension_type is 'precip_temp'), NULL otherwise
+      - name: temperature_band
+        description: Temperature band (when dimension_type is 'precip_temp'), NULL otherwise
+      - name: observation_count
+        description: Number of (date, hour) observations in this group
+        tests:
+          - not_null
+      - name: avg_rides
+        description: Average ride count per hour in this weather group
+      - name: avg_duration_seconds
+        description: Average ride duration in seconds in this weather group
+      - name: avg_member_rides
+        description: Average member ride count (0 for London)
+      - name: avg_casual_rides
+        description: Average casual ride count (0 for London)
+      - name: baseline_avg_rides
+        description: Average rides at the same hour during clear weather (baseline)
+      - name: baseline_avg_duration_seconds
+        description: Average duration at the same hour during clear weather (baseline)
+      - name: pct_change_rides_vs_clear
+        description: Percentage change in rides vs clear weather baseline (e.g., -34.0 means 34% fewer rides)
+      - name: pct_change_duration_vs_clear
+        description: Percentage change in duration vs clear weather baseline
 
   - name: mart_station_growth
     description: >
