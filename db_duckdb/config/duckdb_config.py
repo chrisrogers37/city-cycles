@@ -21,7 +21,8 @@ S3_URIS = {
     'raw_nyc_legacy': f's3://{S3_BUCKET}/extracted_bike_ride_parquet/nyc/nyclegacybikesharerecord/*.parquet',
     'raw_nyc_modern': f's3://{S3_BUCKET}/extracted_bike_ride_parquet/nyc/nycmodernbikesharerecord/*.parquet',
     'raw_london_legacy': f's3://{S3_BUCKET}/extracted_bike_ride_parquet/london/londonlegacybikesharerecord/*.parquet',
-    'raw_london_modern': f's3://{S3_BUCKET}/extracted_bike_ride_parquet/london/londonmodernbikesharerecord/*.parquet'
+    'raw_london_modern': f's3://{S3_BUCKET}/extracted_bike_ride_parquet/london/londonmodernbikesharerecord/*.parquet',
+    'raw_weather_hourly': f's3://{S3_BUCKET}/extracted_weather_parquet/*/*.parquet',
 }
 
 # Table schemas for DuckDB
@@ -96,7 +97,26 @@ TABLE_SCHEMAS = {
             end_station VARCHAR,
             source_file VARCHAR
         )
-    """
+    """,
+
+    'raw_weather_hourly': """
+        CREATE TABLE raw_weather_hourly (
+            timestamp TIMESTAMP,
+            city VARCHAR,
+            temperature_2m DOUBLE,
+            relative_humidity_2m DOUBLE,
+            apparent_temperature DOUBLE,
+            precipitation DOUBLE,
+            rain DOUBLE,
+            snowfall DOUBLE,
+            snow_depth DOUBLE,
+            weather_code INTEGER,
+            cloud_cover DOUBLE,
+            wind_speed_10m DOUBLE,
+            wind_gusts_10m DOUBLE,
+            source_file VARCHAR
+        )
+    """,
 }
 
 # Database configuration
@@ -141,7 +161,7 @@ VALIDATION_QUERIES = {
     """,
     
     'raw_london_modern': """
-        SELECT 
+        SELECT
             COUNT(*) as total_rows,
             COUNT(DISTINCT source_file) as unique_files,
             MIN(start_date) as earliest_start,
@@ -149,5 +169,16 @@ VALIDATION_QUERIES = {
             COUNT(DISTINCT bike_number) as unique_bikes,
             COUNT(DISTINCT number) as unique_rides
         FROM raw_london_modern
-    """
+    """,
+
+    'raw_weather_hourly': """
+        SELECT
+            COUNT(*) as total_rows,
+            COUNT(DISTINCT source_file) as unique_files,
+            COUNT(DISTINCT city) as unique_cities,
+            MIN(timestamp) as earliest_timestamp,
+            MAX(timestamp) as latest_timestamp,
+            COUNT(DISTINCT date_trunc('day', timestamp)) as unique_days
+        FROM raw_weather_hourly
+    """,
 } 

@@ -38,6 +38,11 @@ TABLE_QUALITY_CONFIG = {
         'duplicate_key': 'number',
         'date_columns': ('start_date', 'end_date'),
     },
+    'raw_weather_hourly': {
+        'null_check_columns': ['timestamp', 'city', 'temperature_2m', 'wind_speed_10m'],
+        'duplicate_key': None,
+        'date_columns': ('timestamp', 'timestamp'),
+    },
 }
 
 
