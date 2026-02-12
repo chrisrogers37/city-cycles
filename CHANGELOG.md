@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Weather Data Pipeline** - End-to-end weather data extraction pipeline using Open-Meteo API
+  - New `extraction/weather.py` module with backfill (by year) and incremental (date-stamped) modes
+  - New `data_models/weather.py` with `HourlyWeatherRecord` dataclass for schema validation
+  - New `stg_weather_hourly` dbt staging model with derived fields: weather_condition (WMO codes), precipitation_intensity, temperature_band, wind_category
+  - DuckDB `raw_weather_hourly` table configuration (schema, S3 URI, validation, quality checks)
+  - Weather extraction integrated into orchestrator pipeline (non-blocking) and available as standalone stage
+  - 11 new tests covering API fetching, backfill idempotency, incremental updates, and data model validation
+
+### Changed
+- **BaseDataRecord Rename** - Renamed `BaseBikeShareRecord` → `BaseDataRecord` in `data_models/base.py`
+  - The base class is a generic schema-validation mixin with no bike-specific logic
+  - Updated all consumers: nyc_bike.py, london_bike.py, extracted_file_manager, and tests
+
 ### Technical Improvements
 - **Dependency Updates** - Updated outdated Python packages across three risk tiers
   - Tier 1 (safe): Updated 15 security/utility packages (certifi, urllib3, requests, click, GitPython, psutil, pillow, PyYAML, etc.)
