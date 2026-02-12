@@ -36,7 +36,7 @@ class TestDataModelsIntegration:
         
         # Verify registry contains all expected models
         registry = BaseDataRecord._registry
-        assert len(registry) == 4, f"Expected 4 models, got {len(registry)}"
+        assert len(registry) == 5, f"Expected 5 models, got {len(registry)}"
         
         # Verify each model has required attributes
         for model in registry:
@@ -173,7 +173,7 @@ class TestDataModelsIntegration:
         
         # Verify that the manager can access the model registry
         models = BaseDataRecord._registry
-        assert len(models) == 4, f"Expected 4 models, got {len(models)}"
+        assert len(models) == 5, f"Expected 5 models, got {len(models)}"
         
         # Verify ExtractedFileManager can be instantiated (this would fail if imports are broken)
         # Note: We don't actually instantiate it here since it requires S3 credentials
