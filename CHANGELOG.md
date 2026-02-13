@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-02-13
+
 ### Added
 - **Atmospheric UI & Dashboard Redesign** - Multi-page architecture with weather animations and time-of-day theming
   - Restructured 779-line monolithic `app.py` into lean 51-line entrypoint using `st.navigation` / `st.Page`
@@ -234,7 +236,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated ROADMAP.md with actual implementation status (checkboxes marked complete/pending)
   - Archived FEATURE-SUMMARY.md as historical document with note pointing to SYSTEM-GUIDE.md
   - Updated INCREMENTAL_STATUS.md with current review date
-
 - **Full Documentation Review & Handoff Preparation** (February 2026) - Verified all doc assertions against code
   - Fixed CLAUDE.md: `S3_BUCKET_NAME` → `S3_BUCKET`, bucket name to `city-cycles-data-ctr37`, corrected S3 parquet paths, fixed `file_processor.py` → `manager.py`
   - Fixed README.md: removed nonexistent `resources/` reference, added missing module README links, fixed London data date ranges (Legacy 2010-2022, Modern 2022-present), corrected DuckDB loading description to "Direct S3 Loading via httpfs / Full Replace"
@@ -286,6 +287,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History Summary
 
+- **2.0.0** (2026-02-13) - Weather data pipeline, atmospheric dashboard redesign, recommendation engine, Railway deployment, 135+ tests
 - **1.0.0** (2026-01-26) - Initial release with Claude Code power user setup and changelog
 
 ---
@@ -311,5 +313,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _Keep this changelog up to date with every significant change. Every PR should include a CHANGELOG.md update._
 
-[unreleased]: https://github.com/chrisrogers37/city-cycles/compare/v1.0.0...HEAD
+[unreleased]: https://github.com/chrisrogers37/city-cycles/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/chrisrogers37/city-cycles/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/chrisrogers37/city-cycles/releases/tag/v1.0.0
