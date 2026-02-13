@@ -93,20 +93,28 @@ class TestParquetFileManager:
         assert mock_s3.download_file.call_count == expected_downloads
 
     def test_marts_list_is_complete(self):
-        """The MARTS list should contain all 5 expected mart Parquet files."""
+        """The MARTS list should contain all 8 expected mart Parquet files."""
         from streamlit_data_manager.parquet_file_manager import MARTS
 
         expected = [
             "mart_daily_metrics.parquet",
-            "mart_hourly_patterns.parquet",
+            "mart_hourly_patterns_summary.parquet",
             "mart_nyc_member_analysis.parquet",
             "mart_station_growth.parquet",
             "mart_daily_metrics_long.parquet",
+            "mart_hourly_rides.parquet",
+            "mart_weather_ride_correlation.parquet",
+            "mart_weather_impact_summary.parquet",
         ]
 
-        assert len(MARTS) == 5
+        assert len(MARTS) == 8
         for mart in expected:
             assert mart in MARTS, f"Missing expected mart: {mart}"
+
+    def test_old_mart_hourly_patterns_removed(self):
+        """The old mart_hourly_patterns.parquet should NOT be in the MARTS list."""
+        from streamlit_data_manager.parquet_file_manager import MARTS
+        assert "mart_hourly_patterns.parquet" not in MARTS
 
     def test_s3_bucket_constant(self):
         """The S3_BUCKET constant should be set to the expected value."""

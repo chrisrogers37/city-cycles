@@ -16,6 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Weather extraction integrated into orchestrator pipeline (non-blocking) and available as standalone stage
   - 11 new tests covering API fetching, backfill idempotency, incremental updates, and data model validation
 
+- **Hourly Ride-Weather Analytics Marts** - New dbt mart models for weather-ride correlation analysis
+  - `mart_hourly_rides` — granular hourly ride metrics with date dimension (replaces mart_hourly_patterns)
+  - `mart_hourly_patterns_summary` — backward-compatible aggregate (same schema as old mart_hourly_patterns)
+  - `mart_weather_ride_correlation` — inner join of hourly rides and weather data
+  - `mart_weather_impact_summary` — pre-computed weather impact statistics with clear-weather baseline comparison
+  - Dashboard updated to use mart_hourly_patterns_summary (backward-compatible)
+  - MARTS list expanded from 5 to 8 entries across streamlit_data_manager and db_duckdb
+  - Fixed pre-existing missing mart_daily_metrics_long in pipeline.py status check
+
 ### Changed
 - **BaseDataRecord Rename** - Renamed `BaseBikeShareRecord` → `BaseDataRecord` in `data_models/base.py`
   - The base class is a generic schema-validation mixin with no bike-specific logic

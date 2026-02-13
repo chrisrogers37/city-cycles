@@ -453,10 +453,13 @@ class DuckDBOperations:
         # Mart tables to export
         MART_TABLES = [
             'mart_daily_metrics',
-            'mart_hourly_patterns', 
+            'mart_hourly_rides',
+            'mart_hourly_patterns_summary',
             'mart_nyc_member_analysis',
             'mart_station_growth',
-            'mart_daily_metrics_long'
+            'mart_daily_metrics_long',
+            'mart_weather_ride_correlation',
+            'mart_weather_impact_summary',
         ]
         
         # Intermediate and unified tables (optional exports)

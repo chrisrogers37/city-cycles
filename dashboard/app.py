@@ -405,7 +405,7 @@ if st.session_state.get('date_filter_applied', False) and applied_start_date and
             st.error(f"Error creating duration trend chart: {e}")
 
         st.subheader("Time of Day Analysis")
-        hour_query = f"SELECT hour_of_day, ride_count FROM '{os.path.join(DATA_DIR, 'mart_hourly_patterns.parquet')}' WHERE location = $1 ORDER BY hour_of_day"
+        hour_query = f"SELECT hour_of_day, ride_count FROM '{os.path.join(DATA_DIR, 'mart_hourly_patterns_summary.parquet')}' WHERE location = $1 ORDER BY hour_of_day"
         try:
             hour_df = run_query_params(hour_query, [applied_page.lower()])
             fig_hour = px.bar(hour_df, x='hour_of_day', y='ride_count', title=f"{applied_page} Rides by Hour of Day")

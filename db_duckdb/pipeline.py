@@ -190,8 +190,10 @@ class DuckDBPipeline:
                 }
             
             # Check for mart tables (if they exist)
-            mart_tables = ['mart_daily_metrics', 'mart_hourly_patterns', 
-                          'mart_nyc_member_analysis', 'mart_station_growth']
+            mart_tables = ['mart_daily_metrics', 'mart_hourly_rides',
+                          'mart_hourly_patterns_summary', 'mart_nyc_member_analysis',
+                          'mart_station_growth', 'mart_daily_metrics_long',
+                          'mart_weather_ride_correlation', 'mart_weather_impact_summary']
             
             status['marts_available'] = any(table in existing_tables for table in mart_tables)
             status['details']['mart_tables'] = [t for t in mart_tables if t in existing_tables]

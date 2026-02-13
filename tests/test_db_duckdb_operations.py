@@ -244,6 +244,19 @@ class TestDuckDBOperations:
         assert "Table not found" in report
         assert "Tables failed: 1" in report
 
+    def test_export_marts_includes_weather_marts(self):
+        """export_marts MART_TABLES should include all weather-related mart tables."""
+        from db_duckdb.operations import DuckDBOperations
+        import inspect
+
+        source = inspect.getsource(DuckDBOperations.export_marts)
+
+        assert 'mart_hourly_rides' in source
+        assert 'mart_hourly_patterns_summary' in source
+        assert 'mart_weather_ride_correlation' in source
+        assert 'mart_weather_impact_summary' in source
+        assert 'mart_hourly_patterns' not in source or 'mart_hourly_patterns_summary' in source
+
 
 # ---------------------------------------------------------------------------
 # DuckDBPipeline Tests

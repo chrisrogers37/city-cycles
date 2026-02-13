@@ -12,10 +12,13 @@ import os
 S3_BUCKET = os.environ.get("S3_BUCKET", "city-cycles-data-ctr37")
 MARTS = [
     "mart_daily_metrics.parquet",
-    "mart_hourly_patterns.parquet",
+    "mart_hourly_patterns_summary.parquet",
     "mart_nyc_member_analysis.parquet",
     "mart_station_growth.parquet",
-    "mart_daily_metrics_long.parquet"
+    "mart_daily_metrics_long.parquet",
+    "mart_hourly_rides.parquet",
+    "mart_weather_ride_correlation.parquet",
+    "mart_weather_impact_summary.parquet",
 ]
 
 # Always resolve data directory at project root

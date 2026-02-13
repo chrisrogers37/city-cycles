@@ -130,3 +130,74 @@ class TestRunQueryLogic:
         assert result["total"][0] == 250  # 100 + 150
         assert result["month"][1] == 2  # February
         assert result["total"][1] == 200
+
+    def test_hourly_patterns_summary_query(self, memory_conn):
+        """The hourly patterns query should work with mart_hourly_patterns_summary schema."""
+        memory_conn.execute("""
+            CREATE TABLE hourly_summary (
+                location VARCHAR,
+                hour_of_day INTEGER,
+                ride_count BIGINT
+            )
+        """)
+        memory_conn.execute("""
+            INSERT INTO hourly_summary VALUES
+            ('nyc', 0, 1000),
+            ('nyc', 8, 5000),
+            ('nyc', 17, 4500),
+            ('london', 0, 800),
+            ('london', 8, 4000),
+            ('london', 17, 3500)
+        """)
+
+        result = memory_conn.execute("""
+            SELECT hour_of_day, ride_count
+            FROM hourly_summary
+            WHERE location = 'nyc'
+            ORDER BY hour_of_day
+        """).fetchdf()
+
+        assert len(result) == 3
+        assert result["hour_of_day"][0] == 0
+        assert result["ride_count"][0] == 1000
+
+    def test_weather_impact_summary_query(self, memory_conn):
+        """The weather impact summary query should return pct_change data."""
+        memory_conn.execute("""
+            CREATE TABLE weather_impact (
+                location VARCHAR,
+                hour_of_day INTEGER,
+                dimension_type VARCHAR,
+                dimension_value VARCHAR,
+                is_precipitation BOOLEAN,
+                temperature_band VARCHAR,
+                observation_count INTEGER,
+                avg_rides FLOAT,
+                avg_duration_seconds FLOAT,
+                avg_member_rides FLOAT,
+                avg_casual_rides FLOAT,
+                baseline_avg_rides FLOAT,
+                baseline_avg_duration_seconds FLOAT,
+                pct_change_rides_vs_clear FLOAT,
+                pct_change_duration_vs_clear FLOAT
+            )
+        """)
+        memory_conn.execute("""
+            INSERT INTO weather_impact VALUES
+            ('nyc', 9, 'weather_condition', 'rain', NULL, NULL,
+             30, 150.0, 720.0, 100.0, 50.0, 220.0, 680.0, -31.8, 5.9),
+            ('nyc', 9, 'weather_condition', 'clear', NULL, NULL,
+             60, 220.0, 680.0, 150.0, 70.0, 220.0, 680.0, 0.0, 0.0)
+        """)
+
+        result = memory_conn.execute("""
+            SELECT dimension_value, pct_change_rides_vs_clear
+            FROM weather_impact
+            WHERE location = 'nyc'
+              AND hour_of_day = 9
+              AND dimension_type = 'weather_condition'
+              AND dimension_value = 'rain'
+        """).fetchdf()
+
+        assert len(result) == 1
+        assert result["pct_change_rides_vs_clear"][0] == pytest.approx(-31.8, abs=0.1)
