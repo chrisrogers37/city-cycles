@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Weather-Informed Recommendation Engine** - Biking score and natural language insights
+  - New `dashboard/recommendation_engine.py` — pure Python module with zero Streamlit imports
+  - WMO code classifier, temperature/wind/precipitation classifiers with enum-based categories
+  - Weighted biking score (0-100) from temperature, precipitation, wind, and weather conditions
+  - Historical data lookup via `mart_weather_impact_summary.parquet` with category mapping
+  - Template-based insight generator with severity ranking (warning > positive > caution > neutral)
+  - Dashboard integration: biking score gauge and recommendation cards in weather panel
+  - 50 new tests covering classifiers, scoring, historical lookup, insight generation, and integration
 - **Real-time Weather Dashboard** - Live weather panel with 15-minute auto-refresh
   - New `dashboard/weather_service.py` module fetching current conditions and 48-hour forecast from Open-Meteo
   - `CurrentWeather`, `HourlyForecastEntry`, `CityWeather` frozen dataclasses with unit conversion properties

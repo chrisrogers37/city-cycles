@@ -17,6 +17,12 @@ from dashboard.weather_service import (
     render_forecast_chart,
     render_forecast_table,
 )
+from dashboard.recommendation_engine import (
+    get_recommendations,
+    WeatherConditions,
+    Severity,
+    RecommendationResult,
+)
 
 # Always resolve data directory at project root
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -74,6 +80,59 @@ st.set_page_config(
 st.title("\U0001f6b2 City Cycles Analytics Dashboard")
 
 
+_SEVERITY_EMOJI = {
+    Severity.POSITIVE: "&#9989;",
+    Severity.NEUTRAL: "&#8505;",
+    Severity.CAUTION: "&#9888;",
+    Severity.WARNING: "&#128721;",
+}
+
+_SEVERITY_BG_COLOR = {
+    Severity.POSITIVE: "#d4edda",
+    Severity.NEUTRAL: "#e2e3e5",
+    Severity.CAUTION: "#fff3cd",
+    Severity.WARNING: "#f8d7da",
+}
+
+
+def _weather_to_conditions(weather_data) -> WeatherConditions:
+    """Bridge Phase 03 CurrentWeather to Phase 04 WeatherConditions."""
+    current = weather_data.current
+    return WeatherConditions(
+        temperature_celsius=current.temperature_c,
+        wind_speed_kmh=current.wind_speed_kmh,
+        precipitation_mm=current.precipitation_mm,
+        weather_code=current.weather_code,
+        location=current.city,
+        hour=current.time.hour,
+        humidity_percent=float(current.relative_humidity),
+        feels_like_celsius=current.apparent_temperature_c,
+    )
+
+
+def render_recommendations(result: RecommendationResult):
+    """Render recommendation engine results in the dashboard."""
+    score = result.biking_score
+    st.markdown(
+        f"<div style='text-align:center; padding:0.75em; "
+        f"background:{score.color}22; border-radius:8px; margin-bottom:0.75em;'>"
+        f"<h3 style='margin:0; color:{score.color};'>"
+        f"Biking Score: {score.score}/100</h3>"
+        f"<p style='margin:0;'>{score.label}</p>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+    for rec in result.recommendations:
+        emoji = _SEVERITY_EMOJI[rec.severity]
+        bg = _SEVERITY_BG_COLOR[rec.severity]
+        st.markdown(
+            f"<div style='padding:0.5em 0.75em; background:{bg}; "
+            f"border-radius:6px; margin-bottom:0.4em; font-size:0.9em;'>"
+            f"{emoji} {rec.text}</div>",
+            unsafe_allow_html=True,
+        )
+
+
 @st.fragment(run_every="15m")
 def weather_panel():
     """Auto-refreshing weather panel. Reruns every 15 minutes independently."""
@@ -85,12 +144,18 @@ def weather_panel():
     with col_nyc:
         if nyc_weather:
             render_current_weather(nyc_weather, use_fahrenheit=True)
+            conditions = _weather_to_conditions(nyc_weather)
+            result = get_recommendations(conditions, conn=DUCKDB_CONN)
+            render_recommendations(result)
         else:
             st.warning("Weather data unavailable for NYC")
 
     with col_london:
         if london_weather:
             render_current_weather(london_weather, use_fahrenheit=False)
+            conditions = _weather_to_conditions(london_weather)
+            result = get_recommendations(conditions, conn=DUCKDB_CONN)
+            render_recommendations(result)
         else:
             st.warning("Weather data unavailable for London")
 
