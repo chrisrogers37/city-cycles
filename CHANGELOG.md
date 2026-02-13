@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Real-time Weather Dashboard** - Live weather panel with 15-minute auto-refresh
+  - New `dashboard/weather_service.py` module fetching current conditions and 48-hour forecast from Open-Meteo
+  - `CurrentWeather`, `HourlyForecastEntry`, `CityWeather` frozen dataclasses with unit conversion properties
+  - WMO weather code mappings (descriptions, categories, emojis) for all 27 Open-Meteo codes
+  - `@st.fragment(run_every="15m")` for partial page rerun (no third-party dependency needed)
+  - `@st.cache_data(ttl=900)` for 15-minute response caching with graceful error handling
+  - Forecast chart (Plotly dual-axis: temperature + precipitation probability) and 12-hour summary table
+  - 30 new tests covering WMO codes, API parsing, fetch error handling, and coordinate validation
 - **Weather Data Pipeline** - End-to-end weather data extraction pipeline using Open-Meteo API
   - New `extraction/weather.py` module with backfill (by year) and incremental (date-stamped) modes
   - New `data_models/weather.py` with `HourlyWeatherRecord` dataclass for schema validation
