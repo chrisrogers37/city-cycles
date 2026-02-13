@@ -11,6 +11,12 @@ from dotenv import load_dotenv
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from streamlit_data_manager.parquet_file_manager import ensure_local_parquet_files
+from dashboard.weather_service import (
+    get_city_weather_cached,
+    render_current_weather,
+    render_forecast_chart,
+    render_forecast_table,
+)
 
 # Always resolve data directory at project root
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -66,6 +72,43 @@ st.set_page_config(
 
 # Title
 st.title("\U0001f6b2 City Cycles Analytics Dashboard")
+
+
+@st.fragment(run_every="15m")
+def weather_panel():
+    """Auto-refreshing weather panel. Reruns every 15 minutes independently."""
+    col_nyc, col_london = st.columns(2)
+
+    nyc_weather = get_city_weather_cached("nyc")
+    london_weather = get_city_weather_cached("london")
+
+    with col_nyc:
+        if nyc_weather:
+            render_current_weather(nyc_weather, use_fahrenheit=True)
+        else:
+            st.warning("Weather data unavailable for NYC")
+
+    with col_london:
+        if london_weather:
+            render_current_weather(london_weather, use_fahrenheit=False)
+        else:
+            st.warning("Weather data unavailable for London")
+
+    with st.expander("48-Hour Forecast"):
+        forecast_col_nyc, forecast_col_london = st.columns(2)
+        with forecast_col_nyc:
+            if nyc_weather:
+                render_forecast_chart(nyc_weather, use_fahrenheit=True)
+                render_forecast_table(nyc_weather, use_fahrenheit=True)
+        with forecast_col_london:
+            if london_weather:
+                render_forecast_chart(london_weather, use_fahrenheit=False)
+                render_forecast_table(london_weather, use_fahrenheit=False)
+
+
+weather_panel()
+
+st.divider()
 
 dashboard_min_date = pd.to_datetime('2019-01-01').date()
 dashboard_max_date = pd.to_datetime('2024-12-31').date()
