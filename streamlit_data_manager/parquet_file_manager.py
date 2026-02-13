@@ -19,6 +19,8 @@ MARTS = [
     "mart_hourly_rides.parquet",
     "mart_weather_ride_correlation.parquet",
     "mart_weather_impact_summary.parquet",
+    "mart_station_directory.parquet",
+    "mart_station_weather_performance.parquet",
 ]
 
 # Always resolve data directory at project root

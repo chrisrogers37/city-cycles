@@ -201,3 +201,90 @@ class TestRunQueryLogic:
 
         assert len(result) == 1
         assert result["pct_change_rides_vs_clear"][0] == pytest.approx(-31.8, abs=0.1)
+
+
+class TestStationWeatherQueryLogic:
+    """Test station weather performance query patterns used by the dashboard."""
+
+    @pytest.fixture
+    def weather_conn(self):
+        """Create an in-memory DuckDB connection with test station weather data."""
+        conn = duckdb.connect(":memory:")
+        conn.execute("""
+            CREATE TABLE station_directory AS
+            SELECT * FROM (VALUES
+                ('nyc', 'S001', 'Central Park', 40.7829, -73.9654, 50000, '2019-01-01'::DATE, '2024-12-31'::DATE),
+                ('nyc', 'S002', 'Times Square', 40.7580, -73.9855, 80000, '2019-01-01'::DATE, '2024-12-31'::DATE),
+                ('london', 'L001', 'Hyde Park', NULL, NULL, 30000, '2019-01-01'::DATE, '2024-12-31'::DATE)
+            ) AS t(location, station_id, station_name, latitude, longitude,
+                   total_rides, first_ride_date, last_ride_date)
+        """)
+        conn.execute("""
+            CREATE TABLE station_weather AS
+            SELECT * FROM (VALUES
+                ('nyc', 'S001', 8, 'clear', 5000, 25.0, 12.5, 200, NULL),
+                ('nyc', 'S001', 8, 'rain',  3000, 15.0, 14.0, 200, -40.0),
+                ('nyc', 'S002', 8, 'clear', 8000, 40.0, 10.0, 200, NULL),
+                ('nyc', 'S002', 8, 'rain',  7200, 36.0, 11.0, 200, -10.0),
+                ('london', 'L001', 8, 'clear', 3000, 15.0, 20.0, 200, NULL),
+                ('london', 'L001', 8, 'rain',  2100, 10.5, 22.0, 200, -30.0)
+            ) AS t(location, station_id, hour_of_day, weather_condition,
+                   total_rides, avg_rides_per_day, avg_duration_minutes,
+                   days_observed, pct_change_vs_clear)
+        """)
+        yield conn
+        conn.close()
+
+    def test_resilience_ranking_ordered_by_pct_change(self, weather_conn):
+        """Weather resilience query should return stations ordered by pct_change DESC."""
+        result = weather_conn.execute("""
+            SELECT s.station_id, d.station_name,
+                   round(avg(s.pct_change_vs_clear), 1) as avg_pct_change
+            FROM station_weather s
+            JOIN station_directory d ON s.location = d.location AND s.station_id = d.station_id
+            WHERE s.location = 'nyc'
+              AND s.weather_condition = 'rain'
+              AND s.pct_change_vs_clear IS NOT NULL
+            GROUP BY s.station_id, d.station_name
+            ORDER BY avg_pct_change DESC
+        """).fetchdf()
+        assert len(result) == 2
+        assert result['station_id'].iloc[0] == 'S002'
+        assert result['avg_pct_change'].iloc[0] == -10.0
+        assert result['avg_pct_change'].iloc[1] == -40.0
+
+    def test_map_data_has_coordinates_for_nyc(self, weather_conn):
+        """Map query should return non-null coordinates for NYC stations."""
+        result = weather_conn.execute("""
+            SELECT latitude, longitude
+            FROM station_directory
+            WHERE location = 'nyc' AND latitude IS NOT NULL
+        """).fetchdf()
+        assert len(result) == 2
+        assert all(result['latitude'].notna())
+        assert all(result['longitude'].notna())
+
+    def test_london_has_null_coordinates(self, weather_conn):
+        """London stations should have NULL coordinates."""
+        result = weather_conn.execute("""
+            SELECT latitude, longitude
+            FROM station_directory
+            WHERE location = 'london'
+        """).fetchdf()
+        assert result['latitude'].isna().all()
+        assert result['longitude'].isna().all()
+
+    def test_weather_comparison_across_cities(self, weather_conn):
+        """Cross-city weather comparison should return data for both cities."""
+        result = weather_conn.execute("""
+            SELECT location, weather_condition,
+                   round(avg(pct_change_vs_clear), 1) as avg_pct_change
+            FROM station_weather
+            WHERE pct_change_vs_clear IS NOT NULL
+              AND weather_condition != 'clear'
+            GROUP BY location, weather_condition
+        """).fetchdf()
+        assert len(result) == 2
+        locations = result['location'].tolist()
+        assert 'nyc' in locations
+        assert 'london' in locations

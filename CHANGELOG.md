@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Station-Level Weather Analysis** - Station weather resilience metrics and map visualization
+  - New `mart_station_directory` dbt mart — reference table for all stations with NYC lat/lng coordinates
+  - New `mart_station_weather_performance` dbt mart — ridership change per station per weather condition vs clear baseline
+  - Dashboard: weather resilience ranking table with condition/hour filters
+  - Dashboard: NYC scatter map (OpenStreetMap, no token) colored by weather impact
+  - Dashboard: cross-city weather impact comparison bar chart on Comparison page
+  - 4 new dashboard query tests, updated mart list tests
 - **Weather-Informed Recommendation Engine** - Biking score and natural language insights
   - New `dashboard/recommendation_engine.py` — pure Python module with zero Streamlit imports
   - WMO code classifier, temperature/wind/precipitation classifiers with enum-based categories

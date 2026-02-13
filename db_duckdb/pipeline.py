@@ -193,7 +193,8 @@ class DuckDBPipeline:
             mart_tables = ['mart_daily_metrics', 'mart_hourly_rides',
                           'mart_hourly_patterns_summary', 'mart_nyc_member_analysis',
                           'mart_station_growth', 'mart_daily_metrics_long',
-                          'mart_weather_ride_correlation', 'mart_weather_impact_summary']
+                          'mart_weather_ride_correlation', 'mart_weather_impact_summary',
+                          'mart_station_directory', 'mart_station_weather_performance']
             
             status['marts_available'] = any(table in existing_tables for table in mart_tables)
             status['details']['mart_tables'] = [t for t in mart_tables if t in existing_tables]

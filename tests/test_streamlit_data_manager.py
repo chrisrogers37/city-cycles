@@ -93,7 +93,7 @@ class TestParquetFileManager:
         assert mock_s3.download_file.call_count == expected_downloads
 
     def test_marts_list_is_complete(self):
-        """The MARTS list should contain all 8 expected mart Parquet files."""
+        """The MARTS list should contain all 10 expected mart Parquet files."""
         from streamlit_data_manager.parquet_file_manager import MARTS
 
         expected = [
@@ -105,9 +105,11 @@ class TestParquetFileManager:
             "mart_hourly_rides.parquet",
             "mart_weather_ride_correlation.parquet",
             "mart_weather_impact_summary.parquet",
+            "mart_station_directory.parquet",
+            "mart_station_weather_performance.parquet",
         ]
 
-        assert len(MARTS) == 8
+        assert len(MARTS) == 10
         for mart in expected:
             assert mart in MARTS, f"Missing expected mart: {mart}"
 
