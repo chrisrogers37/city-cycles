@@ -33,6 +33,7 @@ profiles.yml
 # Secrets and config
 *.toml
 !railway.toml
+!.streamlit/config.toml
 secrets.*
 config/secrets.*
 *.pem

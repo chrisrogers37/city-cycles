@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Atmospheric UI & Dashboard Redesign** - Multi-page architecture with weather animations and time-of-day theming
+  - Restructured 779-line monolithic `app.py` into lean 51-line entrypoint using `st.navigation` / `st.Page`
+  - New `dashboard/pages/` — 4 page modules: landing, ride_analytics, weather_deep_dive, comparison
+  - New `dashboard/components/` — 6 reusable components: city_toggle, weather_hero, recommendation_cards, forecast_strip, biking_score_gauge, chart_factory
+  - New `dashboard/theme/` — time-of-day period calculation, atmospheric Plotly template with dark theme
+  - New `dashboard/utils/` — extracted query helpers, CSS injection utilities
+  - New `dashboard/static/` — rain (40 drops), snow (30 flakes), clear (sun pulse), cloudy (drift) CSS animations
+  - Time-of-day gradient backgrounds (night, dawn, morning, day, golden, dusk) keyed to city timezone
+  - `.streamlit/config.toml` with dark theme configuration
+  - Weather Deep Dive page: temperature vs rides, precipitation impact, condition breakdown, hourly weather impact
+  - 52 new tests: theme, CSS injector, components, chart factory
 - **Station-Level Weather Analysis** - Station weather resilience metrics and map visualization
   - New `mart_station_directory` dbt mart — reference table for all stations with NYC lat/lng coordinates
   - New `mart_station_weather_performance` dbt mart — ridership change per station per weather condition vs clear baseline
