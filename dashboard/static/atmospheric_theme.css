@@ -1,0 +1,70 @@
+/* === TIME-OF-DAY GRADIENT SYSTEM === */
+
+[data-testid="stAppViewContainer"] {
+    transition: background 2s ease;
+}
+
+/* Night: 10pm - 5am */
+[data-time-period="night"] [data-testid="stAppViewContainer"] {
+    background: linear-gradient(180deg, #0a0e27 0%, #1a1a3e 50%, #0d1117 100%) !important;
+}
+
+/* Dawn: 5am - 7am */
+[data-time-period="dawn"] [data-testid="stAppViewContainer"] {
+    background: linear-gradient(180deg, #1a1a3e 0%, #4a2040 25%, #c97035 60%, #e8a765 100%) !important;
+}
+
+/* Morning: 7am - 10am */
+[data-time-period="morning"] [data-testid="stAppViewContainer"] {
+    background: linear-gradient(180deg, #1a2940 0%, #2d4a6e 40%, #3d6080 100%) !important;
+}
+
+/* Day: 10am - 4pm */
+[data-time-period="day"] [data-testid="stAppViewContainer"] {
+    background: linear-gradient(180deg, #1a3050 0%, #264a70 30%, #2d5580 70%, #1a3050 100%) !important;
+}
+
+/* Golden Hour: 4pm - 7pm */
+[data-time-period="golden"] [data-testid="stAppViewContainer"] {
+    background: linear-gradient(180deg, #4a3520 0%, #6b4a15 30%, #4a3020 60%, #2a2020 100%) !important;
+}
+
+/* Dusk: 7pm - 10pm */
+[data-time-period="dusk"] [data-testid="stAppViewContainer"] {
+    background: linear-gradient(180deg, #2a1535 0%, #3d2050 30%, #1e2840 70%, #0d1117 100%) !important;
+}
+
+/* === GLOBAL DARK THEME OVERRIDES === */
+
+/* Semi-transparent dark sidebar */
+[data-testid="stSidebar"] {
+    background: rgba(13, 17, 23, 0.85) !important;
+    backdrop-filter: blur(10px);
+}
+
+/* Text readability on all backgrounds */
+[data-testid="stAppViewContainer"] .stMarkdown,
+[data-testid="stAppViewContainer"] .stMetric,
+[data-testid="stAppViewContainer"] h1,
+[data-testid="stAppViewContainer"] h2,
+[data-testid="stAppViewContainer"] h3,
+[data-testid="stAppViewContainer"] p {
+    color: #EAEAEA !important;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Metric value emphasis */
+[data-testid="stMetric"] [data-testid="stMetricValue"] {
+    color: #FFFFFF !important;
+    font-weight: 700;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* Card-style containers */
+[data-testid="stAppViewContainer"] .stExpander,
+[data-testid="stAppViewContainer"] [data-testid="stDataFrame"] {
+    background: rgba(30, 35, 45, 0.7) !important;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(8px);
+}
