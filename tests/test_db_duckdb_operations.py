@@ -255,6 +255,8 @@ class TestDuckDBOperations:
         assert 'mart_hourly_patterns_summary' in source
         assert 'mart_weather_ride_correlation' in source
         assert 'mart_weather_impact_summary' in source
+        assert 'mart_station_directory' in source
+        assert 'mart_station_weather_performance' in source
         assert 'mart_hourly_patterns' not in source or 'mart_hourly_patterns_summary' in source
 
 

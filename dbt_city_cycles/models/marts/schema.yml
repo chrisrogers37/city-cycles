@@ -265,6 +265,85 @@ models:
       - name: yoy_growth
         description: Year-over-year growth percentage (NULL for first year)
 
+  - name: mart_station_directory
+    description: >
+      Reference dimension table for all bike share stations across NYC and London.
+      One row per (location, station_id). NYC stations include latitude/longitude
+      coordinates; London stations have NULL for coordinates.
+    columns:
+      - name: location
+        description: City identifier (nyc or london)
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['nyc', 'london']
+      - name: station_id
+        description: Unique station identifier within each city
+        tests:
+          - not_null
+      - name: station_name
+        description: Most recent station name
+        tests:
+          - not_null
+      - name: latitude
+        description: Station latitude (NYC only, NULL for London)
+      - name: longitude
+        description: Station longitude (NYC only, NULL for London)
+      - name: total_rides
+        description: Total number of departures from this station across all time
+        tests:
+          - not_null
+      - name: first_ride_date
+        description: Date of the earliest recorded ride departing from this station
+        tests:
+          - not_null
+      - name: last_ride_date
+        description: Date of the most recent recorded ride departing from this station
+        tests:
+          - not_null
+
+  - name: mart_station_weather_performance
+    description: >
+      Station-level weather impact analysis. Measures how each station's ridership
+      and trip duration change under different weather conditions compared to clear
+      weather. Grain is (location, station_id, hour_of_day, weather_condition).
+      Only includes station-hour-condition combinations with at least 100 rides.
+    columns:
+      - name: location
+        description: City identifier (nyc or london)
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['nyc', 'london']
+      - name: station_id
+        description: Station identifier
+        tests:
+          - not_null
+      - name: hour_of_day
+        description: Hour of day (0-23)
+        tests:
+          - not_null
+      - name: weather_condition
+        description: "Weather condition category from stg_weather_hourly"
+        tests:
+          - not_null
+      - name: total_rides
+        description: Total rides departing from this station in this hour under this weather condition
+        tests:
+          - not_null
+      - name: avg_rides_per_day
+        description: Average rides per day for this station-hour-condition (normalized by days observed)
+      - name: avg_duration_minutes
+        description: Average ride duration in minutes
+      - name: days_observed
+        description: Number of distinct days this weather condition was observed in this hour
+        tests:
+          - not_null
+      - name: pct_change_vs_clear
+        description: >
+          Percentage change in avg_rides_per_day compared to clear weather for the same station
+          and hour. Negative values indicate fewer rides. NULL when no clear-weather baseline exists.
+
   - name: mart_nyc_member_analysis
     description: >
       Monthly member percentage analysis for NYC.
