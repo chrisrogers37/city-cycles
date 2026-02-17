@@ -26,10 +26,12 @@ I built an end-to-end, automatable flow that:
 ## Infrastructure
 
 - **AWS S3:** Centralized storage for all raw and processed data.
-- **DuckDB on AWS EC2:** Embedded analytics database for data processing and transformation.
-  - **Architecture Note:** Uses DuckDB on EC2 for cost efficiency and improved performance.
-  - **Benefits:** DuckDB provides faster analytics queries and lower costs compared to traditional RDS solutions.
-- **AWS EC2 (Ubuntu):** Orchestration and processing environment.
+- **DuckDB:** Embedded analytics database for data processing and transformation.
+  - **On-Demand Processing:** Fresh DuckDB instance created for each pipeline run (via Docker).
+  - **Benefits:** Faster analytics queries and lower costs compared to traditional RDS solutions.
+- **Railway:** Container platform for pipeline execution via cron schedule.
+  - **Deployment:** Containerized pipeline via Docker (`Dockerfile`, `railway.toml`).
+  - **Cost Efficiency:** Ephemeral architecture — runs only when needed.
 - **Streamlit Cloud:** Free public hosting for the dashboard.
 
 ---
@@ -41,18 +43,19 @@ The orchestrator provides a single entry point for managing the complete end-to-
 ### Features
 - **Unified Coordination:** Manages all pipeline stages from a single command
 - **Flexible Execution:** Run complete pipeline or individual stages
-- **Production-Ready:** Designed for monthly batch runs on EC2 with cron scheduling
+- **Production-Ready:** Designed for monthly batch runs on Railway (Docker) or EC2 with cron scheduling
 - **Incremental Strategy:** Leverages dbt incremental models for 37% faster runtime
 - **Comprehensive Logging:** Detailed logging and error reporting at each stage
 
 ### Pipeline Stages
 
 ```
-1. Extract Data      → Download NYC & London bike data to S3
-2. File Management   → Unzip, validate schemas, convert to Parquet
-3. Database Load     → Load Parquet files into DuckDB raw tables
-4. dbt Transform     → Run incremental transformations (staging → marts)
-5. Mart Export       → Export analytics tables to S3 for dashboard
+1. Extract Data         → Download NYC & London bike data to S3
+2. Weather Extraction   → Fetch historical/incremental weather data from Open-Meteo API
+3. File Management      → Unzip, validate schemas, convert to Parquet
+4. Database Load        → Load Parquet files into DuckDB raw tables
+5. dbt Transform        → Run incremental transformations (staging → marts)
+6. Mart Export          → Export analytics tables to S3 for dashboard
 ```
 
 ### Quick Start
@@ -82,7 +85,7 @@ Monthly runs configured via cron on EC2:
 0 3 1 1,4,7,10 * cd /home/ubuntu/city-cycles && python -m orchestrator.cli run --dbt-full-refresh
 ```
 
-**See `orchestrator/README.md` for complete documentation, `docs/ec2-deployment-guide.md` for deployment instructions, and `docs/incremental-processing-guide.md` for incremental update strategy.**
+**See `orchestrator/README.md` for complete documentation. Deployment: `Dockerfile` + `railway.toml` for Railway, `documentation/archive/ec2-deployment-guide.md` for EC2. See `documentation/archive/incremental-processing-guide.md` for incremental update strategy.**
 
 ---
 
@@ -200,10 +203,13 @@ The DuckDB pipeline handles the single concern of loading processed data into th
 
 ## Dashboard
 
-- **Plotly + Streamlit** power an interactive analytics dashboard:
-  - City-specific and comparative views.
-  - Flexible date filtering, per-capita toggles, and trend overlays.
-  - KPIs, time series, and station growth visualizations.
+- **Multi-page atmospheric UI** with 4 pages:
+  - **Landing:** Overview with real-time weather, city toggle, key metrics.
+  - **Ride Analytics:** Historical trends, per-capita analysis, station growth, KPIs.
+  - **Weather Deep Dive:** Temperature vs rides, precipitation impact, hourly weather analysis, station resilience map.
+  - **City Comparison:** Side-by-side metrics, weather impact comparison, seasonal patterns.
+- **Weather features:** Real-time forecasts (15-min auto-refresh), biking score (0-100), natural language recommendations, station-level weather resilience analysis.
+- **Atmospheric theme:** Dark mode with time-of-day styling, weather CSS animations (rain, snow, sun, clouds), responsive Plotly charts.
 - **Deployed on Streamlit Cloud** for public access.
 - **Data Source:** Reads metric marts from S3 Parquet files exported by the DuckDB pipeline.
 
@@ -220,15 +226,13 @@ The DuckDB pipeline handles the single concern of loading processed data into th
 - `streamlit_data_manager/README.md` — Dashboard data management
 
 ### Architecture & Deployment
-- `docs/SYSTEM-GUIDE.md` — System overview and quick start guide
-- `docs/incremental-processing-guide.md` — **Incremental processing guide** (how to run monthly updates efficiently)
-- `docs/incremental-pipeline-architecture.md` — Incremental dbt strategy and best practices
-- `docs/ec2-deployment-guide.md` — Production deployment on AWS EC2
+- `documentation/archive/SYSTEM-GUIDE.md` — System overview and quick start guide
+- `documentation/archive/incremental-processing-guide.md` — Incremental processing guide
+- `documentation/archive/incremental-pipeline-architecture.md` — Incremental dbt strategy and best practices
+- `documentation/archive/ec2-deployment-guide.md` — EC2 deployment (archived; Railway is current)
 
 ### Planning
-- `docs/planning/ROADMAP.md` — Project enhancement roadmap
-- `docs/planning/COST-OPTIMIZATION.md` — AWS cost reduction strategies
-- `docs/planning/QUICK-START-PRIORITIES.md` — Immediate action items
+- `documentation/planning/ROADMAP.md` — Project enhancement roadmap
 
 ## Technologies Used
 
@@ -240,54 +244,38 @@ The DuckDB pipeline handles the single concern of loading processed data into th
 - **DuckDB** — Embedded analytics database for fast data processing
 - **dbt (Data Build Tool)** — SQL-based data transformation, modeling, and analytics marts
 - **AWS S3** — Cloud object storage for raw and processed data
-- **AWS EC2 (Ubuntu)** — Cloud compute for orchestration and automation
+- **Railway** — Container platform for pipeline deployment (`Dockerfile`, `railway.toml`)
+- **Open-Meteo API** — Free weather data source for historical and forecast data
 - **Streamlit** — Interactive dashboarding and web app framework
 - **Plotly** — Advanced data visualization and charting
 - **Streamlit Cloud** — Free public hosting for the dashboard
 - **dotenv** — Environment variable management
-- **pytest** — Automated testing framework
+- **pytest** — Automated testing framework (283 tests)
 - **Git & GitHub** — Version control and collaboration
-- **ChatGPT & Cursor** — AI-assisted coding, documentation, and ideation
+- **Claude Code** — AI-assisted coding, documentation, and pipeline development
 
 ---
 
 ## Roadmap & Next Steps
 
-### Additional Data Sources
-- **Populations**
-  - Validate that the population figures used reflect the total volume of people living within bike infrastructure coverage.
-- **Weather**
-  - Enrich the database with weather data and utilize it in analytics to provide weather-based insight on bike utilization.
-- **Covid**
-  - Bring in annotated events data to contextualize anomalies and visualize pandemic impact.
+### Recently Completed (v2.0.0 — Feb 2026)
+- **Weather Data Pipeline:** Open-Meteo API integration for hourly weather data across all years
+- **Real-Time Weather Dashboard:** Live weather panel with 15-min auto-refresh and 48-hour forecasts
+- **Weather-Informed Recommendations:** Biking score algorithm (0-100) with natural language insights
+- **Station-Level Weather Analysis:** Resilience metrics and map visualization showing weather impact by location
+- **Atmospheric UI Redesign:** Multi-page dashboard with dark theme, weather animations, and time-of-day styling
+- **Railway Deployment:** Migrated from EC2 to Railway for containerized pipeline execution
+- **Hourly Ride-Weather Analytics:** New dbt marts for weather-ride correlation analysis
 
-### Infrastructure & Automation
-- **Completed:** Production-ready orchestrator for end-to-end pipeline automation
-- **Completed:** Incremental dbt strategy for 37% faster monthly runs
-- **Completed:** EC2 deployment guide with cron scheduling
+### Additional Data Sources (Future)
+- **Populations** — Validate population figures reflect coverage area for per-capita accuracy
+- **Covid** — Annotated events data to contextualize anomalies and visualize pandemic impact
 
-### Data Extraction
-- **Completed:** Simplified file processing with idempotent operations and file existence checks
-
-### Database Load
-- **Future:** Incremental raw table loading (track processed files, only load new)
-- **Future:** Improved data modeling (indexing, partitioning)
-- **Future:** Remove pandas dependency for greater efficiency
-
-### Analytics
-- **Explore new metrics, categorizations, and areas of insight**
-  - Station-focused metrics
-  - Route-focused insight (distance, heatmapping, common routes, inflow vs outflow)
-  - Bike-focused insight (in London using bike_id)
-  - Segmentation by day of week
-  - Segmentation by weather (bring in external data source)
-  - Quantified seasonal effects
-  - Quantified Covid effects (bring in external data source)
-
-### Monitoring & Observability
-- **Future:** CloudWatch integration for metrics and alerting
-- **Future:** SNS notifications for pipeline failures
-- **Future:** Data quality tests with Great Expectations
+### Future Enhancements
+- Route-focused insight (distance, heatmapping, common routes, inflow vs outflow)
+- Bike-focused insight (in London using bike_id)
+- Incremental raw table loading (track processed files, only load new)
+- Monitoring and alerting (CloudWatch, SNS notifications)
 
 ---
 

@@ -42,9 +42,9 @@ pg = st.navigation({
         st.Page(landing.render, title="Dashboard", icon="\U0001f326\ufe0f", default=True),
     ],
     "Analytics": [
-        st.Page(ride_analytics.render, title="Ride Analytics", icon="\U0001f6b2"),
-        st.Page(weather_deep_dive.render, title="Weather Deep Dive", icon="\U0001f321\ufe0f"),
-        st.Page(comparison.render, title="City Comparison", icon="\U0001f30d"),
+        st.Page(ride_analytics.render, title="Ride Analytics", icon="\U0001f6b2", url_path="ride-analytics"),
+        st.Page(weather_deep_dive.render, title="Weather Deep Dive", icon="\U0001f321\ufe0f", url_path="weather-deep-dive"),
+        st.Page(comparison.render, title="City Comparison", icon="\U0001f30d", url_path="city-comparison"),
     ],
 })
 

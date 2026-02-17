@@ -39,11 +39,12 @@ Execute the City Cycles data pipeline with comprehensive validation:
    **Option C: Individual stage**
    ```bash
    # Run specific stage only
-   python -m orchestrator.cli stage extract
+   python -m orchestrator.cli stage extraction
+   python -m orchestrator.cli stage weather_extraction
    python -m orchestrator.cli stage file_management
    python -m orchestrator.cli stage database_load
    python -m orchestrator.cli stage dbt
-   python -m orchestrator.cli stage mart_export
+   python -m orchestrator.cli stage export
    ```
 
 ## Post-Run Validation

@@ -25,7 +25,7 @@ python -m py_compile orchestrator/*.py extraction/*.py
 
 **Verify schema definitions:**
 ```bash
-python -m pytest tests/test_data_models.py -v
+python -m pytest tests/test_data_models_integration.py tests/test_nyc_models.py tests/test_london_models.py -v
 ```
 
 Validate:
@@ -42,10 +42,16 @@ Validate:
 python -m orchestrator.cli status
 
 # Validate file processor logic
-python -m pytest tests/test_extracted_file_manager.py -v
+python -m pytest tests/test_extracted_file_manager_current.py -v
 
 # Check DuckDB operations
-python -m pytest tests/test_db_duckdb.py -v
+python -m pytest tests/test_db_duckdb_cli.py tests/test_db_duckdb_operations.py -v
+
+# Verify weather pipeline
+python -m pytest tests/test_weather_extraction.py tests/test_weather_service.py -v
+
+# Verify dashboard components and recommendation engine
+python -m pytest tests/test_dashboard_components.py tests/test_recommendation_engine.py -v
 ```
 
 ### 4. dbt Validation

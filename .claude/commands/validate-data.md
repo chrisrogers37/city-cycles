@@ -10,15 +10,16 @@ Run data model tests to ensure schemas are valid:
 
 ```bash
 # Test NYC data models
-python -m pytest tests/test_data_models.py::test_nyc_legacy_schema -v
-python -m pytest tests/test_data_models.py::test_nyc_modern_schema -v
+python -m pytest tests/test_nyc_models.py -v
 
 # Test London data models
-python -m pytest tests/test_data_models.py::test_london_legacy_schema -v
-python -m pytest tests/test_data_models.py::test_london_modern_schema -v
+python -m pytest tests/test_london_models.py -v
 
-# Run all data model tests
-python -m pytest tests/test_data_models.py -v
+# Run all data model integration tests
+python -m pytest tests/test_data_models_integration.py -v
+
+# Run weather data model tests
+python -m pytest tests/test_weather_extraction.py -v
 ```
 
 ## 2. File Processing Validation
@@ -27,7 +28,7 @@ Check that file processing is working correctly:
 
 ```bash
 # Test file extraction and conversion
-python -m pytest tests/test_extracted_file_manager.py -v
+python -m pytest tests/test_extracted_file_manager_current.py -v
 
 # Validate Parquet file structure
 python -c "
@@ -42,7 +43,7 @@ Verify DuckDB data integrity:
 
 ```bash
 # Test database operations
-python -m pytest tests/test_db_duckdb.py -v
+python -m pytest tests/test_db_duckdb_cli.py tests/test_db_duckdb_operations.py -v
 
 # Check row counts (if DuckDB client available)
 # python -m db_duckdb.validate_raw_tables
