@@ -7,9 +7,6 @@ This directory contains Claude Code configuration following Boris Cherny's best 
 ```
 .claude/
 ├── commands/           # Slash commands for common workflows
-│   ├── quick-commit.md
-│   ├── commit-push-pr.md
-│   ├── test-and-fix.md
 │   ├── run-pipeline.md
 │   ├── validate-data.md
 │   └── review-changes.md
@@ -22,6 +19,8 @@ This directory contains Claude Code configuration following Boris Cherny's best 
 └── settings.json      # Pre-allowed permissions & hooks
 ```
 
+> **Note:** `quick-commit`, `commit-push-pr`, and `test-and-fix` are available as global skills (installed in `~/.claude/skills/`) rather than project-level commands.
+
 ## 🚀 Quick Start
 
 ### Using Slash Commands
@@ -30,12 +29,15 @@ In Claude Code, type `/` to see available commands:
 
 | Command | Description |
 |---------|-------------|
-| `/quick-commit` | Fast commit workflow with conventional commits |
-| `/commit-push-pr` | Full git workflow: commit, push, and create PR |
-| `/test-and-fix` | Run pytest suite and fix any failures |
 | `/run-pipeline` | Execute orchestrator pipeline with validation |
 | `/validate-data` | Run comprehensive data quality checks |
 | `/review-changes` | Review uncommitted changes and suggest improvements |
+
+**Global skills** (available across all projects):
+| Skill | Description |
+|-------|-------------|
+| `/quick-commit` | Fast commit with conventional commits format |
+| `/commit-push-pr` | Full git workflow: commit, push, and create PR |
 
 **Example:**
 ```

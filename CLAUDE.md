@@ -8,15 +8,16 @@ City Cycles is an end-to-end data analytics pipeline comparing bike share system
 
 - **Data Engineering:** Automated ETL pipeline with schema validation and data transformation
 - **Analytics Infrastructure:** DuckDB + dbt for data modeling and analytics
-- **Cloud Architecture:** AWS S3 storage + EC2 orchestration
-- **Data Visualization:** Streamlit dashboard deployed on Streamlit Cloud
-- **Automation:** Monthly batch processing with cron scheduling
+- **Weather Analytics:** Real-time weather integration with Open-Meteo API, biking recommendations
+- **Cloud Architecture:** AWS S3 storage + Railway container deployment
+- **Data Visualization:** Multi-page atmospheric Streamlit dashboard deployed on Streamlit Cloud
+- **Automation:** Monthly batch processing via Railway cron scheduling
 
 ### Tech Stack
 - **Languages:** Python 3.8+
 - **Database:** DuckDB (embedded analytics database)
 - **Transformation:** dbt (Data Build Tool)
-- **Cloud:** AWS S3, AWS EC2
+- **Cloud:** AWS S3, Railway (Docker)
 - **Testing:** pytest
 - **Dashboard:** Streamlit + Plotly
 - **Data Processing:** pandas, pyarrow
@@ -27,14 +28,15 @@ City Cycles is an end-to-end data analytics pipeline comparing bike share system
 
 ```
 extraction/                  → Download bike data from web to S3
+extraction/weather.py        → Fetch weather data from Open-Meteo API to S3
     ↓
 extracted_file_manager/     → Process ZIPs, validate schemas, convert to Parquet
     ↓
 db_duckdb/                  → Load Parquet files into DuckDB raw tables
     ↓
-dbt_city_cycles/            → Transform raw data into analytics marts
+dbt_city_cycles/            → Transform raw data into analytics marts (incl. weather)
     ↓
-dashboard/                  → Visualize data in Streamlit dashboard
+dashboard/                  → Multi-page atmospheric Streamlit dashboard
 ```
 
 **Orchestration:** `orchestrator/` coordinates the entire pipeline from a single entry point
@@ -90,12 +92,16 @@ Always give Claude a way to verify its work. Run these checks after making chang
 | Module | Purpose | Key Files |
 |--------|---------|-----------|
 | `orchestrator/` | Pipeline coordination & CLI | `cli.py`, `main.py`, `config.py` |
-| `extraction/` | Download bike data to S3 | `nyc.py`, `london.py`, `utils.py` |
+| `extraction/` | Download bike + weather data to S3 | `nyc.py`, `london.py`, `weather.py`, `utils.py` |
 | `extracted_file_manager/` | ZIP → CSV → Parquet processing | `manager.py`, `simplified_pipeline.py`, `cli.py` |
-| `data_models/` | Schema validation (pydantic) | `nyc_bike.py`, `london_bike.py`, `base.py`, `registry.py` |
+| `data_models/` | Schema validation (pydantic/dataclass) | `nyc_bike.py`, `london_bike.py`, `weather.py`, `base.py`, `registry.py` |
 | `db_duckdb/` | DuckDB ETL operations | `cli.py`, `duckdb_manager.py`, `operations.py`, `pipeline.py` |
 | `dbt_city_cycles/` | dbt transformations | `models/staging/`, `models/intermediate/`, `models/unified/`, `models/marts/` |
-| `dashboard/` | Streamlit dashboard | `app.py` |
+| `dashboard/` | Multi-page atmospheric dashboard | `app.py`, `weather_service.py`, `recommendation_engine.py` |
+| `dashboard/pages/` | Dashboard page modules | `landing.py`, `ride_analytics.py`, `weather_deep_dive.py`, `comparison.py` |
+| `dashboard/components/` | Reusable UI components | `city_toggle.py`, `weather_hero.py`, `chart_factory.py` |
+| `dashboard/theme/` | Atmospheric theming | `plotly_template.py`, `time_of_day.py` |
+| `dashboard/utils/` | Query helpers and CSS utilities | `query_helpers.py`, `css_injector.py` |
 | `streamlit_data_manager/` | Dashboard data management | `parquet_file_manager.py` |
 | `tests/` | pytest test suite | Test files for each module |
 
@@ -130,6 +136,7 @@ python -m orchestrator.cli run --dbt-full-refresh
 
 # Run individual stage
 python -m orchestrator.cli stage extraction
+python -m orchestrator.cli stage weather_extraction
 python -m orchestrator.cli stage file_management
 python -m orchestrator.cli stage database_load
 python -m orchestrator.cli stage dbt
@@ -315,6 +322,9 @@ s3://city-cycles-data-ctr37/
 │   ├── nyc/nycmodernbikesharerecord/*.parquet
 │   ├── london/londonlegacybikesharerecord/*.parquet
 │   └── london/londonmodernbikesharerecord/*.parquet
+├── extracted_weather_parquet/
+│   ├── nyc/weather_nyc_*.parquet
+│   └── london/weather_london_*.parquet
 └── marts/*.parquet
 ```
 
@@ -388,10 +398,10 @@ S3_BUCKET=city-cycles-data-ctr37
 - `data_models/README.md` — Schema validation and data models
 - `extracted_file_manager/README.md` — File processing pipeline
 - `extraction/README.md` — Data extraction from web sources
-- `docs/SYSTEM-GUIDE.md` — System overview and quick start guide
-- `docs/incremental-processing-guide.md` — Monthly update strategy
-- `docs/ec2-deployment-guide.md` — Production deployment guide
-- `docs/planning/ROADMAP.md` — Project enhancement roadmap
+- `documentation/archive/SYSTEM-GUIDE.md` — System overview and quick start guide
+- `documentation/archive/incremental-processing-guide.md` — Monthly update strategy
+- `documentation/archive/ec2-deployment-guide.md` — EC2 deployment (archived; Railway is current)
+- `documentation/planning/ROADMAP.md` — Project enhancement roadmap
 
 ---
 

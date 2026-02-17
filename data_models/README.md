@@ -13,6 +13,7 @@ The data models are built on top of a base class (`BaseDataRecord`) that provide
 - **`base.py`**: Base class providing common functionality for all bike share data models
 - **`nyc_bike.py`**: NYC bike share data models (legacy and modern formats)
 - **`london_bike.py`**: London bike share data models (legacy and modern formats)
+- **`weather.py`**: Weather data model (`HourlyWeatherRecord` dataclass) for Open-Meteo API data
 - **`registry.py`**: Central registry of all available models
 - **`__init__.py`**: Module exports for easy access to models
 
@@ -112,15 +113,6 @@ for model in BaseDataRecord._registry:
 
 The data models are automatically used by the Extracted File Manager for:
 
-### Schema Validation
-```bash
-# Validate a specific file
-python -m extracted_file_manager.cli validate --file "2023-01-nyc-data.csv" --debug
-
-# Validate all files
-python -m extracted_file_manager.cli validate --debug
-```
-
 ### Automatic Model Assignment
 The Extracted File Manager uses the models to:
 1. **Detect Schema**: Automatically determine which model matches a CSV file
@@ -214,7 +206,8 @@ from data_models import (
     NYCModernBikeShareRecord,
     NYCLegacyBikeShareRecord,
     LondonModernBikeShareRecord,
-    LondonLegacyBikeShareRecord
+    LondonLegacyBikeShareRecord,
+    HourlyWeatherRecord
 )
 ```
 

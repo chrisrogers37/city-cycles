@@ -11,7 +11,7 @@ This package is responsible for the initial data acquisition phase of the City C
 - **`nyc.py`**: Downloads CitiBike ZIP files from NYC's public S3 bucket
 - **`london.py`**: Scrapes Santander Cycles CSV files from Transport for London website
 - **`utils.py`**: Shared utilities for S3 operations and file management
-- **`weather.py`**: Placeholder for future weather data ingestion
+- **`weather.py`**: Weather data extraction from Open-Meteo API (historical backfill + incremental)
 - **`__init__.py`**: Package initialization
 
 ## Data Sources
@@ -89,9 +89,30 @@ if not file_exists_in_s3(s3_key):
     upload_to_s3(local_file_path, s3_key)
 ```
 
-## Weather Data (Future Implementation)
+## Weather Data Extraction (`weather.py`)
 
-The `weather.py` module is a placeholder for future weather data ingestion functionality. This will be used to enrich the bike share analytics with weather context.
+The `weather.py` module fetches hourly weather data from the Open-Meteo API for NYC and London, storing it as Parquet files in S3.
+
+**Source:** [Open-Meteo API](https://open-meteo.com/) — free, no authentication required
+
+**Variables collected:** temperature, precipitation, rain, snowfall, wind speed/gusts, weather code (WMO), cloud cover, relative humidity
+
+**Modes:**
+- **Backfill:** Fetch full years of historical data for each city
+- **Incremental:** Fetch recent data with configurable lookback (default: 35 days)
+
+**Storage:** `extracted_weather_parquet/nyc/` and `extracted_weather_parquet/london/` in S3
+
+**Usage:**
+```python
+from extraction.weather import backfill_all, incremental_update_all
+
+# Backfill historical data for all cities
+backfill_all(start_year=2019, end_year=2025)
+
+# Incremental update (used in monthly pipeline)
+incremental_update_all(days_back=35)
+```
 
 ## Installation & Setup
 
@@ -293,17 +314,9 @@ The extraction package is the first step in the City Cycles Analytics pipeline:
 ## Future Enhancements
 
 ### Planned Features
-- **Weather data integration** (`weather.py`)
 - **Additional data sources** (other cities, bike share systems)
-- **Incremental updates** (only download new files)
-- **Parallel processing** (concurrent downloads)
+- **Parallel processing** (concurrent downloads for NYC + London)
 - **Data validation** (schema checking during download)
-
-### Weather Data Module
-The `weather.py` module will be implemented to:
-- Download weather data from APIs (OpenWeatherMap, NOAA, etc.)
-- Match weather data with bike share data by date/location
-- Store weather data in S3 for analytics enrichment
 
 ## Best Practices
 
