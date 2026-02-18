@@ -26,7 +26,7 @@ RUN mkdir -p /root/.dbt && \
     "    prod:" \
     "      type: duckdb" \
     "      path: /app/data/city_cycles.duckdb" \
-    "      threads: 2" \
+    "      threads: 1" \
     > /root/.dbt/profiles.yml
 
 # Create data directory for ephemeral DuckDB
