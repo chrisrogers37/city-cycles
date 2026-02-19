@@ -4,7 +4,6 @@
     indexes=[
         {'columns': ['start_time']},
         {'columns': ['ride_id'], 'unique': true},
-        {'columns': ['bike_id']},
         {'columns': ['user_type']}
     ]
 ) }}

@@ -12,7 +12,8 @@
 with source as (
     select * from {{ source('raw', 'raw_weather_hourly') }}
     {% if is_incremental() %}
-    where source_file not in (select distinct source_file from {{ this }})
+    where (city || '_' || strftime(timestamp::timestamp, '%Y%m%d%H'))
+        not in (select distinct weather_record_id from {{ this }})
     {% endif %}
 ),
 
@@ -107,7 +108,6 @@ cleaned as (
         extract(hour from timestamp::timestamp) as hour_of_day,
 
         -- Metadata
-        source_file,
         current_timestamp as dbt_updated_at
 
     from source

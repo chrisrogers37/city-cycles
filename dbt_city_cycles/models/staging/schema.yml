@@ -340,7 +340,5 @@ models:
         description: "Day of week (0=Monday, 6=Sunday)"
       - name: hour_of_day
         description: "Hour of day (0-23)"
-      - name: source_file
-        description: Source file for lineage tracking
       - name: dbt_updated_at
         description: Timestamp of when dbt last processed this row
