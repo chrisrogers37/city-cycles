@@ -17,6 +17,17 @@ with source as (
     {% endif %}
 ),
 
+-- Deduplicate: raw weather data may have overlapping parquet files with duplicate city+hour rows
+deduped as (
+    select *
+    from source
+    where timestamp is not null
+    qualify row_number() over (
+        partition by city, strftime(timestamp::timestamp, '%Y%m%d%H')
+        order by timestamp
+    ) = 1
+),
+
 cleaned as (
     select
         -- Generate a unique record ID from city + timestamp
@@ -110,8 +121,7 @@ cleaned as (
         -- Metadata
         current_timestamp as dbt_updated_at
 
-    from source
-    where timestamp is not null
+    from deduped
 )
 
 select * from cleaned

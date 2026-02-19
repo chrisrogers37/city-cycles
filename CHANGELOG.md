@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Playwright Version Mismatch in Docker** - Updated base image from `v1.52.0-noble` to `v1.58.0-noble` to match pip package `playwright==1.58.0`
+  - London extraction was failing because browser binaries didn't match the installed Python package
+- **DuckDB Out-of-Memory in Railway** - Increased memory limits for containerized pipeline execution
+  - `PRAGMA memory_limit`: 512MB → 1GB → 3GB → 8GB (dbt_project.yml)
+  - `DUCKDB_MEMORY_LIMIT` env var: 2GB → 8GB (Dockerfile, used by db_duckdb data loading)
+  - Reduced dbt concurrency from 2 threads to 1 to prevent concurrent model OOM
+  - Added `PRAGMA preserve_insertion_order=false` and `PRAGMA max_temp_directory_size='10GB'` for memory efficiency
+- **stg_nyc_modern bike_id Index Error** - Removed index on nonexistent `bike_id` column (NYC modern schema uses `rideable_type`)
+- **stg_weather_hourly source_file Error** - Removed references to `source_file` column not present in weather parquet files
+  - Changed incremental logic to use `weather_record_id` instead of `source_file`
+- **stg_weather_hourly Duplicate Key Violation** - Added deduplication step for overlapping weather parquet files
+  - Raw weather data can have duplicate city+hour rows from overlapping backfill/incremental extractions
+  - Added `QUALIFY ROW_NUMBER()` partitioned by city and hour to keep one row per weather_record_id
+
 ## [2.0.0] - 2026-02-13
 
 ### Added

@@ -46,7 +46,7 @@ models:
       +schema: marts
 
 on-run-start:
-  - "PRAGMA memory_limit='3GB';"
+  - "PRAGMA memory_limit='8GB';"
   - "PRAGMA threads=1;"
   - "PRAGMA max_temp_directory_size='10GB';"
   - "PRAGMA temp_directory='{{ env_var(\"DBT_TEMP_DIR\", \"/tmp\") }}';"
