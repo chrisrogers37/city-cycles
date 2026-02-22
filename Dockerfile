@@ -34,7 +34,7 @@ RUN mkdir -p /app/data
 
 # Container-appropriate defaults
 ENV PYTHONUNBUFFERED=1
-ENV DUCKDB_MEMORY_LIMIT=32GB
+ENV DUCKDB_MEMORY_LIMIT=8GB
 ENV DUCKDB_THREADS=2
 
 # Make entrypoint executable
