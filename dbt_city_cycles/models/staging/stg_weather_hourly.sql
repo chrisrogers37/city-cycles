@@ -1,12 +1,6 @@
 {{ config(
     materialized='incremental',
-    unique_key='weather_record_id',
-    indexes=[
-        {'columns': ['timestamp']},
-        {'columns': ['city']},
-        {'columns': ['date']},
-        {'columns': ['weather_record_id'], 'unique': true}
-    ]
+    unique_key='weather_record_id'
 ) }}
 
 with source as (

@@ -12,9 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - London extraction was failing because browser binaries didn't match the installed Python package
 - **DuckDB Out-of-Memory in Railway** - Increased memory limits for containerized pipeline execution
   - `PRAGMA memory_limit`: 512MB → 1GB → 3GB → 8GB → 32GB (dbt_project.yml)
-  - `DUCKDB_MEMORY_LIMIT` env var: 2GB → 32GB (Dockerfile, used by db_duckdb data loading)
+  - `DUCKDB_MEMORY_LIMIT` env var: 2GB → 8GB (Dockerfile, used by db_duckdb data loading)
   - Reduced dbt concurrency from 2 threads to 1 to prevent concurrent model OOM
   - Added `PRAGMA preserve_insertion_order=false` and `PRAGMA max_temp_directory_size='10GB'` for memory efficiency
+  - Added `gc.collect()` + `malloc_trim(0)` between database load and dbt phases to release ~7GB held by orchestrator
+- **Staging Model Index Removal** - Removed all indexes from staging models to prevent multi-hour index builds
+  - stg_nyc_modern (216M rows) hung for 12+ hours building unique index on ride_id at 30GB memory
+  - Stripped indexes from all 5 staging models (stg_nyc_modern, stg_nyc_legacy, stg_london_legacy, stg_london_modern, stg_weather_hourly)
+  - Staging is a pass-through layer; indexes only add value on query-target tables (marts)
 - **stg_nyc_modern bike_id Index Error** - Removed index on nonexistent `bike_id` column (NYC modern schema uses `rideable_type`)
 - **stg_weather_hourly source_file Error** - Removed references to `source_file` column not present in weather parquet files
   - Changed incremental logic to use `weather_record_id` instead of `source_file`
