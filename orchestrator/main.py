@@ -4,6 +4,7 @@ Main Orchestrator Module
 Coordinates the end-to-end City Cycles ETL pipeline across all subsystems.
 """
 
+import gc
 import logging
 import sys
 import subprocess
@@ -96,7 +97,19 @@ class CityBikesOrchestrator:
             
             # Step 3: Load into DuckDB
             self._run_database_load(skip_verify=skip_verify)
-            
+
+            # Free memory from database load before dbt needs it
+            # DuckDB connections are closed via context managers, but Python's
+            # allocator may hold freed memory. Force release so dbt subprocess
+            # can use the full container memory for staging commits.
+            gc.collect()
+            try:
+                import ctypes
+                ctypes.CDLL(None).malloc_trim(0)
+                logger.info("✓ Memory released after database load")
+            except (OSError, AttributeError):
+                pass  # malloc_trim not available on all platforms
+
             # Step 4: Run dbt transformations
             self._run_dbt_transformations(full_refresh=dbt_full_refresh)
             
