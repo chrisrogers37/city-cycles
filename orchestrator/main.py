@@ -4,7 +4,6 @@ Main Orchestrator Module
 Coordinates the end-to-end City Cycles ETL pipeline across all subsystems.
 """
 
-import gc
 import logging
 import sys
 import subprocess
@@ -95,20 +94,8 @@ class CityBikesOrchestrator:
             # Step 2: S3 file management
             self._run_file_management()
             
-            # Step 3: Load into DuckDB
+            # Step 3: Load into DuckDB (runs as subprocess so memory is fully freed)
             self._run_database_load(skip_verify=skip_verify)
-
-            # Free memory from database load before dbt needs it
-            # DuckDB connections are closed via context managers, but Python's
-            # allocator may hold freed memory. Force release so dbt subprocess
-            # can use the full container memory for staging commits.
-            gc.collect()
-            try:
-                import ctypes
-                ctypes.CDLL(None).malloc_trim(0)
-                logger.info("✓ Memory released after database load")
-            except (OSError, AttributeError):
-                pass  # malloc_trim not available on all platforms
 
             # Step 4: Run dbt transformations
             self._run_dbt_transformations(full_refresh=dbt_full_refresh)
@@ -205,25 +192,46 @@ class CityBikesOrchestrator:
     def _run_database_load(self, skip_verify: bool = False):
         """
         Step 3: Load data into DuckDB.
-        
-        Loads:
-        - Parquet files from S3 into DuckDB raw tables
-        - Validates data integrity (optional)
+
+        Runs as a subprocess so that DuckDB's C++ memory allocator is fully
+        released when the process exits, leaving maximum RAM for the dbt phase.
         """
         _log_step(3, 5, "LOADING DATA INTO DUCKDB")
-        
+
         try:
-            from db_duckdb.pipeline import run_full_pipeline
-            
-            logger.info("\n→ Running DuckDB load pipeline...")
-            results = run_full_pipeline(
-                skip_export=True,  # We'll export after dbt
-                skip_verify=skip_verify
+            cmd = [
+                sys.executable, '-m', 'db_duckdb.cli',
+                'pipeline', '--skip-export'
+            ]
+            if skip_verify:
+                cmd.append('--skip-verify')
+
+            logger.info("\n→ Running DuckDB load pipeline (subprocess)...")
+            process = subprocess.Popen(
+                cmd,
+                cwd=str(self.project_root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1
             )
-            
-            self.results['database_load'] = results
+
+            for line in process.stdout:
+                logger.info(line.rstrip())
+
+            return_code = process.wait()
+
+            if return_code != 0:
+                raise RuntimeError(f"Database load subprocess failed with exit code {return_code}")
+
+            self.results['database_load'] = {'status': 'completed'}
             logger.info("\n✓ Database load phase completed")
-            
+
+        except subprocess.CalledProcessError as e:
+            logger.error(f"\n✗ Database load phase failed: {e}")
+            raise RuntimeError(f"Database load phase failed: {e}")
+        except RuntimeError:
+            raise
         except Exception as e:
             logger.error(f"\n✗ Database load phase failed: {e}")
             raise RuntimeError(f"Database load phase failed: {e}")
