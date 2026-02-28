@@ -34,16 +34,5 @@ def parquet_path(filename: str) -> str:
 
 
 def parquet_exists(filename: str) -> bool:
-    """Check whether a mart parquet file exists on disk.
-
-    Use this as a pre-flight check before running queries against a mart
-    parquet. Returns False if the file has not been downloaded from S3
-    (e.g., because it was missing from the bucket or the download failed).
-
-    Args:
-        filename: The mart parquet filename, e.g. 'mart_weather_ride_correlation.parquet'.
-
-    Returns:
-        True if the file exists in DATA_DIR, False otherwise.
-    """
-    return os.path.isfile(os.path.join(DATA_DIR, filename))
+    """Check whether a mart Parquet file exists locally in DATA_DIR."""
+    return os.path.isfile(parquet_path(filename))

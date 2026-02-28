@@ -6,10 +6,23 @@ Uses existing mart_weather_ride_correlation and mart_weather_impact_summary.
 import streamlit as st
 import plotly.express as px
 
-from dashboard.utils.query_helpers import run_query, run_query_params, parquet_path
+from dashboard.utils.query_helpers import run_query, run_query_params, parquet_path, parquet_exists
 from dashboard.theme.plotly_template import register_template
 
 register_template()
+
+# Mart files this page depends on
+_CORRELATION_MART = 'mart_weather_ride_correlation.parquet'
+_IMPACT_MART = 'mart_weather_impact_summary.parquet'
+
+
+def _check_data_available() -> bool:
+    """Check whether the required weather mart files exist locally.
+
+    Returns True if both mart files are present, False otherwise.
+    When False, the caller should show an empty-state message.
+    """
+    return parquet_exists(_CORRELATION_MART) and parquet_exists(_IMPACT_MART)
 
 
 def render():
@@ -19,7 +32,16 @@ def render():
     city_label = st.sidebar.radio("City:", ["NYC", "London"], key='weather_city')
     location = city_label.lower()
 
-    # --- Weather Ride Correlation ---
+    # --- Empty-state check ---
+    if not _check_data_available():
+        st.info(
+            "\U0001f6a7 Weather data is being processed. Check back soon.\n\n"
+            "The weather analytics charts require historical weather and ride data "
+            "to be loaded. This happens automatically during the monthly pipeline run."
+        )
+        return
+
+    # --- Temperature vs Rides ---
     st.subheader("Temperature vs Ride Volume")
     st.caption("Average daily rides grouped by temperature range")
 
@@ -36,11 +58,11 @@ def render():
             ELSE '30\u00b0C+'
         END as temp_range,
         MIN(temperature_celsius) as temp_sort,
-        round(avg(total_rides), 0) as avg_rides,
+        round(avg(ride_count), 0) as avg_rides,
         count(*) as days_observed
-    FROM '{parquet_path('mart_weather_ride_correlation.parquet')}'
+    FROM '{parquet_path(_CORRELATION_MART)}'
     WHERE location = $1
-    GROUP BY temp_range, temp_sort
+    GROUP BY temp_range
     ORDER BY temp_sort
     """
     try:
@@ -53,6 +75,8 @@ def render():
             st.plotly_chart(fig, use_container_width=True)
             with st.expander("Show data"):
                 st.dataframe(temp_df[['temp_range', 'avg_rides', 'days_observed']])
+        else:
+            st.info(f"No temperature data available for {city_label}.")
     except Exception as e:
         st.error(f"Error loading temperature data: {e}")
 
@@ -67,11 +91,11 @@ def render():
             ELSE 'Heavy (10mm+)'
         END as precip_category,
         MIN(precipitation_mm) as precip_sort,
-        round(avg(total_rides), 0) as avg_rides,
+        round(avg(ride_count), 0) as avg_rides,
         count(*) as days_observed
-    FROM '{parquet_path('mart_weather_ride_correlation.parquet')}'
+    FROM '{parquet_path(_CORRELATION_MART)}'
     WHERE location = $1
-    GROUP BY precip_category, precip_sort
+    GROUP BY precip_category
     ORDER BY precip_sort
     """
     try:
@@ -82,6 +106,8 @@ def render():
                          labels={'avg_rides': 'Avg Daily Rides', 'precip_category': 'Precipitation'},
                          template='atmospheric', color_discrete_sequence=['#3498DB'])
             st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info(f"No precipitation data available for {city_label}.")
     except Exception as e:
         st.error(f"Error loading precipitation data: {e}")
 
@@ -94,7 +120,7 @@ def render():
            round(avg(pct_change_rides_vs_clear), 1) as pct_change,
            round(avg(avg_rides), 0) as avg_rides,
            sum(observation_count) as total_observations
-    FROM '{parquet_path('mart_weather_impact_summary.parquet')}'
+    FROM '{parquet_path(_IMPACT_MART)}'
     WHERE location = $1
       AND dimension_type = 'weather_condition'
       AND dimension_value != 'clear'
@@ -115,6 +141,8 @@ def render():
             st.plotly_chart(fig, use_container_width=True)
             with st.expander("Show data"):
                 st.dataframe(impact_df)
+        else:
+            st.info(f"No weather impact data available for {city_label}.")
     except Exception as e:
         st.error(f"Error loading weather impact data: {e}")
 
@@ -126,7 +154,7 @@ def render():
            round(avg(CASE WHEN dimension_value = 'rain' THEN pct_change_rides_vs_clear END), 1) as rain_impact,
            round(avg(CASE WHEN dimension_value = 'snow' THEN pct_change_rides_vs_clear END), 1) as snow_impact,
            round(avg(CASE WHEN dimension_value = 'fog' THEN pct_change_rides_vs_clear END), 1) as fog_impact
-    FROM '{parquet_path('mart_weather_impact_summary.parquet')}'
+    FROM '{parquet_path(_IMPACT_MART)}'
     WHERE location = $1 AND dimension_type = 'weather_condition'
     GROUP BY hour_of_day
     ORDER BY hour_of_day
@@ -141,5 +169,7 @@ def render():
                           template='atmospheric')
             fig.update_layout(legend_title_text='Condition')
             st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info(f"No hourly impact data available for {city_label}.")
     except Exception as e:
         st.error(f"Error loading hourly impact data: {e}")

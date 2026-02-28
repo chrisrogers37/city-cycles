@@ -7,12 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Similar Day Statistics Mart** - New `mart_similar_day_stats` dbt model for "days like today" weather queries
+  - Pre-computes ride statistics by (location, month, day_type, temperature_band, precipitation_intensity)
+  - Dual granularity: daily totals and hourly patterns in a single table
+  - Includes pct_vs_overall comparison metric for daily grain
+  - Full schema.yml documentation and test coverage
+- **Weather Deep Dive Empty States** - Added user-friendly empty-state UI when weather mart data is missing
+  - Shows informational message instead of blank page or red error boxes
+  - Per-section feedback when a query returns no rows for the selected city
+  - Added `parquet_exists()` helper to `dashboard/utils/query_helpers.py`
+
 ### Improved
 - **Dashboard Empty States** -- Weather-dependent dashboard sections now show styled info messages when mart parquet files are missing or queries return no data, instead of rendering blank space or raw error messages
-  - Added `parquet_exists()` pre-flight check to `dashboard/utils/query_helpers.py`
   - Hardened Station Weather Performance section in Ride Analytics page
   - Hardened Weather Impact section in City Comparison page
   - Fixed recommendation engine edge case where fully missing data showed confusing "0 days" message
+
+### Fixed
+- **Weather Deep Dive Column Bug** - Fixed `total_rides` -> `ride_count` column reference in temperature and precipitation queries
+  - Queries now match the actual `mart_weather_ride_correlation` schema
+  - Previously caused silent failures (empty charts) even with populated data
 
 ### Fixed
 - **Weather Pipeline End-to-End** - Validated and fixed the weather data pipeline from extraction through mart export
