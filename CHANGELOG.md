@@ -8,10 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **"Days Like Today" Contextual Insights** - Landing page now shows historical ride patterns for similar conditions
+  - Queries mart_similar_day_stats by current month, day type, temperature band, and precipitation
+  - Generates natural-language insights like "On similar February weekdays with light rain, NYC averaged 12,400 rides"
+  - Includes trip duration comparisons and peak activity hour insights
+  - Graceful degradation when mart data is unavailable
 - **Similar Day Statistics Mart** - New `mart_similar_day_stats` dbt model for "days like today" weather queries
   - Pre-computes ride statistics by (location, month, day_type, temperature_band, precipitation_intensity)
   - Dual granularity: daily totals and hourly patterns in a single table
-  - Includes pct_vs_overall comparison metric for daily grain
+  - Includes pct_change_vs_overall, duration_pct_change_vs_overall, peak_hour_start/peak_hour_end
   - Full schema.yml documentation and test coverage
 - **Weather Deep Dive Empty States** - Added user-friendly empty-state UI when weather mart data is missing
   - Shows informational message instead of blank page or red error boxes

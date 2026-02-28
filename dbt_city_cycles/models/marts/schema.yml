@@ -388,16 +388,16 @@ models:
               values: ['none', 'light', 'moderate', 'heavy', 'extreme']
       - name: hour_of_day
         description: Hour of day (0-23). NULL for daily grain rows.
-      - name: total_days_observed
+      - name: sample_days
         description: Number of distinct historical days matching this dimension combination
         tests:
           - not_null
-      - name: avg_rides
+      - name: avg_daily_rides
         description: >
           For daily grain: average total rides per day.
           For hourly grain: average rides per hour.
-      - name: avg_duration_seconds
-        description: Average ride duration in seconds for matching conditions
+      - name: avg_duration_minutes
+        description: Average ride duration in minutes for matching conditions
       - name: avg_member_rides
         description: >
           Average member rides (per day for daily grain, per hour for hourly grain).
@@ -406,11 +406,23 @@ models:
         description: >
           Average casual rides (per day for daily grain, per hour for hourly grain).
           0 for London which has no user type data.
-      - name: pct_vs_overall
+      - name: pct_change_vs_overall
         description: >
           Percentage difference from overall average daily rides for this location.
           Only populated for daily grain. Positive = more rides than average,
           negative = fewer rides than average.
+      - name: duration_pct_change_vs_overall
+        description: >
+          Percentage difference from overall average duration for this location.
+          Only populated for daily grain.
+      - name: peak_hour_start
+        description: >
+          Hour of day (0-23) with highest average rides for this dimension combination.
+          Only populated for daily grain. Derived from the hourly grain.
+      - name: peak_hour_end
+        description: >
+          peak_hour_start + 2 (capped at 23). Defines a 2-hour peak window.
+          Only populated for daily grain.
 
   - name: mart_nyc_member_analysis
     description: >

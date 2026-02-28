@@ -27,6 +27,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 
 _WEATHER_IMPACT_PARQUET = "mart_weather_impact_summary.parquet"
+_SIMILAR_DAY_PARQUET = "mart_similar_day_stats.parquet"
 
 
 # ---------------------------------------------------------------------------
@@ -145,6 +146,23 @@ class HistoricalImpact:
 
 
 @dataclass
+class SimilarDayInsight:
+    """Pre-computed stats for days similar to today from mart_similar_day_stats."""
+
+    avg_daily_rides: Optional[float] = None
+    pct_change_vs_overall: Optional[float] = None  # e.g. -23.0 means 23% below typical
+    avg_duration_minutes: Optional[float] = None
+    duration_pct_change_vs_overall: Optional[float] = None
+    peak_hour_start: Optional[int] = None  # e.g. 17 means peak at 5 PM
+    peak_hour_end: Optional[int] = None  # e.g. 19 means peak ends at 7 PM
+    sample_days: Optional[int] = None
+    month: Optional[int] = None
+    day_type: Optional[str] = None
+    temperature_band: Optional[str] = None
+    precipitation_intensity: Optional[str] = None
+
+
+@dataclass
 class RecommendationResult:
     """Complete result returned by the engine."""
 
@@ -201,6 +219,27 @@ _CATEGORY_TO_MART_WEATHER: dict[str, str] = {
     "snow": "snow",
     "heavy_snow": "snow",
     "thunderstorm": "thunderstorm",
+}
+
+# Maps engine TemperatureBand values to stg_weather_hourly temperature_band values.
+# The staging model uses 5 bands vs the engine's 7.
+_TEMP_BAND_TO_MART: dict[str, str] = {
+    "freezing": "freezing",
+    "cold": "cold",
+    "cool": "mild",       # engine's "cool" (10-15C) maps to mart's "mild" (10-20C)
+    "mild": "mild",       # engine's "mild" (15-20C) maps to mart's "mild" (10-20C)
+    "warm": "warm",       # engine's "warm" (20-25C) maps to mart's "warm" (20-30C)
+    "hot": "warm",        # engine's "hot" (25-30C) maps to mart's "warm" (20-30C)
+    "very_hot": "hot",    # engine's "very_hot" (>30C) maps to mart's "hot" (>30C)
+}
+
+# Maps engine PrecipitationIntensity values to stg_weather_hourly values.
+# Mart uses: none, light, moderate, heavy, extreme. Engine uses: none, light, moderate, heavy.
+_PRECIP_TO_MART: dict[str, str] = {
+    "none": "none",
+    "light": "light",
+    "moderate": "moderate",
+    "heavy": "heavy",
 }
 
 
@@ -447,6 +486,97 @@ def lookup_historical_impact(
         return HistoricalImpact()
 
 
+def lookup_similar_day_stats(
+    location: str,
+    month: int,
+    day_type: str,
+    temperature_band: str,
+    precipitation_intensity: str,
+    conn: Optional[duckdb.DuckDBPyConnection] = None,
+) -> SimilarDayInsight:
+    """Query mart_similar_day_stats for historical stats on days like today.
+
+    Args:
+        location: "nyc" or "london".
+        month: Month number (1-12).
+        day_type: "weekday" or "weekend".
+        temperature_band: From stg_weather_hourly (freezing/cold/mild/warm/hot).
+        precipitation_intensity: From stg_weather_hourly (none/light/moderate/heavy/extreme).
+        conn: Optional DuckDB connection. If None, creates an in-memory one.
+
+    Returns:
+        SimilarDayInsight with stats, or empty if no data found.
+    """
+    parquet_path = os.path.join(DATA_DIR, _SIMILAR_DAY_PARQUET)
+
+    if not os.path.exists(parquet_path):
+        logger.warning(
+            "Similar day stats parquet not found at %s. "
+            "Returning empty similar day insight.",
+            parquet_path,
+        )
+        return SimilarDayInsight()
+
+    if conn is None:
+        conn = duckdb.connect(":memory:")
+
+    query = f"""
+        SELECT
+            avg_daily_rides,
+            pct_change_vs_overall,
+            avg_duration_minutes,
+            duration_pct_change_vs_overall,
+            peak_hour_start,
+            peak_hour_end,
+            sample_days
+        FROM '{parquet_path}'
+        WHERE grain = 'daily'
+          AND location = $1
+          AND month_num = $2
+          AND day_type = $3
+          AND temperature_band = $4
+          AND precipitation_intensity = $5
+        LIMIT 1
+    """
+
+    try:
+        result = conn.execute(
+            query,
+            [location, month, day_type, temperature_band, precipitation_intensity],
+        ).fetchdf()
+        if result.empty:
+            logger.info(
+                "No similar day data for location=%s month=%d day_type=%s "
+                "temp_band=%s precip=%s",
+                location,
+                month,
+                day_type,
+                temperature_band,
+                precipitation_intensity,
+            )
+            return SimilarDayInsight()
+
+        row = result.iloc[0]
+        return SimilarDayInsight(
+            avg_daily_rides=_safe_float(row.get("avg_daily_rides")),
+            pct_change_vs_overall=_safe_float(row.get("pct_change_vs_overall")),
+            avg_duration_minutes=_safe_float(row.get("avg_duration_minutes")),
+            duration_pct_change_vs_overall=_safe_float(
+                row.get("duration_pct_change_vs_overall")
+            ),
+            peak_hour_start=_safe_int(row.get("peak_hour_start")),
+            peak_hour_end=_safe_int(row.get("peak_hour_end")),
+            sample_days=_safe_int(row.get("sample_days")),
+            month=month,
+            day_type=day_type,
+            temperature_band=temperature_band,
+            precipitation_intensity=precipitation_intensity,
+        )
+    except Exception:
+        logger.exception("Error querying similar day stats")
+        return SimilarDayInsight()
+
+
 # ---------------------------------------------------------------------------
 # Insight generators
 # ---------------------------------------------------------------------------
@@ -650,6 +780,174 @@ def _insight_missing_data(
 
 
 # ---------------------------------------------------------------------------
+# "Days Like Today" insight generators
+# ---------------------------------------------------------------------------
+
+_MONTH_NAMES = {
+    1: "January", 2: "February", 3: "March", 4: "April",
+    5: "May", 6: "June", 7: "July", 8: "August",
+    9: "September", 10: "October", 11: "November", 12: "December",
+}
+
+
+def _format_ride_count(count: float) -> str:
+    """Format a ride count for display (e.g. 12400 -> '12,400')."""
+    return f"{round(count):,}"
+
+
+def _insight_similar_day_volume(
+    classified: ClassifiedConditions,
+    similar: SimilarDayInsight,
+) -> Optional[Recommendation]:
+    """Generate insight about ride volume on similar days.
+
+    Produces sentences like:
+    "On similar February weekdays with light rain, NYC averaged 12,400 rides
+     -- 23% below typical"
+    """
+    if similar.avg_daily_rides is None:
+        return None
+
+    location_name = _location_name(classified.raw.location)
+    month_name = _MONTH_NAMES.get(similar.month, f"month {similar.month}")
+    day_label = similar.day_type or "days"
+    precip_label = (similar.precipitation_intensity or "").replace("_", " ")
+
+    # Build the condition descriptor
+    if precip_label and precip_label != "none":
+        condition_desc = f"with {precip_label} precipitation"
+    else:
+        temp_label = (similar.temperature_band or "").replace("_", " ")
+        condition_desc = f"with {temp_label} temperatures" if temp_label else ""
+
+    rides_str = _format_ride_count(similar.avg_daily_rides)
+
+    pct = similar.pct_change_vs_overall
+    if pct is not None and abs(pct) >= 3:
+        abs_pct = abs(round(pct))
+        direction = "below" if pct < 0 else "above"
+        pct_clause = f" \u2014 {abs_pct}% {direction} typical"
+    else:
+        pct_clause = ""
+
+    text = (
+        f"On similar {month_name} {day_label}s {condition_desc}, "
+        f"{location_name} averaged {rides_str} rides{pct_clause}"
+    )
+
+    # Determine severity based on deviation
+    if pct is not None:
+        if pct <= -30:
+            severity = Severity.WARNING
+        elif pct <= -10:
+            severity = Severity.CAUTION
+        elif pct >= 10:
+            severity = Severity.POSITIVE
+        else:
+            severity = Severity.NEUTRAL
+    else:
+        severity = Severity.NEUTRAL
+
+    return Recommendation(
+        text=text,
+        severity=severity,
+        metric="similar_day_rides",
+        value=round(pct, 1) if pct is not None else None,
+    )
+
+
+def _insight_similar_day_duration(
+    classified: ClassifiedConditions,
+    similar: SimilarDayInsight,
+) -> Optional[Recommendation]:
+    """Generate insight about trip duration on similar days.
+
+    Produces sentences like:
+    "Riders took 8% shorter trips on days like today"
+    """
+    pct = similar.duration_pct_change_vs_overall
+    if pct is None or abs(pct) < 3:
+        return None  # Not significant enough to mention
+
+    abs_pct = abs(round(pct))
+    direction = "shorter" if pct < 0 else "longer"
+
+    text = f"Riders took {abs_pct}% {direction} trips on days like today"
+
+    severity = Severity.CAUTION if abs_pct >= 15 else Severity.NEUTRAL
+
+    return Recommendation(
+        text=text,
+        severity=severity,
+        metric="similar_day_duration",
+        value=round(pct, 1),
+    )
+
+
+def _insight_similar_day_peak(
+    classified: ClassifiedConditions,
+    similar: SimilarDayInsight,
+) -> Optional[Recommendation]:
+    """Generate insight about peak activity hours on similar days.
+
+    Produces sentences like:
+    "Similar conditions saw peak activity between 5-7 PM"
+    """
+    if similar.peak_hour_start is None or similar.peak_hour_end is None:
+        return None
+
+    def _format_hour(h: int) -> str:
+        """Format 24h hour to 12h display (e.g. 17 -> '5 PM')."""
+        if h == 0:
+            return "12 AM"
+        elif h < 12:
+            return f"{h} AM"
+        elif h == 12:
+            return "12 PM"
+        else:
+            return f"{h - 12} PM"
+
+    start_str = _format_hour(similar.peak_hour_start)
+    end_str = _format_hour(similar.peak_hour_end)
+
+    text = f"Similar conditions saw peak activity between {start_str}\u2013{end_str}"
+
+    return Recommendation(
+        text=text,
+        severity=Severity.NEUTRAL,
+        metric="similar_day_peak",
+        value=float(similar.peak_hour_start),
+    )
+
+
+def _insight_similar_day_no_data(
+    classified: ClassifiedConditions,
+    similar: SimilarDayInsight,
+) -> Optional[Recommendation]:
+    """Generate a fallback message when no similar-day data is available.
+
+    Only fires when ALL similar-day fields are None (mart missing or no
+    matching rows). Returns None if any data exists, so this never
+    conflicts with the real insights above.
+    """
+    if similar.avg_daily_rides is not None:
+        return None  # We have data, no need for fallback
+
+    if similar.sample_days is not None and similar.sample_days > 0:
+        return None  # We have some data, no need for fallback
+
+    return Recommendation(
+        text=(
+            "Historical comparison data for conditions like today "
+            "is being built \u2014 check back soon for personalized insights"
+        ),
+        severity=Severity.NEUTRAL,
+        metric="similar_day_no_data",
+        value=None,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Insight ranking and assembly
 # ---------------------------------------------------------------------------
 
@@ -665,11 +963,14 @@ def generate_insights(
     classified: ClassifiedConditions,
     impact: HistoricalImpact,
     biking_score: BikingScore,
+    similar: Optional[SimilarDayInsight] = None,
     max_insights: int = 5,
 ) -> List[Recommendation]:
     """Generate ranked list of insights from classified conditions and historical data.
 
     Always returns at least 1 item (the biking score insight).
+    Includes "days like today" contextual insights when similar-day data
+    is available.
     """
     candidates: List[Optional[Recommendation]] = [
         _insight_biking_score(biking_score, classified),
@@ -678,6 +979,15 @@ def generate_insights(
         _insight_comparison_to_best(classified, impact, biking_score),
         _insight_missing_data(classified, impact),
     ]
+
+    # Add "days like today" insights when available
+    if similar is not None:
+        candidates.extend([
+            _insight_similar_day_volume(classified, similar),
+            _insight_similar_day_duration(classified, similar),
+            _insight_similar_day_peak(classified, similar),
+            _insight_similar_day_no_data(classified, similar),
+        ])
 
     insights = [r for r in candidates if r is not None]
 
@@ -697,6 +1007,19 @@ def generate_insights(
 # ---------------------------------------------------------------------------
 
 
+def _current_month_and_day_type() -> tuple[int, str]:
+    """Return current month (1-12) and day type ('weekday' or 'weekend').
+
+    Extracted to a function for testability — can be mocked in tests.
+    """
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    month = now.month
+    day_type = "weekend" if now.weekday() >= 5 else "weekday"
+    return month, day_type
+
+
 def get_recommendations(
     conditions: WeatherConditions,
     conn: Optional[duckdb.DuckDBPyConnection] = None,
@@ -704,7 +1027,8 @@ def get_recommendations(
     """Generate recommendations for current weather conditions.
 
     This is the main entry point. It classifies conditions, computes a biking
-    score, looks up historical impact, and generates ranked insights.
+    score, looks up historical impact, looks up similar-day stats, and
+    generates ranked insights.
     """
     classified = classify_conditions(conditions)
     biking_score = compute_biking_score(classified)
@@ -716,7 +1040,27 @@ def get_recommendations(
         conn=conn,
     )
 
-    recommendations = generate_insights(classified, impact, biking_score)
+    # Look up "days like today" stats
+    month, day_type = _current_month_and_day_type()
+    mart_temp_band = _TEMP_BAND_TO_MART.get(
+        classified.temperature_band.value, classified.temperature_band.value
+    )
+    mart_precip = _PRECIP_TO_MART.get(
+        classified.precipitation_intensity.value,
+        classified.precipitation_intensity.value,
+    )
+    similar = lookup_similar_day_stats(
+        location=conditions.location,
+        month=month,
+        day_type=day_type,
+        temperature_band=mart_temp_band,
+        precipitation_intensity=mart_precip,
+        conn=conn,
+    )
+
+    recommendations = generate_insights(
+        classified, impact, biking_score, similar=similar
+    )
 
     return RecommendationResult(
         biking_score=biking_score,

@@ -107,9 +107,10 @@ class TestParquetFileManager:
             "mart_weather_impact_summary.parquet",
             "mart_station_directory.parquet",
             "mart_station_weather_performance.parquet",
+            "mart_similar_day_stats.parquet",
         ]
 
-        assert len(MARTS) == 10
+        assert len(MARTS) == 11
         for mart in expected:
             assert mart in MARTS, f"Missing expected mart: {mart}"
 
