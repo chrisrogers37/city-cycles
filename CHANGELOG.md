@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Weather Deep Dive Column Bug** - Fixed `total_rides` -> `ride_count` column reference in temperature and precipitation queries
+  - Queries now match the actual `mart_weather_ride_correlation` schema
+  - Previously caused silent failures (empty charts) even with populated data
+
+### Added
+- **Weather Deep Dive Empty States** - Added user-friendly empty-state UI when weather mart data is missing
+  - Shows informational message instead of blank page or red error boxes
+  - Per-section feedback when a query returns no rows for the selected city
+  - Added `parquet_exists()` helper to `dashboard/utils/query_helpers.py`
+
+### Fixed
 - **Weather Pipeline End-to-End** - Validated and fixed the weather data pipeline from extraction through mart export
   - Added `source_file` column to weather parquet output for lineage tracking consistency with bike data pipelines
   - Fixed validation query for `raw_weather_hourly` to handle transitional schema (removed `source_file` reference)
