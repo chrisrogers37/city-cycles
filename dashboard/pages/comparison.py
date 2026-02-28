@@ -7,7 +7,7 @@ import streamlit as st
 import plotly.express as px
 import pandas as pd
 
-from dashboard.utils.query_helpers import run_query, run_query_params, parquet_path
+from dashboard.utils.query_helpers import run_query, run_query_params, parquet_path, parquet_exists
 from dashboard.components.chart_factory import comparison_line_chart, grouped_bar_chart
 from dashboard.theme.plotly_template import register_template
 
@@ -159,21 +159,30 @@ def render():
 
     # --- Weather Impact Comparison ---
     st.header("Weather Impact on Ridership")
-    weather_query = f"""
-    SELECT location, weather_condition,
-        round(avg(pct_change_vs_clear), 1) as avg_pct_change,
-        sum(total_rides) as total_rides
-    FROM '{parquet_path('mart_station_weather_performance.parquet')}'
-    WHERE pct_change_vs_clear IS NOT NULL AND weather_condition != 'clear'
-    GROUP BY location, weather_condition
-    ORDER BY location, weather_condition
-    """
-    try:
-        weather_df = run_query(weather_query)
-        if not weather_df.empty:
-            fig = grouped_bar_chart(weather_df, 'weather_condition', 'avg_pct_change',
-                                    'Average Station Ridership Change by Weather Condition',
-                                    '% Change vs Clear Weather')
-            st.plotly_chart(fig, use_container_width=True)
-    except Exception as e:
-        st.error(f"Error loading weather comparison: {e}")
+
+    if not parquet_exists('mart_station_weather_performance.parquet'):
+        st.info(
+            "Weather impact data is not yet available. "
+            "Run the full pipeline to generate weather mart data."
+        )
+    else:
+        weather_query = f"""
+        SELECT location, weather_condition,
+            round(avg(pct_change_vs_clear), 1) as avg_pct_change,
+            sum(total_rides) as total_rides
+        FROM '{parquet_path('mart_station_weather_performance.parquet')}'
+        WHERE pct_change_vs_clear IS NOT NULL AND weather_condition != 'clear'
+        GROUP BY location, weather_condition
+        ORDER BY location, weather_condition
+        """
+        try:
+            weather_df = run_query(weather_query)
+            if not weather_df.empty:
+                fig = grouped_bar_chart(weather_df, 'weather_condition', 'avg_pct_change',
+                                        'Average Station Ridership Change by Weather Condition',
+                                        '% Change vs Clear Weather')
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No weather impact data available for the selected date range.")
+        except Exception as e:
+            st.error(f"Error loading weather comparison: {e}")

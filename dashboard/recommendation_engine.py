@@ -620,18 +620,7 @@ def _insight_missing_data(
     impact: HistoricalImpact,
 ) -> Optional[Recommendation]:
     """Generate a notice when historical data is sparse or missing."""
-    if impact.sample_days is not None and impact.sample_days < 5:
-        weather_label = classified.weather_category.value.replace("_", " ")
-        return Recommendation(
-            text=(
-                f"Limited historical data for {weather_label} conditions "
-                f"at this hour ({impact.sample_days} days in dataset)"
-            ),
-            severity=Severity.NEUTRAL,
-            metric="data_quality",
-            value=float(impact.sample_days),
-        )
-
+    # Fully missing: no rides data and no baseline comparison
     if impact.avg_rides is None and impact.pct_change_vs_baseline is None:
         weather_label = classified.weather_category.value.replace("_", " ")
         return Recommendation(
@@ -642,6 +631,19 @@ def _insight_missing_data(
             severity=Severity.NEUTRAL,
             metric="data_quality",
             value=None,
+        )
+
+    # Sparse: data exists but fewer than 5 observations
+    if impact.sample_days is not None and impact.sample_days < 5:
+        weather_label = classified.weather_category.value.replace("_", " ")
+        return Recommendation(
+            text=(
+                f"Limited historical data for {weather_label} conditions "
+                f"at this hour ({impact.sample_days} days in dataset)"
+            ),
+            severity=Severity.NEUTRAL,
+            metric="data_quality",
+            value=float(impact.sample_days),
         )
 
     return None
