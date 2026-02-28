@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Improved
+- **Dashboard Empty States** -- Weather-dependent dashboard sections now show styled info messages when mart parquet files are missing or queries return no data, instead of rendering blank space or raw error messages
+  - Added `parquet_exists()` pre-flight check to `dashboard/utils/query_helpers.py`
+  - Hardened Station Weather Performance section in Ride Analytics page
+  - Hardened Weather Impact section in City Comparison page
+  - Fixed recommendation engine edge case where fully missing data showed confusing "0 days" message
+
 ### Fixed
 - **Weather Pipeline End-to-End** - Validated and fixed the weather data pipeline from extraction through mart export
   - Added `source_file` column to weather parquet output for lineage tracking consistency with bike data pipelines
