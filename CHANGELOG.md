@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Similar Day Statistics Mart** - New `mart_similar_day_stats` dbt model for "days like today" weather queries
+  - Pre-computes ride statistics by (location, month, day_type, temperature_band, precipitation_intensity)
+  - Dual granularity: daily totals and hourly patterns in a single table
+  - Includes pct_vs_overall comparison metric for daily grain
+  - Full schema.yml documentation and test coverage
+
 ### Fixed
 - **Weather Pipeline End-to-End** - Validated and fixed the weather data pipeline from extraction through mart export
   - Added `source_file` column to weather parquet output for lineage tracking consistency with bike data pipelines
