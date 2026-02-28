@@ -174,7 +174,6 @@ VALIDATION_QUERIES = {
     'raw_weather_hourly': """
         SELECT
             COUNT(*) as total_rows,
-            COUNT(DISTINCT source_file) as unique_files,
             COUNT(DISTINCT city) as unique_cities,
             MIN(timestamp) as earliest_timestamp,
             MAX(timestamp) as latest_timestamp,

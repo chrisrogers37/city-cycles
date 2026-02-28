@@ -214,6 +214,10 @@ def _write_and_upload_parquet(df: pd.DataFrame, city: str, label: str) -> bool:
         logger.info(f"Weather file already exists in S3: {s3_key}")
         return False
 
+    # Add source_file column for lineage tracking (matches bike data pipeline pattern)
+    df = df.copy()
+    df["source_file"] = filename
+
     local_path = os.path.join(LOCAL_TMP_DIR, filename)
 
     try:
@@ -313,6 +317,10 @@ def incremental_update(city: str, days_back: int = 35) -> bool:
         filename = f"weather_{city}_{label}.parquet"
         s3_key = f"{WEATHER_PARQUET_PREFIX}/{city}/{filename}"
         local_path = os.path.join(LOCAL_TMP_DIR, filename)
+
+        # Add source_file column for lineage tracking (matches bike data pipeline pattern)
+        df = df.copy()
+        df["source_file"] = filename
 
         try:
             df.to_parquet(local_path, engine="pyarrow", compression="snappy", index=False)

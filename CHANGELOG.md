@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Weather Pipeline End-to-End** - Validated and fixed the weather data pipeline from extraction through mart export
+  - Added `source_file` column to weather parquet output for lineage tracking consistency with bike data pipelines
+  - Fixed validation query for `raw_weather_hourly` to handle transitional schema (removed `source_file` reference)
+  - Verified all 3 weather marts build successfully: mart_weather_ride_correlation, mart_weather_impact_summary, mart_station_weather_performance
+- **dbt Full-Refresh 23h+ Hang** - Converted staging, intermediate, and unified models from incremental tables to SQL views
+  - `stg_nyc_modern` (216M rows) hung for 23+ hours materializing as an incremental table during `--full-refresh`
+  - Row-level data was being materialized 3 times (staging → intermediate → unified) before any aggregation
+  - Views are instant (zero materialization) — DuckDB computes through them on-the-fly when marts aggregate
+  - Marts remain as physical tables, aggregating ~300M rows down to thousands
+  - Removed all `{{ config(materialized='incremental') }}` overrides and `{% if is_incremental() %}` blocks from 8 model files
+  - Changed `dbt_project.yml` intermediate/unified from `+materialized: incremental` to `+materialized: view`
+  - Removed index definitions from `int_nyc_rides` and `int_london_rides` (views don't support indexes)
+  - Total `dbt run` time dropped from 23h+ (hung) to ~7 minutes
+
+### Fixed
 - **Playwright Version Mismatch in Docker** - Updated base image from `v1.52.0-noble` to `v1.58.0-noble` to match pip package `playwright==1.58.0`
   - London extraction was failing because browser binaries didn't match the installed Python package
 - **DuckDB Out-of-Memory in Railway** - Increased memory limits for containerized pipeline execution
@@ -15,7 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `DUCKDB_MEMORY_LIMIT` env var: 2GB → 8GB (Dockerfile, used by db_duckdb data loading)
   - Reduced dbt concurrency from 2 threads to 1 to prevent concurrent model OOM
   - Added `PRAGMA preserve_insertion_order=false` and `PRAGMA max_temp_directory_size='10GB'` for memory efficiency
-  - Added `gc.collect()` + `malloc_trim(0)` between database load and dbt phases to release ~7GB held by orchestrator
+  - Moved database load to subprocess execution so DuckDB's C++ allocator memory is fully released by the OS before dbt starts
+  - This gives dbt the full 32GB for committing stg_nyc_modern (216M rows) instead of ~24GB after in-process retention
 - **Staging Model Index Removal** - Removed all indexes from staging models to prevent multi-hour index builds
   - stg_nyc_modern (216M rows) hung for 12+ hours building unique index on ride_id at 30GB memory
   - Stripped indexes from all 5 staging models (stg_nyc_modern, stg_nyc_legacy, stg_london_legacy, stg_london_modern, stg_weather_hourly)
