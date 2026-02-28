@@ -31,3 +31,8 @@ def run_query_params(query: str, params: list) -> pd.DataFrame:
 def parquet_path(filename: str) -> str:
     """Resolve a mart Parquet filename to its full path in DATA_DIR."""
     return os.path.join(DATA_DIR, filename)
+
+
+def parquet_exists(filename: str) -> bool:
+    """Check whether a mart Parquet file exists locally in DATA_DIR."""
+    return os.path.isfile(parquet_path(filename))
