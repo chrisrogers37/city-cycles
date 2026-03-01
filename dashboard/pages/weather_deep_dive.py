@@ -35,9 +35,9 @@ def render():
     # --- Empty-state check ---
     if not _check_data_available():
         st.info(
-            "\U0001f6a7 Weather data is being processed. Check back soon.\n\n"
-            "The weather analytics charts require historical weather and ride data "
-            "to be loaded. This happens automatically during the monthly pipeline run."
+            "Weather analytics are not yet available.\n\n"
+            "This page will show how temperature, precipitation, and weather conditions "
+            "affect bike ridership patterns in each city. Data is updated monthly."
         )
         return
 
