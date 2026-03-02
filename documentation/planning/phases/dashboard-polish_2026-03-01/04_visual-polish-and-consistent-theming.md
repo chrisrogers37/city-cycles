@@ -1,6 +1,9 @@
 # Phase 04: Visual Polish and Consistent Theming
 
-**Status:** PENDING
+**Status:** COMPLETE
+**Started:** 2026-03-01
+**Completed:** 2026-03-01
+**PR:** #51
 **Impact:** Medium | **Effort:** Medium | **Risk:** Low
 **Files modified:** `dashboard/components/recommendation_cards.py`, `dashboard/components/chart_factory.py`, `dashboard/pages/ride_analytics.py`
 
@@ -80,12 +83,6 @@ Update the card rendering to add a colored left border for each severity:
 
 **After:**
 ```python
-    _SEVERITY_BORDER_COLOR = {
-        Severity.POSITIVE: "#2ECC71",
-        Severity.NEUTRAL: "#5DADE2",
-        Severity.CAUTION: "#F39C12",
-        Severity.WARNING: "#E74C3C",
-    }
     for rec in result.recommendations:
         emoji = _SEVERITY_EMOJI[rec.severity]
         bg = _SEVERITY_BG_COLOR[rec.severity]
@@ -96,6 +93,17 @@ Update the card rendering to add a colored left border for each severity:
             f"{emoji} {rec.text}</div>",
             unsafe_allow_html=True,
         )
+```
+
+Note: `_SEVERITY_BORDER_COLOR` is defined at module level (alongside `_SEVERITY_BG_COLOR` and `_SEVERITY_EMOJI`) rather than inside the function, following the existing convention:
+
+```python
+_SEVERITY_BORDER_COLOR = {
+    Severity.POSITIVE: "#2ECC71",
+    Severity.NEUTRAL: "#5DADE2",
+    Severity.CAUTION: "#F39C12",
+    Severity.WARNING: "#E74C3C",
+}
 ```
 
 This adds a 3px colored left border that matches the severity — green for positive, blue for neutral/info, amber for caution, red for warning. The left border creates visual hierarchy and makes even neutral cards look intentional.
