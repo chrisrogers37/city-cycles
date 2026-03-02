@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Improved
+- **Chart Descriptions** - Added descriptive captions below each chart section heading on Ride Analytics page for first-time visitor context
+- **Forecast Chart Polish** - Enabled legend, added Y-axis labels (Temp °C, Precip mm), and increased chart height to accommodate legend on landing page forecast
+- **Forecast Context** - Added caption explaining temperature line vs precipitation bars on landing page
 - **Chart Axis Labels** - Added human-readable axis labels to hourly bar chart, station growth chart, and member percentage chart (replacing raw column names like `metric_value`, `member_percentage`)
 - **Member Percentage X-Axis** - Formatted monthly ticks as "Jan 2023" instead of showing artificial 1st-of-month dates
 - **Average Daily Rides Format** - Changed from decimal (85,111.7) to integer (85,112) since daily ride counts are whole numbers

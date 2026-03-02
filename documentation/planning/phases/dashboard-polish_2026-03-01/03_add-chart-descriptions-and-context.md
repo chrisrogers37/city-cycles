@@ -1,6 +1,9 @@
 # Phase 03: Add Chart Descriptions and Context
 
-**Status:** PENDING
+**Status:** COMPLETE
+**Started:** 2026-03-01
+**Completed:** 2026-03-01
+**PR:** #50
 **Impact:** High | **Effort:** Medium | **Risk:** Low
 **Depends on:** Phase 01 (charts need to render without errors first)
 **Files modified:** `dashboard/pages/ride_analytics.py`, `dashboard/pages/landing.py`, `dashboard/components/forecast_strip.py`
@@ -19,36 +22,36 @@ This phase adds concise `st.caption()` descriptions under each chart section hea
 
 Add `st.caption()` lines after each `st.subheader()`. These provide one-line context about what the chart shows and what to look for.
 
-**After line 109** (`st.subheader("Rides by Month (Overlayed by Year)")`), add:
+**After line 110** (`st.subheader("Rides by Month (Overlayed by Year)")`), add:
 ```python
-    st.caption("Seasonal ridership patterns across years. Summer months consistently show peak activity.")
+    st.caption("Monthly ridership overlayed by year to reveal seasonal patterns.")
 ```
 
-**After line 130** (`st.subheader("Average Trip Duration by Month (Overlayed by Year)")`), add:
+**After line 131** (`st.subheader("Average Trip Duration by Month (Overlayed by Year)")`), add:
 ```python
-    st.caption("How average trip length changes by season. Longer rides typically occur in warmer months.")
+    st.caption("Average trip length by month, overlayed by year.")
 ```
 
-**After line 152** (`st.subheader("Time of Day Analysis")`), add:
+**After line 153** (`st.subheader("Time of Day Analysis")`), add:
 ```python
-    st.caption("When people ride throughout the day. Commute hours typically show distinct peaks.")
+    st.caption("Ride distribution across hours of the day.")
 ```
 
-**After line 163** (`st.subheader("Member Percentage Trend")`), add:
+**After line 173** (`st.subheader("Member Percentage Trend")`), add:
 ```python
         st.caption("Proportion of rides by annual members vs casual riders over time.")
 ```
 
 Note: this caption is inside the `if location == 'nyc':` block, indented one level deeper.
 
-**After line 174** (`st.subheader("Station Growth")`), add:
+**After line 186** (`st.subheader("Station Growth")`), add:
 ```python
-    st.caption("Number of active bike share stations each year, showing system expansion.")
+    st.caption("Number of active bike share stations by year.")
 ```
 
-**After line 190** (`st.subheader("Station Weather Performance")`), add:
+**After line 202** (`st.subheader("Station Weather Performance")`), add:
 ```python
-    st.caption("How individual stations maintain ridership during adverse weather conditions.")
+    st.caption("How individual stations perform during adverse weather.")
 ```
 
 ### Step 2: Polish the forecast chart
