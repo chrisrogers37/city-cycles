@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Improved
+- **Insight Card Styling** - Neutral/info cards get subtle blue tint and all cards get colored left border matching severity (green/blue/amber/red)
+- **Bar Chart Gradients** - Station growth and hourly bar charts use dark-to-light atmospheric blue gradient instead of flat color, making data values visually apparent
 - **Chart Descriptions** - Added descriptive captions below each chart section heading on Ride Analytics page for first-time visitor context
 - **Forecast Chart Polish** - Enabled legend, added Y-axis labels (Temp °C, Precip mm), and increased chart height to accommodate legend on landing page forecast
 - **Forecast Context** - Added caption explaining temperature line vs precipitation bars on landing page
