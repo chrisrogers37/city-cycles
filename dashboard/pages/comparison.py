@@ -42,7 +42,7 @@ def render():
         WHERE year BETWEEN EXTRACT(YEAR FROM $1::DATE) AND EXTRACT(YEAR FROM $2::DATE)
     """
     try:
-        latest_year = run_query_params(year_query, [start_date, end_date])['latest_year'][0] or 2024
+        latest_year = int(run_query_params(year_query, [start_date, end_date])['latest_year'][0] or 2024)
     except Exception:
         latest_year = 2024
 
@@ -80,9 +80,9 @@ def render():
     for col, loc, label in [(col_nyc, 'nyc', 'NYC'), (col_london, 'london', 'London')]:
         with col:
             st.subheader(label)
-            rides = rides_df.loc[loc, 'total_rides'] if loc in rides_df.index else None
+            rides = int(rides_df.loc[loc, 'total_rides']) if loc in rides_df.index else None
             pop = int(pop_df.loc[loc, 'population']) if loc in pop_df.index else None
-            dur = duration_df.loc[loc, 'avg_ride_duration_minutes'] if loc in duration_df.index else None
+            dur = float(duration_df.loc[loc, 'avg_ride_duration_minutes']) if loc in duration_df.index else None
             per_capita = (rides / pop * 1000) if rides and pop else None
 
             st.metric("Total Rides", f"{rides:,.0f}" if rides else "N/A")
@@ -162,8 +162,8 @@ def render():
 
     if not parquet_exists('mart_station_weather_performance.parquet'):
         st.info(
-            "Weather impact data is not yet available. "
-            "Run the full pipeline to generate weather mart data."
+            "Weather impact comparison data is not yet available. "
+            "This section will show how weather affects ridership differently in NYC vs London."
         )
     else:
         weather_query = f"""

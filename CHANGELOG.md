@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **City Comparison Page Crash** - Cast `numpy.int64` to Python `int` when passing DuckDB query results back as parameters, fixing "Unable to transform python value of type '<class 'numpy.int64'>' to DuckDB LogicalType" crash
+- **Hourly Patterns Raw Error** - Added `parquet_exists()` pre-check before querying `mart_hourly_patterns_summary.parquet`, replacing raw IO Error with user-friendly info message
+- **Developer-Facing Empty States** - Replaced "Run the full pipeline to generate weather mart data" messages with user-friendly descriptions across Weather Deep Dive, Station Weather Performance, and Weather Impact Comparison sections
+
 ### Added
 - **"Days Like Today" Contextual Insights** - Landing page now shows historical ride patterns for similar conditions
   - Queries mart_similar_day_stats by current month, day type, temperature band, and precipitation

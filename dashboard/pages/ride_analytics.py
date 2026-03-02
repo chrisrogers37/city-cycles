@@ -150,13 +150,22 @@ def render():
 
     # --- Hourly Patterns ---
     st.subheader("Time of Day Analysis")
-    hour_query = f"SELECT hour_of_day, ride_count FROM '{parquet_path('mart_hourly_patterns_summary.parquet')}' WHERE location = $1 ORDER BY hour_of_day"
-    try:
-        hour_df = run_query_params(hour_query, [location])
-        fig = hourly_bar_chart(hour_df, f"{city_label} Rides by Hour of Day")
-        st.plotly_chart(fig, use_container_width=True)
-    except Exception as e:
-        st.error(f"Error creating hourly patterns chart: {e}")
+    if not parquet_exists('mart_hourly_patterns_summary.parquet'):
+        st.info(
+            "Hourly ridership patterns are not yet available for this city. "
+            "This chart will appear once ride data has been fully processed."
+        )
+    else:
+        hour_query = f"SELECT hour_of_day, ride_count FROM '{parquet_path('mart_hourly_patterns_summary.parquet')}' WHERE location = $1 ORDER BY hour_of_day"
+        try:
+            hour_df = run_query_params(hour_query, [location])
+            if not hour_df.empty:
+                fig = hourly_bar_chart(hour_df, f"{city_label} Rides by Hour of Day")
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info(f"No hourly data available for {city_label}.")
+        except Exception as e:
+            st.error(f"Error creating hourly patterns chart: {e}")
 
     # --- NYC Member Percentage ---
     if location == 'nyc':
@@ -195,7 +204,8 @@ def render():
     if not parquet_exists(_swp_file) or not parquet_exists(_sd_file):
         st.info(
             "Station weather performance data is not yet available. "
-            "Run the full pipeline to generate weather mart data."
+            "This section shows how individual stations respond to different weather conditions "
+            "and will appear once weather data is available for this city."
         )
     else:
         conditions_query = f"""
