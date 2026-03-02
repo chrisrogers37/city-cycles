@@ -108,6 +108,7 @@ def render():
 
     # --- Monthly Ride Trends ---
     st.subheader("Rides by Month (Overlayed by Year)")
+    st.caption("Monthly ridership overlayed by year to reveal seasonal patterns.")
     rides_agg_type = st.radio("Aggregation:", ["Average Daily Rides", "Total Rides"],
                               key=f"rides_agg_{location}", horizontal=True)
     agg_func = "AVG" if rides_agg_type == "Average Daily Rides" else "SUM"
@@ -129,6 +130,7 @@ def render():
 
     # --- Duration Trends ---
     st.subheader("Average Trip Duration by Month (Overlayed by Year)")
+    st.caption("Average trip length by month, overlayed by year.")
     duration_trend_query = f"""
     SELECT EXTRACT(MONTH FROM date) AS month, year,
       SUM(CASE WHEN metric_name = 'total_minutes_biked' THEN metric_value ELSE 0 END) /
@@ -151,6 +153,7 @@ def render():
 
     # --- Hourly Patterns ---
     st.subheader("Time of Day Analysis")
+    st.caption("Ride distribution across hours of the day.")
     if not parquet_exists('mart_hourly_patterns_summary.parquet'):
         st.info(
             "Hourly ridership patterns are not yet available for this city. "
@@ -171,6 +174,7 @@ def render():
     # --- NYC Member Percentage ---
     if location == 'nyc':
         st.subheader("Member Percentage Trend")
+        st.caption("Proportion of rides by annual members vs casual riders over time.")
         member_query = f"SELECT month, member_percentage FROM '{parquet_path('mart_nyc_member_analysis.parquet')}' WHERE month BETWEEN $1 AND $2 ORDER BY month"
         try:
             member_df = run_query_params(member_query, [start_date, end_date])
@@ -184,6 +188,7 @@ def render():
 
     # --- Station Growth ---
     st.subheader("Station Growth")
+    st.caption("Number of active bike share stations by year.")
     station_query = f"""
     SELECT year, station_count as metric_value
     FROM '{parquet_path('mart_station_growth.parquet')}'
@@ -200,6 +205,7 @@ def render():
 
     # --- Station Weather Performance ---
     st.subheader("Station Weather Performance")
+    st.caption("How individual stations perform during adverse weather.")
 
     # Pre-flight: check both required parquets exist
     _swp_file = 'mart_station_weather_performance.parquet'

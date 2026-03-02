@@ -72,6 +72,7 @@ def _weather_content(city: str) -> None:
 
     # Forecast strip
     st.subheader("Next 24 Hours")
+    st.caption("Temperature forecast (line) with expected precipitation (bars)")
     render_forecast_strip(weather.forecast)
 
 

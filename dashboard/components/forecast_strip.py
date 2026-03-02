@@ -42,14 +42,26 @@ def render_forecast_strip(forecast_entries: list) -> None:
     ))
 
     fig.update_layout(
-        height=200,
-        margin=dict(l=40, r=20, t=10, b=30),
+        height=220,
+        margin=dict(l=40, r=40, t=10, b=30),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         font_color='rgba(255,255,255,0.7)',
-        showlegend=False,
-        yaxis=dict(title='', gridcolor='rgba(255,255,255,0.05)'),
-        yaxis2=dict(overlaying='y', side='right', showgrid=False, showticklabels=False),
+        showlegend=True,
+        legend=dict(
+            orientation='h',
+            yanchor='bottom',
+            y=1.02,
+            xanchor='right',
+            x=1,
+            bgcolor='rgba(0,0,0,0)',
+            font=dict(size=11, color='rgba(255,255,255,0.6)'),
+        ),
+        yaxis=dict(title='Temp (\u00b0C)', gridcolor='rgba(255,255,255,0.05)'),
+        yaxis2=dict(
+            title='Precip (mm)',
+            overlaying='y', side='right', showgrid=False,
+        ),
         xaxis=dict(gridcolor='rgba(255,255,255,0.05)'),
     )
 
