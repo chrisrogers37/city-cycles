@@ -1,6 +1,8 @@
 # Phase 02: Fix Chart Axis Labels and Metric Formatting
 
-**Status:** PENDING
+**Status:** COMPLETE
+**Started:** 2026-03-01
+**Completed:** 2026-03-01
 **Impact:** High | **Effort:** Low | **Risk:** Low
 **Files modified:** `dashboard/pages/ride_analytics.py`, `dashboard/components/chart_factory.py`
 
@@ -19,7 +21,7 @@ These are small code changes with outsized visual improvement — every chart be
 
 ### Step 1: Fix Member Percentage chart axis labels
 
-**File:** `dashboard/pages/ride_analytics.py`, lines 167-168
+**File:** `dashboard/pages/ride_analytics.py`, lines 176-177
 
 **Before:**
 ```python
@@ -31,8 +33,11 @@ These are small code changes with outsized visual improvement — every chart be
 ```python
             fig = px.line(member_df, x='month', y='member_percentage',
                           title="NYC Member Percentage Over Time", template='atmospheric',
-                          labels={'member_percentage': 'Member %', 'month': 'Date'})
+                          labels={'member_percentage': 'Member %', 'month': 'Month'})
+            fig.update_xaxes(dtick="M1", tickformat="%b %Y")
 ```
+
+The `tickformat` ensures axis ticks display as "Jan 2023" rather than showing artificial "1st of month" dates.
 
 ### Step 2: Fix Station Growth chart axis labels
 
