@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **dbt Views Conversion** - Converted staging, intermediate, and unified dbt models from incremental tables to views, eliminating 23+ hour full-refresh hangs on 216M+ row datasets; marts remain as physical tables
+
 ### Improved
 - **Insight Card Styling** - Neutral/info cards get subtle blue tint and all cards get colored left border matching severity (green/blue/amber/red)
 - **Bar Chart Gradients** - Station growth and hourly bar charts use dark-to-light atmospheric blue gradient instead of flat color, making data values visually apparent

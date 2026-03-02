@@ -1,13 +1,5 @@
-{{ config(
-    materialized='incremental',
-    unique_key='ride_id'
-) }}
-
 with source as (
     select * from {{ source('raw', 'raw_london_modern') }}
-    {% if is_incremental() %}
-    where source_file not in (select distinct source_file from {{ this }})
-    {% endif %}
 ),
 
 renamed as (

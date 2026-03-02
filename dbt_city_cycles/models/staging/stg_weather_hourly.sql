@@ -1,14 +1,5 @@
-{{ config(
-    materialized='incremental',
-    unique_key='weather_record_id'
-) }}
-
 with source as (
     select * from {{ source('raw', 'raw_weather_hourly') }}
-    {% if is_incremental() %}
-    where (city || '_' || strftime(timestamp::timestamp, '%Y%m%d%H'))
-        not in (select distinct weather_record_id from {{ this }})
-    {% endif %}
 ),
 
 -- Deduplicate: raw weather data may have overlapping parquet files with duplicate city+hour rows
