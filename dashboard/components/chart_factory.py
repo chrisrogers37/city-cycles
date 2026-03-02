@@ -29,6 +29,7 @@ def hourly_bar_chart(df: pd.DataFrame, title: str) -> go.Figure:
     """Create an hourly distribution bar chart."""
     fig = px.bar(df, x='hour_of_day', y='ride_count', title=title,
                  template='atmospheric',
+                 labels={'ride_count': 'Number of Rides', 'hour_of_day': 'Hour of Day'},
                  color_discrete_sequence=['#5DADE2'])
     fig.update_layout(bargap=0.15)
     return fig
@@ -58,5 +59,6 @@ def station_growth_chart(df: pd.DataFrame, title: str) -> go.Figure:
     """Create a station count bar chart."""
     fig = px.bar(df, x='year', y='metric_value', title=title,
                  template='atmospheric',
+                 labels={'metric_value': 'Station Count', 'year': 'Year'},
                  color_discrete_sequence=['#5DADE2'])
     return fig

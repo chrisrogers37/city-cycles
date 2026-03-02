@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Improved
+- **Chart Axis Labels** - Added human-readable axis labels to hourly bar chart, station growth chart, and member percentage chart (replacing raw column names like `metric_value`, `member_percentage`)
+- **Member Percentage X-Axis** - Formatted monthly ticks as "Jan 2023" instead of showing artificial 1st-of-month dates
+- **Average Daily Rides Format** - Changed from decimal (85,111.7) to integer (85,112) since daily ride counts are whole numbers
+- **Metrics Time Period Context** - Added date range caption below top-line metrics on Ride Analytics page
+
 ### Fixed
 - **City Comparison Page Crash** - Cast `numpy.int64` to Python `int` when passing DuckDB query results back as parameters, fixing "Unable to transform python value of type '<class 'numpy.int64'>' to DuckDB LogicalType" crash
 - **Hourly Patterns Raw Error** - Added `parquet_exists()` pre-check before querying `mart_hourly_patterns_summary.parquet`, replacing raw IO Error with user-friendly info message

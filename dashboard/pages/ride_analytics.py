@@ -102,8 +102,9 @@ def render():
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Total Rides", f"{total_rides:,.0f}")
-    col2.metric("Average Daily Rides", f"{avg_daily:,.1f}")
+    col2.metric("Average Daily Rides", f"{avg_daily:,.0f}")
     col3.metric("Average Ride Duration", f"{avg_duration:.1f} minutes")
+    st.caption(f"Metrics for {start_date} to {end_date}")
 
     # --- Monthly Ride Trends ---
     st.subheader("Rides by Month (Overlayed by Year)")
@@ -174,7 +175,9 @@ def render():
         try:
             member_df = run_query_params(member_query, [start_date, end_date])
             fig = px.line(member_df, x='month', y='member_percentage',
-                          title="NYC Member Percentage Over Time", template='atmospheric')
+                          title="NYC Member Percentage Over Time", template='atmospheric',
+                          labels={'member_percentage': 'Member %', 'month': 'Month'})
+            fig.update_xaxes(dtick="M1", tickformat="%b %Y")
             st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
             st.error(f"Error creating member percentage chart: {e}")
