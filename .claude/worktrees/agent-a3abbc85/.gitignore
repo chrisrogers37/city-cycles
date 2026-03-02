@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.env
+venv/
+ENV/
+
+# dbt
+target/
+dbt_packages/
+logs/
+profiles.yml
+
+# Secrets and config
+*.toml
+!railway.toml
+!.streamlit/config.toml
+secrets.*
+config/secrets.*
+*.pem
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db 
+
+# Database files
+*.duckdb
+*.duckdb.wal
+*.duckdb-shm
+*.duckdb-wal
+data/*.parquet
+data/*.csv
+# Ignore duckdb memory logs everywhere
+duckdb_memory.log
+db_duckdb/duckdb_memory.log
+
+
+# Planning docs
+resources/*.md
