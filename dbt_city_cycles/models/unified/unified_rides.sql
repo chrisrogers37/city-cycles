@@ -1,8 +1,3 @@
-{{ config(
-    materialized='incremental',
-    unique_key='ride_id'
-) }}
-
 -- NYC data (has latitude/longitude, user_type, birth_year, gender)
 SELECT
     ride_id,
@@ -33,9 +28,6 @@ SELECT
     schema_version,
     dbt_updated_at
 FROM {{ ref('int_nyc_rides') }}
-{% if is_incremental() %}
-where source_file not in (select distinct source_file from {{ this }})
-{% endif %}
 
 UNION ALL
 
@@ -69,6 +61,3 @@ SELECT
     schema_version,
     dbt_updated_at
 FROM {{ ref('int_london_rides') }}
-{% if is_incremental() %}
-where source_file not in (select distinct source_file from {{ this }})
-{% endif %}

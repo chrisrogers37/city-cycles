@@ -36,10 +36,10 @@ models:
       +materialized: view
       +schema: staging
     intermediate:
-      +materialized: incremental
+      +materialized: view
       +schema: intermediate
     unified:
-      +materialized: incremental
+      +materialized: view
       +schema: unified
     marts:
       +materialized: table
