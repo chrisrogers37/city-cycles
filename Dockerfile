@@ -38,6 +38,6 @@ ENV DUCKDB_MEMORY_LIMIT=8GB
 ENV DUCKDB_THREADS=2
 
 # Make entrypoint executable
-RUN chmod +x scripts/railway_entrypoint.sh
+RUN chmod +x scripts/railway_entrypoint.sh scripts/weather_entrypoint.sh
 
 ENTRYPOINT ["scripts/railway_entrypoint.sh"]

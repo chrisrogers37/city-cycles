@@ -1,0 +1,8 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+restartPolicyType = "NEVER"
+cronSchedule = "0 */6 * * *"
+startCommand = "scripts/weather_entrypoint.sh"

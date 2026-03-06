@@ -462,6 +462,7 @@ class DuckDBOperations:
             'mart_weather_impact_summary',
             'mart_station_directory',
             'mart_station_weather_performance',
+            'mart_similar_day_stats',
         ]
         
         # Intermediate and unified tables (optional exports)
