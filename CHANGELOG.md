@@ -7,8 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Weather Extraction Service** - Decoupled weather extraction from the monthly pipeline into a standalone entrypoint (`scripts/weather_entrypoint.sh`) with dedicated Railway config (`railway-weather.toml`) for independent 6-hour cron scheduling, enabling near-real-time weather data for dashboard recommendations
+
 ### Changed
 - **dbt Views Conversion** - Converted staging, intermediate, and unified dbt models from incremental tables to views, eliminating 23+ hour full-refresh hangs on 216M+ row datasets; marts remain as physical tables
+
+### Fixed
+- **Missing Mart Export** - Added `mart_similar_day_stats` to the `MART_TABLES` export list in `db_duckdb/operations.py`, fixing the mart never being exported to S3 despite dbt producing it
 
 ### Improved
 - **Insight Card Styling** - Neutral/info cards get subtle blue tint and all cards get colored left border matching severity (green/blue/amber/red)
