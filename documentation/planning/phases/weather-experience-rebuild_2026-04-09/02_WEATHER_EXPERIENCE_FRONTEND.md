@@ -1,9 +1,12 @@
 # Phase 02: Weather Experience Frontend — Implementation Plan
 
 **Created:** 2026-04-09
-**Status:** Planning
-**Depends on:** Phase 01 (API Layer)
+**Status:** COMPLETE (Phase 2A)
+**Started:** 2026-04-10
+**Completed:** 2026-04-10
+**Depends on:** Phase 01 (API Layer) — COMPLETE
 **Enables:** Phase 03 (Data Viz), Phase 04 (Comparison), Phase 05 (Analytics)
+**Split:** Phase 2A (core + CSS effects + data sections) → Phase 2B (Canvas particles)
 
 ---
 
@@ -214,13 +217,31 @@ frontend/
 
 ---
 
-## Verification
+## Challenge Round Decisions (2026-04-10)
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Phase split** | Split 2A/2B | 2A = core + CSS effects + data sections. 2B = Canvas particles. Ships value faster, unblocks Phase 03. |
+| **Chart library** | Recharts | Phase 05 needs many charts; 300KB justified. Avoids throwaway inline SVG. |
+| **State management** | Zustand | 1KB, SSR-safe, scales to Phase 04 dual-city and Phase 05 filters. |
+| **City silhouettes** | Simple geometric SVG | Quick to code, CSS-tintable, replaceable later with detailed versions. |
+| **Placeholder pages** | Defer | No dead routes. Phases 04/05 bring their own pages and nav items. |
+
+### Phase 2A Scope
+Core structure, CSS weather effects (sky gradients, fog, clouds, sun), all data sections, Zustand + SWR, TypeScript interfaces, responsive layout. ~35 files.
+
+### Phase 2B Scope (Deferred)
+Canvas particle system (`WeatherCanvas.tsx`, `particles.ts`), rain/snow/lightning effects, thunderstorm screen shake, heavy rain variant.
+
+---
+
+## Verification (Phase 2A)
 
 1. **Weather scene renders:** Sky gradient matches current time in the selected city
-2. **Particles work:** Rain/snow/clear effects display for current weather (test by hardcoding weatherCode)
+2. **CSS weather effects:** Fog bands, cloud drift, sun glow display for appropriate weather categories
 3. **City toggle transitions:** Smooth gradient transition (800ms), data refetches, silhouette crossfades
 4. **Data sections load:** Similar day card, hourly chart, insight cards, forecast strip all render
 5. **Responsive:** Mobile (375px) — weather scene fills viewport, cards stack, forecast scrolls horizontally
-6. **Performance:** Canvas at 60fps, Lighthouse 90+, no layout shift
-7. **Navigation:** Secondary pages lazy-load, city selection persists
-8. **Error states:** API down → loading skeleton → non-destructive error ("Weather data unavailable — retrying..."), sky gradient still renders (no API needed for time-of-day)
+6. **Performance:** Lighthouse 90+, no layout shift
+7. **Error states:** API down → loading skeleton → non-destructive error, sky gradient still renders
+8. **TypeScript:** `npx tsc --noEmit` passes with no errors

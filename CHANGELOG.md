@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Weather Experience Frontend (Phase 2A)** - Next.js 16 + TypeScript + Tailwind CSS frontend (`frontend/`) with immersive weather landing page. Features: time-of-day sky gradients, CSS weather effects (fog, clouds, sun glow), city silhouette SVGs, animated biking score gauge, "Days Like Today" card, hourly ride pattern chart (Recharts), insight cards, 24-hour forecast strip, city toggle (NYC/London), Zustand state management, SWR data fetching with 5-minute revalidation. Canvas particle effects (rain, snow, lightning) deferred to Phase 2B.
 - **FastAPI Backend** - New API layer (`api/`) with 17 endpoints wrapping existing weather service, recommendation engine, and DuckDB parquet queries. Endpoints: weather (2), insights (1), similar-day (2), analytics (10), health (1), plus auto-generated OpenAPI docs
 - **Weather Extraction Service** - Decoupled weather extraction from the monthly pipeline into a standalone entrypoint (`scripts/weather_entrypoint.sh`) with dedicated Railway config (`railway-weather.toml`) for independent 6-hour cron scheduling, enabling near-real-time weather data for dashboard recommendations
 

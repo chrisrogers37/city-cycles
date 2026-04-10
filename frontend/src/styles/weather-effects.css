@@ -1,0 +1,46 @@
+/* Weather effect animations — CSS-only (Canvas particles deferred to Phase 2B) */
+
+/* Fog: horizontal bands drifting in alternating directions */
+@keyframes fog-drift-right {
+  0% { transform: translateX(-10%); }
+  100% { transform: translateX(10%); }
+}
+
+@keyframes fog-drift-left {
+  0% { transform: translateX(10%); }
+  100% { transform: translateX(-10%); }
+}
+
+/* Clouds: slow horizontal drift */
+@keyframes cloud-drift {
+  0% { transform: translateX(-5%); }
+  100% { transform: translateX(5%); }
+}
+
+/* Sun: gentle pulsing glow */
+@keyframes sun-pulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+/* Score counter animation */
+@keyframes score-fill {
+  from { stroke-dashoffset: var(--circumference); }
+  to { stroke-dashoffset: var(--target-offset); }
+}
+
+/* Fade in for data sections below the fold */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s ease-out both;
+}
