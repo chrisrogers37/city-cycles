@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **FastAPI Backend** - New API layer (`api/`) with 17 endpoints wrapping existing weather service, recommendation engine, and DuckDB parquet queries. Endpoints: weather (2), insights (1), similar-day (2), analytics (10), health (1), plus auto-generated OpenAPI docs
 - **Weather Extraction Service** - Decoupled weather extraction from the monthly pipeline into a standalone entrypoint (`scripts/weather_entrypoint.sh`) with dedicated Railway config (`railway-weather.toml`) for independent 6-hour cron scheduling, enabling near-real-time weather data for dashboard recommendations
 
 ### Changed

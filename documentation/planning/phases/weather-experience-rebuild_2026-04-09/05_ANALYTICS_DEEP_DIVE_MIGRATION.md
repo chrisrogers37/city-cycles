@@ -1,0 +1,182 @@
+# Phase 05: Analytics Deep Dive Migration — Implementation Plan
+
+**Created:** 2026-04-09
+**Status:** Planning
+**Depends on:** Phase 01 (API endpoints), Phase 02 (Next.js app shell)
+**Priority:** Lower than landing experience; completes the product
+
+---
+
+## Purpose
+
+Migrate three Streamlit analytics pages to the new React frontend. These pages carry the analytical depth and must feel connected to the landing page — weather context carries through, charts highlight current conditions.
+
+---
+
+## Current State
+
+| Page | Streamlit File | Sections | Queries |
+|------|---------------|----------|---------|
+| Ride Analytics | `ride_analytics.py` | Key metrics, monthly trends (year overlay), duration, hourly patterns, member % (NYC), station growth, station weather perf + map | 7 queries, 5 marts |
+| Weather Deep Dive | `weather_deep_dive.py` | Temp vs rides, precip impact, condition impact, hourly weather impact | 4 queries, 2 marts |
+| City Comparison | `comparison.py` | Side-by-side metrics, trends, duration, station growth, weather impact | 6 queries, 3 marts |
+
+---
+
+## Pages to Build
+
+### 1. Ride Analytics (`/analytics`)
+
+**Controls:** City selector (global), date range picker with presets ("Last Year", "All Time", per-year).
+
+**Sections:**
+
+1. **Key Metrics** — Total Rides, Average Daily, Average Duration (3 cards)
+2. **Monthly Ride Trends** — Line chart, year overlay. Toggle: "Average Daily" vs "Total". **Enhancement:** highlight current month.
+3. **Duration Trends** — Same year-overlay pattern. Caption: "True average: total minutes / total rides."
+4. **Time of Day** — Horizontal bars, hours 0-23. **Enhancement:** highlight current hour.
+5. **Member Percentage** — NYC only, line chart. Conditional render.
+6. **Station Growth** — Bar chart, year vs station count.
+7. **Station Weather Performance** — Weather condition dropdown, hour range slider (**debounced 300ms**). **Enhancement: map as primary view** (both NYC and London, not just NYC). Mapbox/react-map-gl scatter: size = rides, color = RdYlGn % change. Table as toggle.
+
+**API calls:** daily-metrics, hourly-patterns, member-analysis, station-growth, station-performance.
+
+### 2. Weather Deep Dive (`/weather`)
+
+**Controls:** City selector (global).
+
+**Sections:**
+
+1. **Temperature vs Rides** — Bar chart by temp range. **Enhancement:** highlight today's temp band.
+2. **Precipitation Impact** — Bar chart by precip category. **Enhancement:** highlight today's precip level.
+3. **Weather Condition Impact** — Bar chart, % change vs clear. RdYlGn color scale. **Enhancement:** highlight today's condition.
+4. **Hourly Weather Impact** — Multi-line: rain, snow, fog. **Enhancement:** vertical marker at current hour.
+
+**"Today's conditions" integration:** Read current weather from React Context (populated by landing page). No extra API call.
+
+**API calls:** weather-correlation, weather-impact.
+
+### 3. Station Explorer (`/stations`)
+
+**Promoted from a subsection to its own page.** Map-first UX.
+
+**Controls:** City selector, weather condition multi-select, hour range slider (debounced), minimum rides threshold.
+
+**Primary: Interactive Map**
+- Mapbox GL JS / react-map-gl
+- Scatter markers: size = total rides, color = RdYlGn (% change vs clear)
+- Hover tooltip: station name, % change, rides, duration
+- Click: detail card
+- Both NYC and London supported
+
+**Secondary: Ranked Table**
+- Toggle between map and table
+- Sortable columns, CSV export
+
+---
+
+## Shared Components
+
+| Component | Purpose | Replaces |
+|-----------|---------|----------|
+| CitySelector | Global context, URL sync (`?city=nyc`) | 3 separate `st.session_state` keys |
+| DateRangePicker | Start/end + preset buttons, URL sync | `st.date_input` (no presets) |
+| ChartContainer | Consistent wrapper: title, subtitle, loading, empty, error states | Repeated `st.subheader` + `try/except` |
+| DataTable | Sortable, formatted, CSV export | `st.dataframe` + `st.expander` |
+| MetricCard | Large number + label + optional delta | `st.metric` |
+| ChartHighlightContext | Provides current conditions to all charts for annotations | New concept |
+
+---
+
+## Chart Theme
+
+```typescript
+export const chartTheme = {
+  colors: {
+    primary: '#5DADE2',
+    secondary: '#E74C3C',
+    success: '#2ECC71',
+    warning: '#F39C12',
+    purple: '#9B59B6',
+    teal: '#1ABC9C',
+  },
+  colorway: ['#5DADE2', '#E74C3C', '#2ECC71', '#F39C12', '#9B59B6', '#1ABC9C', '#E67E22', '#3498DB'],
+  background: 'transparent',
+  grid: 'rgba(255, 255, 255, 0.06)',
+  text: 'rgba(255, 255, 255, 0.8)',
+};
+```
+
+Maps from existing `ATMOSPHERIC_COLORS` in `dashboard/theme/plotly_template.py`.
+
+---
+
+## Implementation Sequence
+
+### Step 1: Shared infrastructure (2-3 days)
+- Chart theme constants
+- ChartContainer, DataTable, MetricCard, DateRangePicker
+- React Query hooks for all analytics endpoints
+- ChartHighlightContext
+
+### Step 2: Ride Analytics (3-4 days)
+- Page layout and controls
+- Monthly trend chart (year overlay)
+- Duration, hourly, member, station growth charts
+- Station weather performance (map + table)
+- "Today" highlight annotations
+
+### Step 3: Weather Deep Dive (2-3 days)
+- Temperature, precipitation, condition, hourly impact charts
+- Current weather highlight integration
+
+### Step 4: Station Explorer (3-4 days)
+- Mapbox integration
+- Station scatter layer
+- Filter controls + detail panel
+- Table toggle
+
+### Step 5: Polish (2-3 days)
+- Navigation transitions
+- URL state sync
+- Responsive layout
+- Accessibility
+
+**Total: ~12-17 days**
+
+---
+
+## Verification
+
+**Per-page:** Values match Streamlit output for same city/date range. Charts render correctly. "Today" highlights annotate correct bands.
+
+**Cross-cutting:** City persists across pages. Date range persists. Loading/empty/error states work. Dark theme consistent. Tables export CSV correctly.
+
+---
+
+## File List
+
+```
+app/analytics/page.tsx
+app/weather/page.tsx
+app/stations/page.tsx
+components/charts/chart-theme.ts
+components/charts/MonthlyTrendChart.tsx
+components/charts/HourlyBarChart.tsx
+components/charts/StationGrowthChart.tsx
+components/charts/TemperatureRidesChart.tsx
+components/charts/PrecipitationChart.tsx
+components/charts/WeatherConditionChart.tsx
+components/charts/HourlyWeatherImpactChart.tsx
+components/charts/MemberPercentageChart.tsx
+components/charts/DurationTrendChart.tsx
+components/maps/StationMap.tsx
+components/maps/StationMapMarker.tsx
+components/ui/ChartContainer.tsx
+components/ui/DataTable.tsx
+components/ui/MetricCard.tsx
+components/ui/DateRangePicker.tsx
+contexts/ChartHighlightContext.tsx
+hooks/use-analytics.ts
+hooks/use-debounce.ts
+```
