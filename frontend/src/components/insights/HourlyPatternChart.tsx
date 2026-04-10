@@ -9,10 +9,11 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { useSimilarDayHourly } from "@/hooks/useSimilarDay";
+import { useSimilarDayHourly, useSimilarDay } from "@/hooks/useSimilarDay";
 import { useCityStore } from "@/store/useCityStore";
+import { formatHour12 } from "@/lib/format";
 
-function formatHour(h: number): string {
+function formatHourShort(h: number): string {
   if (h === 0) return "12a";
   if (h < 12) return `${h}a`;
   if (h === 12) return "12p";
@@ -30,6 +31,7 @@ function getCurrentHour(city: string): number {
 export default function HourlyPatternChart() {
   const city = useCityStore((s) => s.city);
   const { data, isLoading } = useSimilarDayHourly(city);
+  const { data: dailyData } = useSimilarDay(city);
 
   if (isLoading) {
     return (
@@ -51,12 +53,20 @@ export default function HourlyPatternChart() {
 
   const chartData = data.hours.map((h) => ({
     hour: h.hour_of_day,
-    label: formatHour(h.hour_of_day),
+    label: formatHourShort(h.hour_of_day),
     similarDay: Math.round(h.similar_day_avg_rides),
     overall: h.overall_avg_rides ? Math.round(h.overall_avg_rides) : null,
   }));
 
   const currentHour = getCurrentHour(city);
+
+  // Peak hour from daily stats
+  const peakHour = dailyData?.peak_hour_start ?? null;
+  const peakEnd = dailyData?.peak_hour_end ?? null;
+  const peakLabel =
+    peakHour !== null && peakEnd !== null
+      ? `Peak ${formatHour12(peakHour)}–${formatHour12(peakEnd)}`
+      : null;
 
   return (
     <div className="glass-card p-6">
@@ -89,7 +99,7 @@ export default function HourlyPatternChart() {
             }}
             labelFormatter={(label) => `${label}`}
           />
-          {/* Overall average as dashed line */}
+          {/* Overall average as dashed line — draws in from left */}
           <Area
             type="monotone"
             dataKey="overall"
@@ -97,23 +107,62 @@ export default function HourlyPatternChart() {
             strokeDasharray="4 4"
             fill="none"
             strokeWidth={1.5}
+            activeDot={false}
+            isAnimationActive={true}
+            animationDuration={1400}
+            animationEasing="ease-out"
           />
-          {/* Similar day as filled area */}
+          {/* Similar day as filled area — draws in from left */}
           <Area
             type="monotone"
             dataKey="similarDay"
             stroke="#5DADE2"
             fill="url(#areaGrad)"
             strokeWidth={2}
+            activeDot={{ r: 4, fill: "#5DADE2" }}
+            isAnimationActive={true}
+            animationDuration={1200}
+            animationEasing="ease-out"
           />
           {/* Current hour marker */}
           <ReferenceLine
-            x={formatHour(currentHour)}
+            x={formatHourShort(currentHour)}
             stroke="rgba(255,255,255,0.4)"
             strokeDasharray="3 3"
+            label={{
+              value: "Now",
+              position: "top",
+              fill: "rgba(255,255,255,0.5)",
+              fontSize: 10,
+            }}
           />
+          {/* Peak hour marker */}
+          {peakHour !== null && (
+            <ReferenceLine
+              x={formatHourShort(peakHour)}
+              stroke="rgba(46,204,113,0.4)"
+              strokeDasharray="3 3"
+              label={{
+                value: peakLabel ?? "Peak",
+                position: "top",
+                fill: "rgba(46,204,113,0.7)",
+                fontSize: 10,
+              }}
+            />
+          )}
         </AreaChart>
       </ResponsiveContainer>
+      {/* Legend */}
+      <div className="flex gap-4 mt-3 text-xs text-[var(--color-text-muted)]">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-3 h-0.5 bg-[#5DADE2] rounded" />
+          Days like today
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-3 h-0.5 border-t border-dashed border-white/25" />
+          Overall average
+        </span>
+      </div>
     </div>
   );
 }

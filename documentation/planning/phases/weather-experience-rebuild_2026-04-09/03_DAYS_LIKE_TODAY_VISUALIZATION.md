@@ -1,16 +1,29 @@
 # Phase 03: "Days Like Today" Visualization — Implementation Plan
 
 **Created:** 2026-04-09
-**Status:** Planning
-**Depends on:** Phase 01 (API Layer), parallel with Phase 02 (Frontend)
+**Status:** COMPLETE
+**Depends on:** Phase 01 (API Layer) — COMPLETE, Phase 02A (Frontend Core) — COMPLETE
+**Started:** 2026-04-10
+**Completed:** 2026-04-10
 
 ---
 
 ## Overview
 
-Transform the recommendation engine's analytical output into a visual data experience. The backend already classifies weather, queries `mart_similar_day_stats`, and generates insights. This phase builds the frontend components that render those results.
+Enhance the Phase 2A landing page with richer "days like today" data visualizations. Phase 2A already built the core components (SimilarDayCard, HourlyPatternChart, InsightCards, hooks, types). This phase adds new visualization components and enriches existing ones.
 
 Core narrative: **"On days like today, here is what bike share ridership actually looks like."**
+
+---
+
+## Phase 2A Overlap (Already Complete)
+
+The following were built in Phase 2A and do NOT need to be recreated:
+- `SimilarDayCard.tsx` — renders avg rides, pct change, peak hours, sample_days
+- `HourlyPatternChart.tsx` — dual-series area chart with current hour marker
+- `InsightCards.tsx` — severity-colored recommendation cards
+- `useSimilarDay.ts` — SWR hooks for both `/api/similar-day/{city}` and `/hourly`
+- `lib/types.ts` — all TypeScript interfaces (SimilarDayResponse, SimilarDayHourlyResponse, etc.)
 
 ---
 
@@ -155,24 +168,37 @@ Existing component from `recommendation_cards.py` — the API already generates 
 
 ---
 
-## File List
+## Challenge Round Decisions (2026-04-10)
 
-| File | Purpose | New/Modify |
-|------|---------|------------|
-| `components/insights/SimilarDayCard.tsx` | Hero summary card | NEW |
-| `components/insights/HourlyPatternChart.tsx` | Dual-line hourly chart | NEW |
-| `components/insights/MemberCasualSplit.tsx` | Member/casual ratio bar | NEW |
-| `components/insights/DurationInsight.tsx` | Duration comparison stat | NEW |
-| `hooks/useSimilarDay.ts` | SWR hook for similar-day endpoints | NEW (or extend Phase 02) |
-| `lib/format.ts` | Number/date formatting helpers | NEW |
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Scope update** | Reduced to delta from Phase 2A | Plan was written before 2A; 4 of 6 files already exist |
+| **Member/casual data** | Sum from hourly data client-side | Avoids backend changes; data already in useSimilarDayHourly |
+| **format.ts** | Create dedicated file | 3+ components need shared formatting; reusable in Phase 04/05 |
+| **Chart line-draw animation** | Implement via strokeDasharray | User wants the polish; CSS-based, contained complexity |
+| **Peak annotation** | ReferenceLine + label | Same pattern as existing "Now" marker; consistent, minimal |
 
 ---
 
-## Implementation Sequence
+## File List (Updated for Phase 2A Overlap)
 
-1. Build SimilarDayCard (simplest, pure rendering)
-2. Build DurationInsight (small, self-contained)
-3. Build MemberCasualSplit (small chart)
-4. Build HourlyPatternChart (most complex, two data sources)
-5. Wire into landing page
-6. Test with both cities under various weather conditions
+| File | Purpose | Action |
+|------|---------|--------|
+| `components/insights/SimilarDayCard.tsx` | Add precipitation to sentence | ENHANCE |
+| `components/insights/HourlyPatternChart.tsx` | Add peak annotation + line-draw animation | ENHANCE |
+| `components/insights/MemberCasualSplit.tsx` | Member/casual horizontal stacked bar | NEW |
+| `components/insights/DurationInsight.tsx` | Duration comparison stat with arrow | NEW |
+| `lib/format.ts` | Number/date formatting helpers | NEW |
+| `app/page.tsx` | Wire new components into landing page | MODIFY |
+
+---
+
+## Implementation Sequence (Updated)
+
+1. Create `lib/format.ts` (shared formatting helpers)
+2. Create `DurationInsight.tsx` (small, self-contained)
+3. Create `MemberCasualSplit.tsx` (sum hourly data client-side)
+4. Enhance `SimilarDayCard.tsx` (add precipitation to sentence)
+5. Enhance `HourlyPatternChart.tsx` (peak ReferenceLine + strokeDasharray animation)
+6. Wire new components into `page.tsx` landing page layout
+7. Verify with both cities
