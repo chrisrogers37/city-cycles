@@ -103,7 +103,7 @@ Phase 06: Deployment & Hosting ◄──────── Phase 01 + Phase 02 �
 
 | Phase | Scope | Size | Est. Duration |
 |-------|-------|------|---------------|
-| **01: API Layer** | FastAPI + 12 endpoints wrapping existing code | **S** | IN PROGRESS |
+| **01: API Layer** | FastAPI + 17 endpoints wrapping existing code | **S** | COMPLETE |
 | **02: Weather Experience Frontend** | Next.js app, weather animations, hero, forecast, responsive layout | **L** | 3-4 weeks |
 | **03: Days Like Today Visualization** | Interactive data viz for similar-day stats, hourly patterns | **M** | 2-3 weeks |
 | **04: City Comparison Mode** | Side-by-side NYC/London with shared controls | **M** | 2-3 weeks |
