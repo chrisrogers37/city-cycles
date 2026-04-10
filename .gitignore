@@ -63,3 +63,8 @@ db_duckdb/duckdb_memory.log
 
 # Planning docs
 resources/*.md
+
+# Node.js / Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
