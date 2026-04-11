@@ -55,8 +55,8 @@ export default function StationGrowthChart({ city }: Props) {
               color: "#fff",
               fontSize: 12,
             }}
-            formatter={(value: unknown) => {
-              if (typeof value !== "number") return [String(value), "Stations"];
+            formatter={(value) => {
+              if (typeof value !== "number") return [String(value ?? ""), "Stations"];
               return [formatNumber(value), "Stations"];
             }}
           />

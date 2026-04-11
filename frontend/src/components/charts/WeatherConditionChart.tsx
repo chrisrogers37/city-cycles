@@ -67,9 +67,9 @@ export default function WeatherConditionChart({ city }: Props) {
               color: "#fff",
               fontSize: 12,
             }}
-            formatter={(value: unknown, _name: string, props: { payload?: { observations?: number; rides?: number } }) => {
-              if (typeof value !== "number") return [String(value), "Impact"];
-              const { observations, rides } = props.payload ?? {};
+            formatter={(value, _name, props) => {
+              if (typeof value !== "number") return [String(value ?? ""), "Impact"];
+              const { observations, rides } = (props as { payload?: { observations?: number; rides?: number } }).payload ?? {};
               return [`${value > 0 ? "+" : ""}${value.toFixed(1)}% (${rides ?? "?"} avg rides, ${observations ?? "?"} obs)`, "vs Clear"];
             }}
           />

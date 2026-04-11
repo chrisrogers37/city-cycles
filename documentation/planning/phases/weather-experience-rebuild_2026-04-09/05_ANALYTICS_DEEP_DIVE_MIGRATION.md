@@ -1,7 +1,8 @@
 # Phase 05: Analytics Deep Dive Migration — Implementation Plan
 
 **Created:** 2026-04-09
-**Status:** Planning
+**Status:** IN PROGRESS
+**Started:** 2026-04-11
 **Depends on:** Phase 01 (API endpoints), Phase 02 (Next.js app shell)
 **Priority:** Lower than landing experience; completes the product
 
@@ -146,20 +147,58 @@ Maps from existing `ATMOSPHERIC_COLORS` in `dashboard/theme/plotly_template.py`.
 
 ---
 
+## Challenge Round Decisions (2026-04-11)
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Map library** | Mapbox / react-map-gl (in 5B) | Professional vector tiles, free tier covers this project. react-map-gl is the standard React wrapper. |
+| **ChartHighlightContext** | Skip — use existing hooks | `useInsights(city)` already returns classified conditions (temp band, precip, weather category). SWR deduplicates. No extra abstraction needed. |
+| **City URL sync** | Zustand only | Landing and compare pages use Zustand without URL params. Keep consistent. City resets on refresh (acceptable for exploration). |
+| **Phase split** | Split 5A/5B | 5A: Shared infra + Ride Analytics + Weather Deep Dive (chart pages). 5B: Station Explorer (Mapbox + filters + table toggle). Keeps PRs reviewable. |
+| **CSV export** | Defer | DataTable gets sorting/formatting only. CSV export adds complexity for a feature not yet requested. |
+| **DateRangePicker** | Preset buttons only | Simple button group ('2024', '2023', 'All Time'). No calendar widget. Covers year-over-year comparison use cases. |
+
+---
+
+## Phase 5A Scope
+
+**Shared infra + Ride Analytics + Weather Deep Dive.** No Mapbox (deferred to 5B).
+
+### What's IN Phase 5A:
+- TypeScript interfaces for all analytics API responses
+- SWR hooks for analytics endpoints
+- Chart theme constants
+- ChartContainer, MetricCard, DataTable (sorting only), DatePresetBar shared components
+- Ride Analytics page (`/analytics`) with all 7 sections
+- Weather Deep Dive page (`/weather`) with all 4 sections
+- "Today" highlight annotations using existing hooks
+- NavBar updates (add /analytics, /weather links)
+- Responsive layout
+
+### What's DEFERRED to Phase 5B:
+- Station Explorer page (`/stations`)
+- Mapbox / react-map-gl dependency
+- StationMap, StationMapMarker components
+- Station filter controls (weather multi-select, hour range slider, min rides threshold)
+- Map/table toggle
+- NavBar /stations link
+- CSV export for DataTable
+
+---
+
 ## Verification
 
 **Per-page:** Values match Streamlit output for same city/date range. Charts render correctly. "Today" highlights annotate correct bands.
 
-**Cross-cutting:** City persists across pages. Date range persists. Loading/empty/error states work. Dark theme consistent. Tables export CSV correctly.
+**Cross-cutting:** City persists across pages. Loading/empty/error states work. Dark theme consistent.
 
 ---
 
-## File List
+## File List — Phase 5A
 
 ```
 app/analytics/page.tsx
 app/weather/page.tsx
-app/stations/page.tsx
 components/charts/chart-theme.ts
 components/charts/MonthlyTrendChart.tsx
 components/charts/HourlyBarChart.tsx
@@ -170,13 +209,18 @@ components/charts/WeatherConditionChart.tsx
 components/charts/HourlyWeatherImpactChart.tsx
 components/charts/MemberPercentageChart.tsx
 components/charts/DurationTrendChart.tsx
-components/maps/StationMap.tsx
-components/maps/StationMapMarker.tsx
 components/ui/ChartContainer.tsx
 components/ui/DataTable.tsx
 components/ui/MetricCard.tsx
-components/ui/DateRangePicker.tsx
-contexts/ChartHighlightContext.tsx
-hooks/use-analytics.ts
-hooks/use-debounce.ts
+components/ui/DatePresetBar.tsx
+hooks/useAnalytics.ts
+```
+
+## File List — Phase 5B (Deferred)
+
+```
+app/stations/page.tsx
+components/maps/StationMap.tsx
+components/maps/StationMapMarker.tsx
+hooks/useDebounce.ts
 ```

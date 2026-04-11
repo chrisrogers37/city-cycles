@@ -64,9 +64,9 @@ export default function TemperatureRidesChart({ city }: Props) {
               color: "#fff",
               fontSize: 12,
             }}
-            formatter={(value: unknown, _name: string, props: { payload?: { days?: number } }) => {
-              if (typeof value !== "number") return [String(value), "Avg Rides"];
-              const days = props.payload?.days;
+            formatter={(value, _name, props) => {
+              if (typeof value !== "number") return [String(value ?? ""), "Avg Rides"];
+              const days = (props as { payload?: { days?: number } }).payload?.days;
               return [`${formatNumber(value)} rides (${days ?? "?"} days)`, "Avg Daily"];
             }}
           />

@@ -78,10 +78,10 @@ export default function DurationTrendChart({ city, startDate, endDate }: Props) 
               color: "#fff",
               fontSize: 12,
             }}
-            labelFormatter={(m: number) => monthName(m)}
-            formatter={(value: unknown, name: string) => {
-              if (typeof value !== "number") return [String(value), name];
-              return [`${value.toFixed(1)} min`, name];
+            labelFormatter={(label) => monthName(Number(label))}
+            formatter={(value, name) => {
+              if (typeof value !== "number") return [String(value ?? ""), String(name ?? "")];
+              return [`${value.toFixed(1)} min`, String(name ?? "")];
             }}
           />
           {years.map((year, i) => (

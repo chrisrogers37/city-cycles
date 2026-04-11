@@ -76,13 +76,13 @@ export default function HourlyWeatherImpactChart({ city }: Props) {
               color: "#fff",
               fontSize: 12,
             }}
-            labelFormatter={(label: string) => {
-              const idx = chartData.findIndex((d) => d.label === label);
-              return idx >= 0 ? formatHour12(chartData[idx].hour) : label;
+            labelFormatter={(label) => {
+              const idx = chartData.findIndex((d) => d.label === String(label));
+              return idx >= 0 ? formatHour12(chartData[idx].hour) : String(label);
             }}
-            formatter={(value: unknown, name: string) => {
-              if (value == null || typeof value !== "number") return ["—", name];
-              return [`${value > 0 ? "+" : ""}${value.toFixed(1)}%`, name];
+            formatter={(value, name) => {
+              if (value == null || typeof value !== "number") return ["—", String(name ?? "")];
+              return [`${value > 0 ? "+" : ""}${value.toFixed(1)}%`, String(name ?? "")];
             }}
           />
           <ReferenceLine y={0} stroke="rgba(255,255,255,0.1)" />

@@ -60,8 +60,8 @@ export default function MemberPercentageChart({ city, startDate, endDate }: Prop
               color: "#fff",
               fontSize: 12,
             }}
-            formatter={(value: unknown) => {
-              if (typeof value !== "number") return [String(value), "Member %"];
+            formatter={(value) => {
+              if (typeof value !== "number") return [String(value ?? ""), "Member %"];
               return [`${value.toFixed(1)}%`, "Member %"];
             }}
           />

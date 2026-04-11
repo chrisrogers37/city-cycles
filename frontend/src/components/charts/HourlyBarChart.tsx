@@ -76,12 +76,12 @@ export default function HourlyBarChart({ city }: Props) {
               color: "#fff",
               fontSize: 12,
             }}
-            labelFormatter={(label: string) => {
-              const idx = chartData.findIndex((d) => d.label === label);
-              return idx >= 0 ? formatHour12(chartData[idx].hour) : label;
+            labelFormatter={(label) => {
+              const idx = chartData.findIndex((d) => d.label === String(label));
+              return idx >= 0 ? formatHour12(chartData[idx].hour) : String(label);
             }}
-            formatter={(value: unknown) => {
-              if (typeof value !== "number") return [String(value), "Rides"];
+            formatter={(value) => {
+              if (typeof value !== "number") return [String(value ?? ""), "Rides"];
               return [formatNumber(value), "Rides"];
             }}
           />

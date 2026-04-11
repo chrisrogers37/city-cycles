@@ -103,10 +103,10 @@ export default function MonthlyTrendChart({ city, startDate, endDate }: Props) {
               color: "#fff",
               fontSize: 12,
             }}
-            labelFormatter={(m: number) => monthName(m)}
-            formatter={(value: unknown, name: string) => {
-              if (typeof value !== "number") return [String(value), name];
-              return [formatNumber(value), name];
+            labelFormatter={(label) => monthName(Number(label))}
+            formatter={(value, name) => {
+              if (typeof value !== "number") return [String(value ?? ""), String(name ?? "")];
+              return [formatNumber(value), String(name ?? "")];
             }}
           />
           {years.map((year, i) => (
