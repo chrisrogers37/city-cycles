@@ -7,14 +7,28 @@ import CitySilhouette from "./CitySilhouette";
 import FogOverlay from "./FogOverlay";
 import CloudOverlay from "./CloudOverlay";
 import SunOverlay from "./SunOverlay";
+import WeatherCanvas from "./WeatherCanvas";
 import CityToggle from "./CityToggle";
 import { useWeather } from "@/hooks/useWeather";
 import { useInsights } from "@/hooks/useInsights";
 import { useTimePeriod } from "@/hooks/useTimePeriod";
 import { useCityStore } from "@/store/useCityStore";
+import { needsCanvas } from "@/lib/particles";
 import type { WeatherCategory } from "@/lib/types";
 
 function WeatherEffect({ category }: { category?: WeatherCategory }) {
+  if (!category) return null;
+
+  // Canvas particles for rain, drizzle, snow, thunderstorm
+  if (needsCanvas(category)) {
+    return (
+      <>
+        {category !== "snow" && <CloudOverlay heavy />}
+        <WeatherCanvas category={category} />
+      </>
+    );
+  }
+
   switch (category) {
     case "fog":
       return <FogOverlay />;
@@ -22,14 +36,6 @@ function WeatherEffect({ category }: { category?: WeatherCategory }) {
       return <CloudOverlay />;
     case "clear":
       return <SunOverlay />;
-    case "rain":
-    case "drizzle":
-    case "thunderstorm":
-      // Canvas particles deferred to Phase 2B — show cloud overlay as placeholder
-      return <CloudOverlay heavy />;
-    case "snow":
-      // Canvas particles deferred to Phase 2B — show cloud overlay as placeholder
-      return <CloudOverlay heavy />;
     default:
       return null;
   }
