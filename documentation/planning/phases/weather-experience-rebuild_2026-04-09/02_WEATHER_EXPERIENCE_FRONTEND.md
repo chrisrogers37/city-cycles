@@ -1,9 +1,9 @@
 # Phase 02: Weather Experience Frontend — Implementation Plan
 
 **Created:** 2026-04-09
-**Status:** COMPLETE (Phase 2A)
-**Started:** 2026-04-10
-**Completed:** 2026-04-10
+**Status:** IN PROGRESS (Phase 2B)
+**Started:** 2026-04-10 (Phase 2A) / 2026-04-11 (Phase 2B)
+**Completed:** 2026-04-10 (Phase 2A)
 **Depends on:** Phase 01 (API Layer) — COMPLETE
 **Enables:** Phase 03 (Data Viz), Phase 04 (Comparison), Phase 05 (Analytics)
 **Split:** Phase 2A (core + CSS effects + data sections) → Phase 2B (Canvas particles)
@@ -230,8 +230,17 @@ frontend/
 ### Phase 2A Scope
 Core structure, CSS weather effects (sky gradients, fog, clouds, sun), all data sections, Zustand + SWR, TypeScript interfaces, responsive layout. ~35 files.
 
-### Phase 2B Scope (Deferred)
+### Phase 2B Scope (IN PROGRESS)
 Canvas particle system (`WeatherCanvas.tsx`, `particles.ts`), rain/snow/lightning effects, thunderstorm screen shake, heavy rain variant.
+
+#### Phase 2B Challenge Round Decisions (2026-04-11)
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Lightning** | Full branching algorithm + glow + screen shake | More cinematic; ~80 LOC justified for the hero weather effect |
+| **Drizzle** | Light rain config (fewer, shorter, slower) | Reuses rain particle class with lighter params; no new abstraction |
+| **Canvas layer** | Absolute behind content, pointer-events:none | Simplest integration; particles behind text for readability |
+| **Mobile perf** | Halve particle counts on viewport < 768px | Meaningful perf gain on low-end devices with minimal code |
 
 ---
 
