@@ -37,15 +37,22 @@ export default function NavBar({ alwaysVisible }: NavBarProps) {
           City Cycles
         </Link>
         <div className="flex items-center gap-4">
-          <Link
-            href="/compare"
-            className="text-xs tracking-wide transition-colors"
-            style={{
-              color: pathname === "/compare" ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.5)",
-            }}
-          >
-            Compare
-          </Link>
+          {[
+            { href: "/analytics", label: "Analytics" },
+            { href: "/weather", label: "Weather" },
+            { href: "/compare", label: "Compare" },
+          ].map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="text-xs tracking-wide transition-colors"
+              style={{
+                color: pathname === link.href ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.5)",
+              }}
+            >
+              {link.label}
+            </Link>
+          ))}
         </div>
       </div>
     </nav>

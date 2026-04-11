@@ -1,0 +1,149 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+} from "recharts";
+import { useMonthlyTrends } from "@/hooks/useAnalytics";
+import { COLORWAY, CHART_THEME } from "@/components/charts/chart-theme";
+import ChartContainer from "@/components/ui/ChartContainer";
+import { monthName, formatNumber } from "@/lib/format";
+
+interface Props {
+  city: string;
+  startDate: string;
+  endDate: string;
+}
+
+export default function MonthlyTrendChart({ city, startDate, endDate }: Props) {
+  const [aggregation, setAggregation] = useState<"avg" | "sum">("avg");
+  const { data, isLoading } = useMonthlyTrends(city, startDate, endDate, aggregation);
+
+  const { chartData, years } = useMemo(() => {
+    if (!data || data.length === 0) return { chartData: [], years: [] };
+
+    const yearSet = new Set<number>();
+    const byMonth = new Map<number, Record<string, number>>();
+
+    for (const row of data) {
+      yearSet.add(row.year);
+      const entry = byMonth.get(row.month) ?? { month: row.month };
+      entry[String(row.year)] = Math.round(row.metric_value);
+      byMonth.set(row.month, entry);
+    }
+
+    const yrs = Array.from(yearSet).sort();
+    const cd = Array.from(byMonth.values()).sort(
+      (a, b) => (a.month as number) - (b.month as number),
+    );
+    return { chartData: cd, years: yrs };
+  }, [data]);
+
+  const currentMonth = new Date().getMonth() + 1;
+
+  return (
+    <ChartContainer
+      title="Monthly Ride Trends"
+      subtitle={aggregation === "avg" ? "Average daily rides per month" : "Total rides per month"}
+      isLoading={isLoading}
+      isEmpty={chartData.length === 0}
+    >
+      <div className="flex justify-end mb-3">
+        <div className="flex rounded-full overflow-hidden border border-white/10 text-xs">
+          <button
+            onClick={() => setAggregation("avg")}
+            className="px-3 py-1 transition-colors"
+            style={{
+              background: aggregation === "avg" ? "rgba(93,173,226,0.2)" : "transparent",
+              color: aggregation === "avg" ? "#5DADE2" : "rgba(255,255,255,0.4)",
+            }}
+          >
+            Avg Daily
+          </button>
+          <button
+            onClick={() => setAggregation("sum")}
+            className="px-3 py-1 transition-colors"
+            style={{
+              background: aggregation === "sum" ? "rgba(93,173,226,0.2)" : "transparent",
+              color: aggregation === "sum" ? "#5DADE2" : "rgba(255,255,255,0.4)",
+            }}
+          >
+            Total
+          </button>
+        </div>
+      </div>
+
+      <ResponsiveContainer width="100%" height={240}>
+        <LineChart data={chartData}>
+          <XAxis
+            dataKey="month"
+            tickFormatter={(m: number) => monthName(m).slice(0, 3)}
+            tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+            axisLine={{ stroke: CHART_THEME.grid }}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+            tickFormatter={(v: number) => formatNumber(v)}
+            width={55}
+          />
+          <Tooltip
+            contentStyle={{
+              background: CHART_THEME.tooltipBg,
+              border: `1px solid ${CHART_THEME.tooltipBorder}`,
+              borderRadius: 8,
+              color: "#fff",
+              fontSize: 12,
+            }}
+            labelFormatter={(label) => monthName(Number(label))}
+            formatter={(value, name) => {
+              if (typeof value !== "number") return [String(value ?? ""), String(name ?? "")];
+              return [formatNumber(value), String(name ?? "")];
+            }}
+          />
+          {years.map((year, i) => (
+            <Line
+              key={year}
+              type="monotone"
+              dataKey={String(year)}
+              stroke={COLORWAY[i % COLORWAY.length]}
+              strokeWidth={year === years[years.length - 1] ? 2.5 : 1.5}
+              strokeOpacity={year === years[years.length - 1] ? 1 : 0.5}
+              dot={false}
+              activeDot={{ r: 3 }}
+            />
+          ))}
+          <ReferenceLine
+            x={currentMonth}
+            stroke="rgba(255,255,255,0.3)"
+            strokeDasharray="3 3"
+            label={{ value: "Now", position: "top", fill: "rgba(255,255,255,0.4)", fontSize: 10 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+
+      <div className="flex flex-wrap gap-3 mt-3 text-xs text-white/50">
+        {years.map((year, i) => (
+          <span key={year} className="flex items-center gap-1.5">
+            <span
+              className="inline-block w-3 h-0.5 rounded"
+              style={{
+                background: COLORWAY[i % COLORWAY.length],
+                opacity: year === years[years.length - 1] ? 1 : 0.5,
+              }}
+            />
+            {year}
+          </span>
+        ))}
+      </div>
+    </ChartContainer>
+  );
+}
