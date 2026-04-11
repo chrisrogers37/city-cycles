@@ -107,7 +107,7 @@ Phase 06: Deployment & Hosting ◄──────── Phase 01 + Phase 02 �
 | **02A: Weather Frontend Core** | Next.js app, CSS weather effects, data sections, responsive layout | **M** | COMPLETE |
 | **02B: Weather Canvas Particles** | Canvas particle system: rain, snow, lightning | **S** | COMPLETE |
 | **03: Days Like Today Visualization** | Data viz enhancements: DurationInsight, MemberCasualSplit, chart annotations | **S** | COMPLETE |
-| **04: City Comparison Mode** | Side-by-side NYC/London with shared controls | **M** | 2-3 weeks |
+| **04: City Comparison Mode** | Side-by-side NYC/London with shared controls | **M** | COMPLETE |
 | **05: Analytics Deep Dive Migration** | Port ride analytics + weather deep dive + station explorer | **M** | 2-3 weeks |
 | **06: Deployment & Hosting** | Vercel/Railway, CI/CD, domain, monitoring | **S** | 1-2 weeks |
 | **Total** | | | **11-17 weeks** |

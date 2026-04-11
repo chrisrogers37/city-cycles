@@ -1,7 +1,9 @@
 # Phase 04: City Comparison Mode — Implementation Plan
 
 **Created:** 2026-04-09
-**Status:** Planning
+**Status:** COMPLETE
+**Started:** 2026-04-11
+**Completed:** 2026-04-11
 **Depends on:** Phase 02 (Weather Frontend), Phase 03 (Days Like Today Viz)
 
 ---
@@ -139,6 +141,17 @@ Integrate into the `/compare` route as the primary section, with historical comp
 **One city missing data:** Missing city shows "N/A". Chart shows only available city's lines.
 
 **Timezone edge:** Friday evening NYC, Saturday morning London — verify day_type computed per-city.
+
+---
+
+## Challenge Round Decisions (2026-04-11)
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Data fetching** | Call existing hooks twice (no useDualCity wrapper) | SWR deduplicates per key; no abstraction needed for one page |
+| **Member/casual split** | Compute from hourly data | Sum member_rides + casual_rides from hourly endpoint; already fetched for chart |
+| **Y-axis toggle** | Build now | Without normalization, London lines invisible next to NYC; essential for comparison |
+| **Navigation** | Add only /compare | Phase 05 adds its own nav items; no dead links |
 
 ---
 
