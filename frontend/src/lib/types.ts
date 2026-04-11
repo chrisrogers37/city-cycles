@@ -115,3 +115,74 @@ export type WeatherCategory =
   | "thunderstorm";
 
 export type Severity = "positive" | "neutral" | "caution" | "warning";
+
+/* ── Analytics endpoint response types ─────────────────────────────── */
+
+export interface DailyMetricsResponse {
+  total_rides: number;
+  avg_daily_rides: number;
+  avg_ride_duration_minutes: number | null;
+}
+
+export interface MonthlyTrendRow {
+  month: number;
+  year: number;
+  metric_value: number;
+}
+
+export interface DurationTrendRow {
+  month: number;
+  year: number;
+  avg_duration: number | null;
+}
+
+export interface HourlyPatternRow {
+  hour_of_day: number;
+  ride_count: number;
+}
+
+export interface WeatherCorrelationTempRow {
+  temp_range: string;
+  avg_rides: number;
+  days_observed: number;
+}
+
+export interface WeatherCorrelationPrecipRow {
+  precip_category: string;
+  avg_rides: number;
+  days_observed: number;
+}
+
+export interface WeatherImpactRow {
+  weather_condition: string;
+  pct_change: number;
+  avg_rides: number;
+  total_observations: number;
+}
+
+export interface HourlyWeatherImpactRow {
+  hour_of_day: number;
+  rain_impact: number | null;
+  snow_impact: number | null;
+  fog_impact: number | null;
+}
+
+export interface StationPerformanceRow {
+  station_id: string;
+  station_name: string;
+  latitude: number | null;
+  longitude: number | null;
+  avg_pct_change: number;
+  total_rides_in_condition: number;
+  avg_duration: number;
+}
+
+export interface MemberAnalysisRow {
+  month: string;
+  member_percentage: number;
+}
+
+export interface StationGrowthRow {
+  year: number;
+  station_count: number;
+}
