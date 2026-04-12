@@ -13,6 +13,7 @@ COPY api/ api/
 RUN mkdir -p /app/data
 
 ENV PYTHONUNBUFFERED=1
+ENV PORT=8000
 
 EXPOSE 8000
 
