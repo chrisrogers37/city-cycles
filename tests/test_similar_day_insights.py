@@ -9,7 +9,7 @@ import pytest
 import pandas as pd
 from unittest.mock import patch
 
-from dashboard.recommendation_engine import (
+from api.services.recommendation_engine import (
     WeatherConditions,
     ClassifiedConditions,
     HistoricalImpact,
@@ -161,7 +161,7 @@ class TestLookupSimilarDayStats:
 
     def test_returns_data_when_match_found(self, similar_day_parquet):
         with patch(
-            "dashboard.recommendation_engine.DATA_DIR", similar_day_parquet
+            "api.services.recommendation_engine.DATA_DIR", similar_day_parquet
         ):
             result = lookup_similar_day_stats(
                 "nyc", 2, "weekday", "cold", "moderate"
@@ -175,7 +175,7 @@ class TestLookupSimilarDayStats:
 
     def test_returns_empty_when_no_match(self, similar_day_parquet):
         with patch(
-            "dashboard.recommendation_engine.DATA_DIR", similar_day_parquet
+            "api.services.recommendation_engine.DATA_DIR", similar_day_parquet
         ):
             result = lookup_similar_day_stats(
                 "nyc", 6, "weekday", "warm", "none"
@@ -185,7 +185,7 @@ class TestLookupSimilarDayStats:
         assert result.pct_change_vs_overall is None
 
     def test_returns_empty_when_parquet_missing(self, tmp_path):
-        with patch("dashboard.recommendation_engine.DATA_DIR", str(tmp_path)):
+        with patch("api.services.recommendation_engine.DATA_DIR", str(tmp_path)):
             result = lookup_similar_day_stats(
                 "nyc", 2, "weekday", "cold", "moderate"
             )
@@ -194,7 +194,7 @@ class TestLookupSimilarDayStats:
 
     def test_preserves_query_params_in_result(self, similar_day_parquet):
         with patch(
-            "dashboard.recommendation_engine.DATA_DIR", similar_day_parquet
+            "api.services.recommendation_engine.DATA_DIR", similar_day_parquet
         ):
             result = lookup_similar_day_stats(
                 "nyc", 2, "weekday", "cold", "moderate"
@@ -207,7 +207,7 @@ class TestLookupSimilarDayStats:
 
     def test_duration_in_minutes(self, similar_day_parquet):
         with patch(
-            "dashboard.recommendation_engine.DATA_DIR", similar_day_parquet
+            "api.services.recommendation_engine.DATA_DIR", similar_day_parquet
         ):
             result = lookup_similar_day_stats(
                 "nyc", 2, "weekday", "cold", "moderate"
@@ -217,7 +217,7 @@ class TestLookupSimilarDayStats:
 
     def test_duration_pct_change(self, similar_day_parquet):
         with patch(
-            "dashboard.recommendation_engine.DATA_DIR", similar_day_parquet
+            "api.services.recommendation_engine.DATA_DIR", similar_day_parquet
         ):
             result = lookup_similar_day_stats(
                 "nyc", 2, "weekday", "cold", "moderate"
@@ -471,9 +471,9 @@ class TestGetRecommendationsWithSimilarDay:
         )
 
         with patch(
-            "dashboard.recommendation_engine.DATA_DIR", combined_dir
+            "api.services.recommendation_engine.DATA_DIR", combined_dir
         ), patch(
-            "dashboard.recommendation_engine._current_month_and_day_type",
+            "api.services.recommendation_engine._current_month_and_day_type",
             return_value=(2, "weekday"),
         ):
             result = get_recommendations(rainy_feb_weekday_nyc)
@@ -486,9 +486,9 @@ class TestGetRecommendationsWithSimilarDay:
     ):
         """get_recommendations works when only the weather impact mart exists."""
         with patch(
-            "dashboard.recommendation_engine.DATA_DIR", weather_impact_parquet
+            "api.services.recommendation_engine.DATA_DIR", weather_impact_parquet
         ), patch(
-            "dashboard.recommendation_engine._current_month_and_day_type",
+            "api.services.recommendation_engine._current_month_and_day_type",
             return_value=(2, "weekday"),
         ):
             result = get_recommendations(rainy_feb_weekday_nyc)
@@ -500,9 +500,9 @@ class TestGetRecommendationsWithSimilarDay:
     def test_graceful_without_any_marts(self, rainy_feb_weekday_nyc, tmp_path):
         """get_recommendations works with no mart files at all."""
         with patch(
-            "dashboard.recommendation_engine.DATA_DIR", str(tmp_path)
+            "api.services.recommendation_engine.DATA_DIR", str(tmp_path)
         ), patch(
-            "dashboard.recommendation_engine._current_month_and_day_type",
+            "api.services.recommendation_engine._current_month_and_day_type",
             return_value=(2, "weekday"),
         ):
             result = get_recommendations(rainy_feb_weekday_nyc)

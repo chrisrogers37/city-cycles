@@ -2,7 +2,7 @@
 
 from unittest.mock import patch
 
-from dashboard.recommendation_engine import SimilarDayInsight
+from api.services.recommendation_engine import SimilarDayInsight
 
 from tests.conftest_api import *  # noqa: F401,F403
 
@@ -40,7 +40,7 @@ class TestSimilarDayEndpoint:
         assert resp.status_code == 422
 
     def test_weather_failure_502(self, client, mock_weather):
-        from dashboard.weather_service import WeatherAPIError
+        from api.services.weather_service import WeatherAPIError
         with patch("api.routes.similar_day.get_city_weather", side_effect=WeatherAPIError("fail")):
             resp = client.get("/api/similar-day/nyc")
         assert resp.status_code == 502

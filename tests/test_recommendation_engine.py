@@ -9,7 +9,7 @@ import pytest
 import duckdb
 import pandas as pd
 
-from dashboard.recommendation_engine import (
+from api.services.recommendation_engine import (
     WeatherConditions,
     WeatherCategory,
     TemperatureBand,
@@ -387,7 +387,7 @@ class TestHistoricalLookup:
         from unittest.mock import patch
 
         with patch(
-            "dashboard.recommendation_engine.DATA_DIR", weather_impact_parquet
+            "api.services.recommendation_engine.DATA_DIR", weather_impact_parquet
         ):
             result = lookup_historical_impact("nyc", 9, "clear")
 
@@ -400,7 +400,7 @@ class TestHistoricalLookup:
         from unittest.mock import patch
 
         with patch(
-            "dashboard.recommendation_engine.DATA_DIR", weather_impact_parquet
+            "api.services.recommendation_engine.DATA_DIR", weather_impact_parquet
         ):
             result = lookup_historical_impact("nyc", 23, "thunderstorm")
 
@@ -411,7 +411,7 @@ class TestHistoricalLookup:
         """lookup_historical_impact should return empty when parquet file missing."""
         from unittest.mock import patch
 
-        with patch("dashboard.recommendation_engine.DATA_DIR", str(tmp_path)):
+        with patch("api.services.recommendation_engine.DATA_DIR", str(tmp_path)):
             result = lookup_historical_impact("nyc", 9, "clear")
 
         assert result.avg_rides is None
@@ -422,7 +422,7 @@ class TestHistoricalLookup:
 
         conn = duckdb.connect(":memory:")
         with patch(
-            "dashboard.recommendation_engine.DATA_DIR", weather_impact_parquet
+            "api.services.recommendation_engine.DATA_DIR", weather_impact_parquet
         ):
             result = lookup_historical_impact("london", 14, "rain", conn=conn)
         conn.close()
@@ -434,7 +434,7 @@ class TestHistoricalLookup:
         from unittest.mock import patch
 
         with patch(
-            "dashboard.recommendation_engine.DATA_DIR", weather_impact_parquet
+            "api.services.recommendation_engine.DATA_DIR", weather_impact_parquet
         ):
             result = lookup_historical_impact("nyc", 9, "heavy_rain")
 
@@ -447,7 +447,7 @@ class TestHistoricalLookup:
         from unittest.mock import patch
 
         with patch(
-            "dashboard.recommendation_engine.DATA_DIR", weather_impact_parquet
+            "api.services.recommendation_engine.DATA_DIR", weather_impact_parquet
         ):
             result = lookup_historical_impact("nyc", 8, "heavy_snow")
 
@@ -460,7 +460,7 @@ class TestHistoricalLookup:
         from unittest.mock import patch
 
         with patch(
-            "dashboard.recommendation_engine.DATA_DIR", weather_impact_parquet
+            "api.services.recommendation_engine.DATA_DIR", weather_impact_parquet
         ):
             result = lookup_historical_impact("nyc", 9, "clear")
 
@@ -600,7 +600,7 @@ class TestGetRecommendations:
         from unittest.mock import patch
 
         with patch(
-            "dashboard.recommendation_engine.DATA_DIR", weather_impact_parquet
+            "api.services.recommendation_engine.DATA_DIR", weather_impact_parquet
         ):
             result = get_recommendations(clear_morning_nyc)
 
@@ -613,7 +613,7 @@ class TestGetRecommendations:
         """get_recommendations should work gracefully when parquet file missing."""
         from unittest.mock import patch
 
-        with patch("dashboard.recommendation_engine.DATA_DIR", str(tmp_path)):
+        with patch("api.services.recommendation_engine.DATA_DIR", str(tmp_path)):
             result = get_recommendations(clear_morning_nyc)
 
         assert result.biking_score.score >= 80
@@ -626,7 +626,7 @@ class TestGetRecommendations:
         from unittest.mock import patch
 
         with patch(
-            "dashboard.recommendation_engine.DATA_DIR", weather_impact_parquet
+            "api.services.recommendation_engine.DATA_DIR", weather_impact_parquet
         ):
             result = get_recommendations(rainy_afternoon_london)
 

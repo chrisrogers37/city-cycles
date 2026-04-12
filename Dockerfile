@@ -13,8 +13,7 @@ COPY extracted_file_manager/ extracted_file_manager/
 COPY data_models/ data_models/
 COPY db_duckdb/ db_duckdb/
 COPY dbt_city_cycles/ dbt_city_cycles/
-COPY dashboard/ dashboard/
-COPY streamlit_data_manager/ streamlit_data_manager/
+COPY api/ api/
 COPY scripts/ scripts/
 
 # Create dbt profiles.yml with absolute path for container

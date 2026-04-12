@@ -29,7 +29,7 @@ class TestWeatherEndpoint:
         assert resp.status_code == 422
 
     def test_weather_api_failure_returns_502(self, client):
-        from dashboard.weather_service import WeatherAPIError
+        from api.services.weather_service import WeatherAPIError
         with patch("api.services.weather_bridge.fetch_city_weather", side_effect=WeatherAPIError("timeout")):
             resp = client.get("/api/weather/nyc")
         assert resp.status_code == 502
