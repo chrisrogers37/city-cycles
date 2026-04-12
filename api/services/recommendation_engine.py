@@ -17,14 +17,9 @@ from typing import List, Optional
 import duckdb
 import pandas as pd
 
+from api.dependencies import DATA_DIR
+
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Data directory resolution (same pattern as app.py and parquet_file_manager)
-# ---------------------------------------------------------------------------
-
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 
 _WEATHER_IMPACT_PARQUET = "mart_weather_impact_summary.parquet"
 _SIMILAR_DAY_PARQUET = "mart_similar_day_stats.parquet"

@@ -16,14 +16,14 @@ from api.models.similar_day import (
 )
 from api.services.weather_bridge import get_city_weather, weather_to_conditions
 from api import cache
-from dashboard.recommendation_engine import (
+from api.services.recommendation_engine import (
     classify_conditions,
     lookup_similar_day_stats,
     _current_month_and_day_type,
     _TEMP_BAND_TO_MART,
     _PRECIP_TO_MART,
 )
-from dashboard.weather_service import WeatherAPIError
+from api.services.weather_service import WeatherAPIError
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/similar-day", tags=["similar-day"])

@@ -13,8 +13,8 @@ from api.models.insights import (
 )
 from api.services.weather_bridge import get_city_weather, weather_to_conditions
 from api import cache
-from dashboard.recommendation_engine import get_recommendations
-from dashboard.weather_service import WeatherAPIError
+from api.services.recommendation_engine import get_recommendations
+from api.services.weather_service import WeatherAPIError
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/insights", tags=["insights"])

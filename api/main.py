@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Download parquet files from S3 on startup if not present locally."""
-    from streamlit_data_manager.parquet_file_manager import ensure_local_parquet_files
+    from api.services.data_loader import ensure_local_parquet_files
 
     logger.info("Ensuring local parquet files are available...")
     ensure_local_parquet_files()
@@ -56,7 +56,7 @@ app.include_router(analytics.router)
 def health():
     """Health check endpoint."""
     from api.dependencies import DATA_DIR, parquet_exists
-    from streamlit_data_manager.parquet_file_manager import MARTS
+    from api.services.data_loader import MARTS
 
     loaded = sum(1 for m in MARTS if parquet_exists(m))
     return {
