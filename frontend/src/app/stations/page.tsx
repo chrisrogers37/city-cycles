@@ -3,7 +3,6 @@
 import { useState, useMemo } from "react";
 import NavBar from "@/components/layout/NavBar";
 import PageShell from "@/components/layout/PageShell";
-import CityToggle from "@/components/weather/CityToggle";
 import StationMap from "@/components/maps/StationMap";
 import DataTable from "@/components/ui/DataTable";
 import { useStationPerformance } from "@/hooks/useAnalytics";
@@ -14,6 +13,7 @@ import { formatHour12 } from "@/lib/format";
 import type { StationPerformanceRow } from "@/lib/types";
 
 const WEATHER_CONDITIONS = [
+  { value: "clear", label: "Clear" },
   { value: "rain", label: "Rain" },
   { value: "snow", label: "Snow" },
   { value: "fog", label: "Fog" },
@@ -55,7 +55,7 @@ export default function StationsPage() {
   const city = useCityStore((s) => s.city);
 
   /* ── Filter state ─────────────────────────────────────────────────── */
-  const [weatherCondition, setWeatherCondition] = useState("rain");
+  const [weatherCondition, setWeatherCondition] = useState("clear");
   const [hourStart, setHourStart] = useState(7);
   const [hourEnd, setHourEnd] = useState(19);
   const [minRides, setMinRides] = useState(10);
@@ -83,13 +83,10 @@ export default function StationsPage() {
 
   return (
     <>
-      <NavBar alwaysVisible />
+      <NavBar />
       <div className="pt-20">
         <PageShell>
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <h1 className="text-2xl font-light text-white tracking-wide">Station Explorer</h1>
-            <CityToggle />
-          </div>
+          <h1 className="text-2xl font-light text-white tracking-wide">Station Explorer</h1>
 
           {/* ── Filter controls ──────────────────────────────────────── */}
           <div className="glass-card p-4 flex flex-wrap items-end gap-4">

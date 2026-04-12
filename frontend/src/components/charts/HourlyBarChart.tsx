@@ -1,5 +1,6 @@
 "use client";
 
+import { useIsMobile } from "@/hooks/useIsMobile";
 import {
   BarChart,
   Bar,
@@ -35,6 +36,7 @@ interface Props {
 }
 
 export default function HourlyBarChart({ city }: Props) {
+  const chartHeight = useIsMobile() ? 160 : 200;
   const { data, isLoading } = useHourlyPatterns(city);
   const currentHour = getCurrentHour(city);
 
@@ -52,7 +54,7 @@ export default function HourlyBarChart({ city }: Props) {
       isLoading={isLoading}
       isEmpty={chartData.length === 0}
     >
-      <ResponsiveContainer width="100%" height={200}>
+      <ResponsiveContainer width="100%" height={chartHeight}>
         <BarChart data={chartData} layout="horizontal">
           <XAxis
             dataKey="label"

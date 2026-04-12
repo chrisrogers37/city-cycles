@@ -82,6 +82,21 @@ export default function ComparisonStatsTable() {
     );
   }
 
+  // If both cities have no similar-day data, show informative empty state
+  const noData =
+    nycDaily?.avg_daily_rides == null && lonDaily?.avg_daily_rides == null;
+
+  if (noData) {
+    return (
+      <div className="glass-card p-6 border-l-3 border-l-[var(--color-neutral)]">
+        <p className="text-[var(--color-text-secondary)] text-sm leading-relaxed">
+          Historical comparison data is not yet available. The weather data pipeline
+          needs to run to generate side-by-side metrics for similar weather conditions.
+        </p>
+      </div>
+    );
+  }
+
   const nycSplit = nycHourly ? computeMemberCasualSplit(nycHourly.hours) : null;
   const lonSplit = lonHourly ? computeMemberCasualSplit(lonHourly.hours) : null;
 

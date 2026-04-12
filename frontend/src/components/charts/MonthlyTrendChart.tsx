@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import {
   LineChart,
   Line,
@@ -22,6 +23,8 @@ interface Props {
 }
 
 export default function MonthlyTrendChart({ city, startDate, endDate }: Props) {
+  const mobile = useIsMobile();
+  const chartHeight = mobile ? 180 : 240;
   const [aggregation, setAggregation] = useState<"avg" | "sum">("avg");
   const { data, isLoading } = useMonthlyTrends(city, startDate, endDate, aggregation);
 
@@ -79,7 +82,7 @@ export default function MonthlyTrendChart({ city, startDate, endDate }: Props) {
         </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={240}>
+      <ResponsiveContainer width="100%" height={chartHeight}>
         <LineChart data={chartData}>
           <XAxis
             dataKey="month"

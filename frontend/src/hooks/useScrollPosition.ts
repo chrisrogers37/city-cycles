@@ -12,3 +12,17 @@ export function useScrollPosition(): number {
 
   return scrollY;
 }
+
+/** Returns true once scroll passes the threshold. Only re-renders on crossing. */
+export function useScrolledPast(threshold: number): boolean {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > threshold);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [threshold]);
+
+  return scrolled;
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useIsMobile } from "@/hooks/useIsMobile";
 import {
   BarChart,
   Bar,
@@ -32,6 +33,7 @@ function matchesPrecip(category: string, intensity: string | null): boolean {
 }
 
 export default function PrecipitationChart({ city }: Props) {
+  const chartHeight = useIsMobile() ? 180 : 220;
   const { data, isLoading } = useWeatherCorrelationPrecip(city);
   const { data: insights } = useInsights(city);
   const todayPrecip = insights?.classified?.precipitation_intensity ?? null;
@@ -50,7 +52,7 @@ export default function PrecipitationChart({ city }: Props) {
       isLoading={isLoading}
       isEmpty={chartData.length === 0}
     >
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={chartHeight}>
         <BarChart data={chartData}>
           <XAxis
             dataKey="category"

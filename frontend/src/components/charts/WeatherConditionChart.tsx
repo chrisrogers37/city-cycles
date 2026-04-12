@@ -1,5 +1,6 @@
 "use client";
 
+import { useIsMobile } from "@/hooks/useIsMobile";
 import {
   BarChart,
   Bar,
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export default function WeatherConditionChart({ city }: Props) {
+  const chartHeight = useIsMobile() ? 180 : 240;
   const { data, isLoading } = useWeatherImpact(city);
   const { data: insights } = useInsights(city);
   const todayCondition = insights?.classified?.weather_category ?? null;
@@ -42,7 +44,7 @@ export default function WeatherConditionChart({ city }: Props) {
       isLoading={isLoading}
       isEmpty={chartData.length === 0}
     >
-      <ResponsiveContainer width="100%" height={240}>
+      <ResponsiveContainer width="100%" height={chartHeight}>
         <BarChart data={chartData} layout="vertical">
           <XAxis
             type="number"

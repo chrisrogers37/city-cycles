@@ -10,7 +10,7 @@ import DualHourlyChart from "@/components/compare/DualHourlyChart";
 export default function ComparePage() {
   return (
     <>
-      <NavBar alwaysVisible />
+      <NavBar />
       <div className="pt-20">
         <PageShell>
           <h1 className="text-2xl font-light text-white tracking-wide">NYC vs London</h1>

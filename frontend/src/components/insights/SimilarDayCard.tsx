@@ -21,9 +21,13 @@ export default function SimilarDayCard() {
 
   if (!data || data.avg_daily_rides === null) {
     return (
-      <div className="glass-card p-6">
-        <p className="text-[var(--color-text-muted)] text-sm">
-          Historical comparison data is being prepared.
+      <div className="glass-card p-6 border-l-3 border-l-[var(--color-neutral)]">
+        <h3 className="text-xs uppercase tracking-wider text-[var(--color-text-muted)] mb-3">
+          Days Like Today
+        </h3>
+        <p className="text-[var(--color-text-secondary)] text-sm leading-relaxed">
+          Weather-ride correlation data is not yet available. The weather data pipeline
+          needs to run to generate historical comparisons for days like today.
         </p>
       </div>
     );
