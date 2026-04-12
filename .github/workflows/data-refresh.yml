@@ -1,0 +1,22 @@
+name: Data Refresh
+
+on:
+  schedule:
+    # Run 4 hours after the monthly pipeline (which runs at 2 AM UTC on the 3rd)
+    - cron: '0 6 3 * *'
+  workflow_dispatch:
+
+jobs:
+  trigger-api-redeploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Railway API redeploy
+        run: |
+          if [ -z "$RAILWAY_DEPLOY_WEBHOOK" ]; then
+            echo "RAILWAY_DEPLOY_WEBHOOK secret not set — skipping"
+            exit 0
+          fi
+          curl -X POST "$RAILWAY_DEPLOY_WEBHOOK"
+        env:
+          RAILWAY_DEPLOY_WEBHOOK: ${{ secrets.RAILWAY_DEPLOY_WEBHOOK }}

@@ -34,6 +34,7 @@ profiles.yml
 *.toml
 !railway.toml
 !railway-weather.toml
+!railway-api.toml
 !.streamlit/config.toml
 secrets.*
 config/secrets.*
