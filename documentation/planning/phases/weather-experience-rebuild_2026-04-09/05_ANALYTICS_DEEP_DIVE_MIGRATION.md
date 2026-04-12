@@ -1,9 +1,10 @@
 # Phase 05: Analytics Deep Dive Migration — Implementation Plan
 
 **Created:** 2026-04-09
-**Status:** COMPLETE (Phase 5A)
+**Status:** COMPLETE (Phase 5A) | IN PROGRESS (Phase 5B)
 **Started:** 2026-04-11
-**Completed:** 2026-04-11
+**5A Completed:** 2026-04-11
+**5B Started:** 2026-04-12
 **Depends on:** Phase 01 (API endpoints), Phase 02 (Next.js app shell)
 **Priority:** Lower than landing experience; completes the product
 
@@ -187,6 +188,28 @@ Maps from existing `ATMOSPHERIC_COLORS` in `dashboard/theme/plotly_template.py`.
 
 ---
 
+## Phase 5B Challenge Round Decisions (2026-04-12)
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Map library** | Mapbox GL + react-map-gl | Free tier (50k loads/month). Dark-v11 style matches app theme. User will create Mapbox account. |
+| **Filter controls** | Single-select + client filter | API accepts single weather_condition. Hour range via selects. Min rides as client-side filter. No API changes needed. |
+| **CSV export** | Deferred again | No user request. Keeps scope tight. Can add later. |
+| **Marker approach** | Source + Circle Layer (not individual Markers) | Data-driven styling via Mapbox expressions. Performant for hundreds of stations. |
+
+### Phase 5B Scope:
+- Station Explorer page (`/stations`) — map-first UX
+- Mapbox GL scatter map with data-driven circle sizing (rides) and coloring (RdYlGn % change)
+- Filter controls: weather dropdown (single-select), hour range selects, min rides input (client-side)
+- Map/table toggle with existing DataTable component
+- Hover popup on map with station details
+- NavBar `/stations` link
+- useDebounce hook (300ms)
+- Graceful fallback when NEXT_PUBLIC_MAPBOX_TOKEN not set
+- Stations without lat/lng appear only in table view
+
+---
+
 ## Verification
 
 **Per-page:** Values match Streamlit output for same city/date range. Charts render correctly. "Today" highlights annotate correct bands.
@@ -217,11 +240,11 @@ components/ui/DatePresetBar.tsx
 hooks/useAnalytics.ts
 ```
 
-## File List — Phase 5B (Deferred)
+## File List — Phase 5B
 
 ```
 app/stations/page.tsx
 components/maps/StationMap.tsx
-components/maps/StationMapMarker.tsx
 hooks/useDebounce.ts
+components/layout/NavBar.tsx (modified — added /stations link)
 ```

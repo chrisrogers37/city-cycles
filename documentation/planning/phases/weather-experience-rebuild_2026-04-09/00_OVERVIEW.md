@@ -109,7 +109,7 @@ Phase 06: Deployment & Hosting ◄──────── Phase 01 + Phase 02 �
 | **03: Days Like Today Visualization** | Data viz enhancements: DurationInsight, MemberCasualSplit, chart annotations | **S** | COMPLETE |
 | **04: City Comparison Mode** | Side-by-side NYC/London with shared controls | **M** | COMPLETE |
 | **05A: Analytics Deep Dive (Charts)** | Ride Analytics + Weather Deep Dive pages, shared infra | **M** | COMPLETE |
-| **05B: Station Explorer** | Mapbox station map, filters, table toggle | **S** | Planned |
+| **05B: Station Explorer** | Mapbox station map, filters, table toggle | **S** | IN PROGRESS |
 | **06: Deployment & Hosting** | Vercel/Railway, CI/CD, domain, monitoring | **S** | 1-2 weeks |
 | **Total** | | | **11-17 weeks** |
 
