@@ -40,6 +40,7 @@ export default function NavBar({ alwaysVisible }: NavBarProps) {
           {[
             { href: "/analytics", label: "Analytics" },
             { href: "/weather", label: "Weather" },
+            { href: "/stations", label: "Stations" },
             { href: "/compare", label: "Compare" },
           ].map((link) => (
             <Link
