@@ -10,7 +10,7 @@ All HTTP calls are mocked. No real API interactions.
 import pytest
 from unittest.mock import patch, MagicMock
 from datetime import datetime
-from dashboard.weather_service import (
+from api.services.weather_service import (
     fetch_city_weather,
     get_weather_description,
     get_weather_category,
@@ -245,7 +245,7 @@ class TestFetchCityWeather:
         mock_response.json.return_value = mock_api_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("dashboard.weather_service.requests.get",
+        with patch("api.services.weather_service.requests.get",
                    return_value=mock_response):
             result = fetch_city_weather("nyc")
 
@@ -260,7 +260,7 @@ class TestFetchCityWeather:
 
     def test_raises_on_http_error(self):
         from requests.exceptions import RequestException
-        with patch("dashboard.weather_service.requests.get",
+        with patch("api.services.weather_service.requests.get",
                    side_effect=RequestException("Connection refused")):
             with pytest.raises(WeatherAPIError, match="Connection refused"):
                 fetch_city_weather("nyc")
@@ -273,7 +273,7 @@ class TestFetchCityWeather:
         }
         mock_response.raise_for_status = MagicMock()
 
-        with patch("dashboard.weather_service.requests.get",
+        with patch("api.services.weather_service.requests.get",
                    return_value=mock_response):
             with pytest.raises(WeatherAPIError, match="Invalid parameter"):
                 fetch_city_weather("london")
@@ -283,7 +283,7 @@ class TestFetchCityWeather:
         mock_response.json.return_value = {"current": {}, "hourly": {}}
         mock_response.raise_for_status = MagicMock()
 
-        with patch("dashboard.weather_service.requests.get",
+        with patch("api.services.weather_service.requests.get",
                    return_value=mock_response):
             with pytest.raises(WeatherAPIError):
                 fetch_city_weather("nyc")
@@ -293,7 +293,7 @@ class TestFetchCityWeather:
         mock_response.json.return_value = mock_api_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("dashboard.weather_service.requests.get",
+        with patch("api.services.weather_service.requests.get",
                    return_value=mock_response) as mock_get:
             fetch_city_weather("london")
 

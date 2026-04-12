@@ -11,7 +11,7 @@ from api.models.weather import (
     HourlyForecastResponse,
 )
 from api.services.weather_bridge import get_city_weather
-from dashboard.weather_service import WeatherAPIError
+from api.services.weather_service import WeatherAPIError
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/weather", tags=["weather"])

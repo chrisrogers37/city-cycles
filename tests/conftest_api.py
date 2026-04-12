@@ -24,7 +24,7 @@ def client():
     """Synchronous test client using httpx."""
     from fastapi.testclient import TestClient
     # Skip S3 download during tests
-    with patch("streamlit_data_manager.parquet_file_manager.ensure_local_parquet_files"):
+    with patch("api.services.data_loader.ensure_local_parquet_files"):
         with TestClient(app) as c:
             yield c
 
@@ -32,7 +32,7 @@ def client():
 @pytest.fixture
 def mock_weather():
     """Create a mock CityWeather object."""
-    from dashboard.weather_service import CityWeather, CurrentWeather, HourlyForecastEntry
+    from api.services.weather_service import CityWeather, CurrentWeather, HourlyForecastEntry
 
     current = CurrentWeather(
         city="nyc",

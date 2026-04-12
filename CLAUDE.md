@@ -10,7 +10,8 @@ City Cycles is an end-to-end data analytics pipeline comparing bike share system
 - **Analytics Infrastructure:** DuckDB + dbt for data modeling and analytics
 - **Weather Analytics:** Real-time weather integration with Open-Meteo API, biking recommendations
 - **Cloud Architecture:** AWS S3 storage + Railway container deployment
-- **Data Visualization:** Multi-page atmospheric Streamlit dashboard deployed on Streamlit Cloud
+- **Frontend:** React/Next.js weather experience + analytics dashboard (Vercel)
+- **API Layer:** FastAPI backend serving weather, insights, and analytics endpoints (Railway)
 - **Automation:** Monthly batch processing via Railway cron scheduling
 
 ### Tech Stack
@@ -19,7 +20,8 @@ City Cycles is an end-to-end data analytics pipeline comparing bike share system
 - **Transformation:** dbt (Data Build Tool)
 - **Cloud:** AWS S3, Railway (Docker)
 - **Testing:** pytest
-- **Dashboard:** Streamlit + Plotly
+- **Frontend:** React, Next.js 16, TypeScript, Tailwind CSS, Recharts, Mapbox GL
+- **API:** FastAPI, Uvicorn
 - **Data Processing:** pandas, pyarrow
 - **Validation:** pydantic (data models)
 - **Web Scraping:** playwright
@@ -36,7 +38,9 @@ db_duckdb/                  → Load Parquet files into DuckDB raw tables
     ↓
 dbt_city_cycles/            → Transform raw data into analytics marts (incl. weather)
     ↓
-dashboard/                  → Multi-page atmospheric Streamlit dashboard
+api/                        → FastAPI backend (weather, insights, analytics endpoints)
+    ↓
+frontend/                   → React/Next.js frontend (weather experience + analytics)
 ```
 
 **Orchestration:** `orchestrator/` coordinates the entire pipeline from a single entry point
@@ -97,12 +101,9 @@ Always give Claude a way to verify its work. Run these checks after making chang
 | `data_models/` | Schema validation (pydantic/dataclass) | `nyc_bike.py`, `london_bike.py`, `weather.py`, `base.py`, `registry.py` |
 | `db_duckdb/` | DuckDB ETL operations | `cli.py`, `duckdb_manager.py`, `operations.py`, `pipeline.py` |
 | `dbt_city_cycles/` | dbt transformations | `models/staging/`, `models/intermediate/`, `models/unified/`, `models/marts/` |
-| `dashboard/` | Multi-page atmospheric dashboard | `app.py`, `weather_service.py`, `recommendation_engine.py` |
-| `dashboard/pages/` | Dashboard page modules | `landing.py`, `ride_analytics.py`, `weather_deep_dive.py`, `comparison.py` |
-| `dashboard/components/` | Reusable UI components | `city_toggle.py`, `weather_hero.py`, `chart_factory.py` |
-| `dashboard/theme/` | Atmospheric theming | `plotly_template.py`, `time_of_day.py` |
-| `dashboard/utils/` | Query helpers and CSS utilities | `query_helpers.py`, `css_injector.py` |
-| `streamlit_data_manager/` | Dashboard data management | `parquet_file_manager.py` |
+| `api/` | FastAPI backend | `main.py`, `routes/`, `models/`, `services/`, `dependencies.py` |
+| `api/services/` | Core business logic | `weather_service.py`, `recommendation_engine.py`, `data_loader.py`, `weather_bridge.py` |
+| `frontend/` | React/Next.js frontend | `src/app/`, `src/components/`, `src/hooks/`, `src/lib/` |
 | `tests/` | pytest test suite | Test files for each module |
 
 ### Important Files

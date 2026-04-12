@@ -2,7 +2,7 @@
 
 from unittest.mock import patch, MagicMock
 
-from dashboard.recommendation_engine import (
+from api.services.recommendation_engine import (
     BikingScore,
     ClassifiedConditions,
     Recommendation,
@@ -57,7 +57,7 @@ class TestInsightsEndpoint:
         assert resp.status_code == 422
 
     def test_weather_failure_502(self, client):
-        from dashboard.weather_service import WeatherAPIError
+        from api.services.weather_service import WeatherAPIError
         with patch("api.services.weather_bridge.fetch_city_weather", side_effect=WeatherAPIError("fail")):
             resp = client.get("/api/insights/nyc")
         assert resp.status_code == 502

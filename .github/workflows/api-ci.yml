@@ -1,0 +1,27 @@
+name: API CI
+
+on:
+  push:
+    paths:
+      - 'api/**'
+    branches: [main]
+  pull_request:
+    paths:
+      - 'api/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - run: pip install -r api/requirements.txt pytest
+
+      - run: python -m pytest tests/test_api_*.py tests/test_weather_service.py tests/test_recommendation_engine.py tests/test_similar_day_insights.py tests/test_api_cache.py -v
+        name: Run API tests

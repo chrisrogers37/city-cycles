@@ -1,20 +1,22 @@
-#!/usr/bin/env python3
 """
-HTTPFS connector for querying S3 Parquet files directly.
+S3 parquet file loader for the City Cycles API.
 
-This module provides utilities for connecting to S3 Parquet files using DuckDB's HTTPFS extension,
-enabling the dashboard to query mart data without loading the full database.
+Downloads mart parquet files from S3 to local data/ directory on startup.
+Adapted from streamlit_data_manager/parquet_file_manager.py.
 """
 
 import logging
+import os
 
 import boto3
 from botocore.exceptions import ClientError
-import os
+
+from api.dependencies import DATA_DIR
 
 logger = logging.getLogger(__name__)
 
 S3_BUCKET = os.environ.get("S3_BUCKET", "city-cycles-data-ctr37")
+
 MARTS = [
     "mart_daily_metrics.parquet",
     "mart_hourly_patterns_summary.parquet",
@@ -29,11 +31,9 @@ MARTS = [
     "mart_similar_day_stats.parquet",
 ]
 
-# Always resolve data directory at project root
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
 
 def ensure_local_parquet_files():
+    """Download all mart parquet files from S3 if not already present locally."""
     s3 = boto3.client('s3')
     os.makedirs(DATA_DIR, exist_ok=True)
     for mart in MARTS:

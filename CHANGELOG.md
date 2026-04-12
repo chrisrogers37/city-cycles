@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Deployment Infrastructure — Phase 06** - API Dockerfile (`python:3.11-slim`), Railway service config (`railway-api.toml`), and 3 GitHub Actions CI/CD workflows: `frontend-ci.yml` (lint + type-check + build), `api-ci.yml` (pytest), `data-refresh.yml` (monthly API redeploy cron)
+
+### Changed
+- **API Decoupling** - Moved `weather_service.py`, `recommendation_engine.py`, and `parquet_file_manager.py` from `dashboard/` and `streamlit_data_manager/` into `api/services/`, making the API self-contained with no external module dependencies
+
+### Removed
+- **Streamlit Dashboard** - Deleted entire `dashboard/` directory (22 files), `streamlit_data_manager/` (2 files), `.streamlit/config.toml`, and 8 dashboard-only test files. Removed `streamlit`, `plotly`, `altair`, `pydeck` from `requirements.txt`. The React/Next.js frontend (Phases 02-05B) fully replaces the Streamlit dashboard.
+
+### Added
 - **Station Explorer — Phase 5B** - New `/stations` page with interactive Mapbox GL map showing station weather resilience. Features: data-driven circle markers (size = ride count, color = RdYlGn % change vs clear), hover popups with station details, filter controls (weather condition dropdown, hour range selects, min rides threshold with 300ms debounce), map/table toggle using existing sortable DataTable, color legend. Graceful fallback when Mapbox token not configured. NavBar updated with Stations link.
 - **Analytics Deep Dive — Phase 5A** - Two new pages: Ride Analytics (`/analytics`) with key metrics cards, monthly trend chart (year overlay + avg/total toggle), duration trends, hourly bar chart (current hour highlight), member percentage (NYC only), station growth; Weather Deep Dive (`/weather`) with temperature vs rides, precipitation impact, weather condition impact (horizontal RdYlGn bars), hourly weather impact (rain/snow/fog lines). Shared infrastructure: chart theme constants, ChartContainer, MetricCard, DataTable (sortable), DatePresetBar (year presets). All charts highlight today's conditions via existing useInsights hook. NavBar updated with Analytics and Weather links.
 - **City Comparison Mode (Phase 04)** - New `/compare` page with side-by-side NYC vs London analysis: dual weather header with biking scores, comparison stats table (rides, duration, peak hours, member/casual split computed from hourly data), cross-city narrative insight (detects same/different weather), dual hourly chart with 4 lines (similar-day + overall for each city) and absolute/normalized Y-axis toggle. NavBar updated with Compare link and `alwaysVisible` prop for secondary pages.

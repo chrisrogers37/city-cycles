@@ -5,12 +5,12 @@ with API-level caching (replaces Streamlit's @st.cache_data).
 
 import logging
 
-from dashboard.weather_service import (
+from api.services.weather_service import (
     CityWeather,
     WeatherAPIError,
     fetch_city_weather,
 )
-from dashboard.recommendation_engine import WeatherConditions
+from api.services.recommendation_engine import WeatherConditions
 
 from api import cache
 

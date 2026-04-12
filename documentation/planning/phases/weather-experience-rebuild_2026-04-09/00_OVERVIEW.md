@@ -110,7 +110,7 @@ Phase 06: Deployment & Hosting ◄──────── Phase 01 + Phase 02 �
 | **04: City Comparison Mode** | Side-by-side NYC/London with shared controls | **M** | COMPLETE |
 | **05A: Analytics Deep Dive (Charts)** | Ride Analytics + Weather Deep Dive pages, shared infra | **M** | COMPLETE |
 | **05B: Station Explorer** | Mapbox station map, filters, table toggle | **S** | COMPLETE |
-| **06: Deployment & Hosting** | Vercel/Railway, CI/CD, domain, monitoring | **S** | 1-2 weeks |
+| **06: Deployment & Hosting** | Vercel/Railway, CI/CD, domain, monitoring, Streamlit deletion | **M** | COMPLETE |
 | **Total** | | | **11-17 weeks** |
 
 ---

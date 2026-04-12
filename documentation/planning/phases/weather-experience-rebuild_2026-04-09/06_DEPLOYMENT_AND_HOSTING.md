@@ -1,7 +1,9 @@
 # Phase 06: Deployment & Hosting — Implementation Plan
 
 **Created:** 2026-04-09
-**Status:** Planning
+**Status:** COMPLETE
+**Started:** 2026-04-12
+**Completed:** 2026-04-12
 **Depends on:** Phase 01 (API), Phase 02 (Frontend) for initial deploy; all phases for full deploy
 **Can begin:** Infrastructure setup in parallel with frontend development
 
@@ -224,8 +226,33 @@ healthcheckTimeout = 30
 ```
 api/Dockerfile
 api/requirements.txt
+api/services/data_loader.py
 .github/workflows/frontend-ci.yml
 .github/workflows/api-ci.yml
 .github/workflows/data-refresh.yml
 railway-api.toml
 ```
+
+---
+
+## Challenge Round Decisions (2026-04-12)
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **API Dockerfile** | Decouple first — move shared services into api/services/ | API becomes self-contained; Dockerfile only needs COPY api/ |
+| **Streamlit deletion** | Full delete | React frontend replaces Streamlit. No parallel operation needed. |
+| **Production routing** | Direct browser → Railway | Faster than Vercel rewrites. CORS already configured. |
+| **CI scope** | All 3 workflows | frontend-ci, api-ci, data-refresh cron |
+| **Env cleanup** | Add MAPBOX_TOKEN + remove streamlit deps | Station Explorer needs token. Dashboard deps removed. |
+| **Scope** | All in Phase 06 | One PR: decouple → delete → deploy |
+
+### Files Moved (not deleted)
+- `dashboard/weather_service.py` → `api/services/weather_service.py`
+- `dashboard/recommendation_engine.py` → `api/services/recommendation_engine.py`
+- `streamlit_data_manager/parquet_file_manager.py` → `api/services/data_loader.py`
+
+### Files/Directories Deleted
+- `dashboard/` (entire directory — 22 files)
+- `streamlit_data_manager/` (2 files)
+- `.streamlit/` (config.toml)
+- 8 dashboard-only test files
