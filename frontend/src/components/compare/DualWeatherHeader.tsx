@@ -3,6 +3,7 @@
 import { useWeather } from "@/hooks/useWeather";
 import { useInsights } from "@/hooks/useInsights";
 import { getScoreColor } from "@/lib/colors";
+import { useCityStore } from "@/store/useCityStore";
 
 const CITY_LABELS: Record<string, string> = { nyc: "NYC", london: "London" };
 
@@ -11,6 +12,7 @@ function CityWeatherCard({
 }: {
   city: "nyc" | "london";
 }) {
+  const tempUnit = useCityStore((s) => s.tempUnit);
   const { data: weather, isLoading: wLoading } = useWeather(city);
   const { data: insights, isLoading: iLoading } = useInsights(city);
 
@@ -38,7 +40,7 @@ function CityWeatherCard({
       {weather ? (
         <>
           <p className="text-2xl font-light text-white">
-            {Math.round(weather.temperature_c)}°C
+            {Math.round(tempUnit === "fahrenheit" ? weather.temperature_f : weather.temperature_c)}°{tempUnit === "fahrenheit" ? "F" : "C"}
             <span className="text-base text-[var(--color-text-secondary)] ml-2">
               {weather.weather_description}
             </span>

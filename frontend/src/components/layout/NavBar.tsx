@@ -13,36 +13,46 @@ const NAV_LINKS = [
   { href: "/compare", label: "Compare" },
 ];
 
-function CityToggleInline() {
-  const { city, toggle } = useCityStore();
-
+function PillToggle({
+  left,
+  right,
+  active,
+  onToggle,
+  ariaLabel,
+}: {
+  left: string;
+  right: string;
+  active: "left" | "right";
+  onToggle: () => void;
+  ariaLabel: string;
+}) {
   return (
     <button
-      onClick={toggle}
+      onClick={onToggle}
       className="flex items-center gap-0.5 rounded-full px-0.5 py-0.5 transition-colors duration-300"
       style={{
         background: "rgba(255, 255, 255, 0.06)",
         border: "1px solid rgba(255,255,255,0.1)",
       }}
-      aria-label={`Switch to ${city === "nyc" ? "London" : "NYC"}`}
+      aria-label={ariaLabel}
     >
       <span
         className="px-3 py-1 rounded-full text-xs font-medium transition-all duration-300"
         style={{
-          background: city === "nyc" ? "rgba(255,255,255,0.15)" : "transparent",
-          color: city === "nyc" ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.5)",
+          background: active === "left" ? "rgba(255,255,255,0.15)" : "transparent",
+          color: active === "left" ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.5)",
         }}
       >
-        NYC
+        {left}
       </span>
       <span
         className="px-3 py-1 rounded-full text-xs font-medium transition-all duration-300"
         style={{
-          background: city === "london" ? "rgba(255,255,255,0.15)" : "transparent",
-          color: city === "london" ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.5)",
+          background: active === "right" ? "rgba(255,255,255,0.15)" : "transparent",
+          color: active === "right" ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.5)",
         }}
       >
-        London
+        {right}
       </span>
     </button>
   );
@@ -52,6 +62,10 @@ export default function NavBar() {
   const scrolled = useScrolledPast(50);
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const city = useCityStore((s) => s.city);
+  const toggleCity = useCityStore((s) => s.toggle);
+  const tempUnit = useCityStore((s) => s.tempUnit);
+  const toggleTemp = useCityStore((s) => s.toggleTempUnit);
   const isLanding = pathname === "/";
   const showGlass = !isLanding || scrolled;
 
@@ -72,8 +86,21 @@ export default function NavBar() {
           City Cycles
         </Link>
 
-        <div className="hidden sm:flex">
-          <CityToggleInline />
+        <div className="hidden sm:flex items-center gap-2">
+          <PillToggle
+            left="NYC"
+            right="London"
+            active={city === "nyc" ? "left" : "right"}
+            onToggle={toggleCity}
+            ariaLabel={`Switch to ${city === "nyc" ? "London" : "NYC"}`}
+          />
+          <PillToggle
+            left="°F"
+            right="°C"
+            active={tempUnit === "fahrenheit" ? "left" : "right"}
+            onToggle={toggleTemp}
+            ariaLabel={`Switch to ${tempUnit === "fahrenheit" ? "Celsius" : "Fahrenheit"}`}
+          />
         </div>
 
         <div className="hidden sm:flex items-center gap-4">
@@ -129,8 +156,21 @@ export default function NavBar() {
         }}
       >
         <div className="p-4 flex flex-col gap-3">
-          <div className="flex justify-center pb-2 border-b border-white/5">
-            <CityToggleInline />
+          <div className="flex justify-center gap-2 pb-2 border-b border-white/5">
+            <PillToggle
+              left="NYC"
+              right="London"
+              active={city === "nyc" ? "left" : "right"}
+              onToggle={toggleCity}
+              ariaLabel={`Switch to ${city === "nyc" ? "London" : "NYC"}`}
+            />
+            <PillToggle
+              left="°F"
+              right="°C"
+              active={tempUnit === "fahrenheit" ? "left" : "right"}
+              onToggle={toggleTemp}
+              ariaLabel={`Switch to ${tempUnit === "fahrenheit" ? "Celsius" : "Fahrenheit"}`}
+            />
           </div>
 
           {NAV_LINKS.map((link) => (

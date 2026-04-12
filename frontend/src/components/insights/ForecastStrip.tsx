@@ -2,6 +2,7 @@
 
 import { useForecast } from "@/hooks/useWeather";
 import { useCityStore } from "@/store/useCityStore";
+import type { TempUnit } from "@/lib/types";
 
 function formatHour(iso: string, tz: string): string {
   const d = new Date(iso);
@@ -12,8 +13,13 @@ function formatHour(iso: string, tz: string): string {
   }).toLowerCase().replace(" ", "");
 }
 
+function tempValue(c: number, f: number, unit: TempUnit): number {
+  return Math.round(unit === "fahrenheit" ? f : c);
+}
+
 export default function ForecastStrip() {
   const city = useCityStore((s) => s.city);
+  const tempUnit = useCityStore((s) => s.tempUnit);
   const { data, isLoading } = useForecast(city);
   const tz = city === "london" ? "Europe/London" : "America/New_York";
 
@@ -47,7 +53,7 @@ export default function ForecastStrip() {
             </span>
             <span className="text-base">{hour.weather_emoji}</span>
             <span className="text-xs text-[var(--color-text-secondary)] font-medium">
-              {Math.round(hour.temperature_c)}°
+              {tempValue(hour.temperature_c, hour.temperature_f, tempUnit)}°
             </span>
             {hour.precipitation_mm > 0 && (
               <div
