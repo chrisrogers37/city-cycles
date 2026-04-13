@@ -1,5 +1,6 @@
 "use client";
 
+import { useIsMobile } from "@/hooks/useIsMobile";
 import {
   LineChart,
   Line,
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export default function MemberPercentageChart({ city, startDate, endDate }: Props) {
+  const chartHeight = useIsMobile() ? 160 : 200;
   const { data, isLoading } = useMemberAnalysis(city, startDate, endDate);
 
   if (city !== "nyc") return null;
@@ -35,7 +37,7 @@ export default function MemberPercentageChart({ city, startDate, endDate }: Prop
       isLoading={isLoading}
       isEmpty={chartData.length === 0}
     >
-      <ResponsiveContainer width="100%" height={200}>
+      <ResponsiveContainer width="100%" height={chartHeight}>
         <LineChart data={chartData}>
           <XAxis
             dataKey="month"

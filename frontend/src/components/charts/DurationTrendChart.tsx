@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import {
   LineChart,
   Line,
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export default function DurationTrendChart({ city, startDate, endDate }: Props) {
+  const chartHeight = useIsMobile() ? 180 : 240;
   const { data, isLoading } = useDurationTrends(city, startDate, endDate);
 
   const { chartData, years } = useMemo(() => {
@@ -54,7 +56,7 @@ export default function DurationTrendChart({ city, startDate, endDate }: Props) 
       isLoading={isLoading}
       isEmpty={chartData.length === 0}
     >
-      <ResponsiveContainer width="100%" height={240}>
+      <ResponsiveContainer width="100%" height={chartHeight}>
         <LineChart data={chartData}>
           <XAxis
             dataKey="month"

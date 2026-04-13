@@ -1,6 +1,7 @@
 "use client";
 
 import type { CurrentWeatherResponse } from "@/lib/types";
+import { useCityStore } from "@/store/useCityStore";
 
 const CITY_NAMES: Record<string, string> = {
   nyc: "New York City",
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export default function WeatherHero({ weather, isLoading }: Props) {
+  const tempUnit = useCityStore((s) => s.tempUnit);
   if (isLoading || !weather) {
     return (
       <div className="flex flex-col items-center justify-center pt-[30vh]">
@@ -30,7 +32,7 @@ export default function WeatherHero({ weather, isLoading }: Props) {
         className="text-[5rem] leading-none font-extralight text-white"
         style={{ textShadow: "0 2px 20px rgba(0,0,0,0.3)" }}
       >
-        {Math.round(weather.temperature_c)}°
+        {Math.round(tempUnit === "fahrenheit" ? weather.temperature_f : weather.temperature_c)}°
       </div>
       <div
         className="text-xl uppercase tracking-[0.15em] text-white/85 mt-3 font-light"

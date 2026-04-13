@@ -1,5 +1,6 @@
 "use client";
 
+import { useIsMobile } from "@/hooks/useIsMobile";
 import {
   BarChart,
   Bar,
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export default function TemperatureRidesChart({ city }: Props) {
+  const chartHeight = useIsMobile() ? 180 : 240;
   const { data, isLoading } = useWeatherCorrelationTemp(city);
   const { data: insights } = useInsights(city);
   const todayBand = insights?.classified?.temperature_band ?? null;
@@ -38,7 +40,7 @@ export default function TemperatureRidesChart({ city }: Props) {
       isLoading={isLoading}
       isEmpty={chartData.length === 0}
     >
-      <ResponsiveContainer width="100%" height={240}>
+      <ResponsiveContainer width="100%" height={chartHeight}>
         <BarChart data={chartData}>
           <XAxis
             dataKey="range"

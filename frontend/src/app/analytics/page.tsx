@@ -12,7 +12,6 @@ import MemberPercentageChart from "@/components/charts/MemberPercentageChart";
 import StationGrowthChart from "@/components/charts/StationGrowthChart";
 import { useDailyMetrics } from "@/hooks/useAnalytics";
 import { useCityStore } from "@/store/useCityStore";
-import CityToggle from "@/components/weather/CityToggle";
 import { formatNumber, formatDuration } from "@/lib/format";
 
 const DEFAULT_START = "2015-01-01";
@@ -26,13 +25,10 @@ export default function AnalyticsPage() {
 
   return (
     <>
-      <NavBar alwaysVisible />
+      <NavBar />
       <div className="pt-20">
         <PageShell>
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <h1 className="text-2xl font-light text-white tracking-wide">Ride Analytics</h1>
-            <CityToggle />
-          </div>
+          <h1 className="text-2xl font-light text-white tracking-wide">Ride Analytics</h1>
 
           <DatePresetBar
             startDate={startDate}

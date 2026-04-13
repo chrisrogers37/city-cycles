@@ -8,7 +8,6 @@ import FogOverlay from "./FogOverlay";
 import CloudOverlay from "./CloudOverlay";
 import SunOverlay from "./SunOverlay";
 import WeatherCanvas from "./WeatherCanvas";
-import CityToggle from "./CityToggle";
 import { useWeather } from "@/hooks/useWeather";
 import { useInsights } from "@/hooks/useInsights";
 import { useTimePeriod } from "@/hooks/useTimePeriod";
@@ -51,7 +50,6 @@ export default function WeatherScene() {
 
   return (
     <SkyGradient period={period} weatherCategory={category}>
-      <CityToggle />
       <WeatherEffect category={category} />
 
       {/* Hero text + biking score */}
@@ -61,11 +59,27 @@ export default function WeatherScene() {
         <div className="flex-1" />
 
         {/* Biking score positioned above silhouette */}
-        <div className="flex justify-center pb-[22vh]">
-          <BikingScore
-            score={insights?.biking_score}
-            isLoading={insightsLoading}
-          />
+        <div className="flex justify-center pb-[18vh]">
+          <div className="flex flex-col items-center">
+            <BikingScore
+              score={insights?.biking_score}
+              isLoading={insightsLoading}
+            />
+            <p className="text-[10px] text-white/30 mt-1 tracking-wide">
+              How ideal conditions are for cycling right now
+            </p>
+            <p className="text-xs text-white/40 mt-4 tracking-wide">
+              Based on <span className="text-white/60 font-medium">238M+</span> bike rides across NYC &amp; London
+            </p>
+          </div>
+        </div>
+
+        {/* Scroll indicator */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 animate-bounce z-10">
+          <span className="text-[10px] text-white/30 uppercase tracking-widest">Scroll</span>
+          <svg width="16" height="10" viewBox="0 0 16 10" fill="none" className="text-white/30">
+            <path d="M1 1L8 8L15 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
         </div>
 
         <CitySilhouette city={city} />

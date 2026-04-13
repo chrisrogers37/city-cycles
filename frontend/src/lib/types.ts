@@ -1,6 +1,7 @@
 /** TypeScript interfaces matching FastAPI response models (api/models/). */
 
 export type City = "nyc" | "london";
+export type TempUnit = "fahrenheit" | "celsius";
 
 export interface CurrentWeatherResponse {
   city: string;

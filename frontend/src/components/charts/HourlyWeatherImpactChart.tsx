@@ -1,5 +1,6 @@
 "use client";
 
+import { useIsMobile } from "@/hooks/useIsMobile";
 import {
   LineChart,
   Line,
@@ -34,6 +35,7 @@ interface Props {
 }
 
 export default function HourlyWeatherImpactChart({ city }: Props) {
+  const chartHeight = useIsMobile() ? 180 : 240;
   const { data, isLoading } = useHourlyWeatherImpact(city);
   const currentHour = getCurrentHour(city);
 
@@ -52,7 +54,7 @@ export default function HourlyWeatherImpactChart({ city }: Props) {
       isLoading={isLoading}
       isEmpty={chartData.length === 0}
     >
-      <ResponsiveContainer width="100%" height={240}>
+      <ResponsiveContainer width="100%" height={chartHeight}>
         <LineChart data={chartData}>
           <XAxis
             dataKey="label"
