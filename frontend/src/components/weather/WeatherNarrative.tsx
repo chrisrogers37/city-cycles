@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CurrentWeatherResponse, SimilarDayResponse, RecommendationResponse, TempUnit } from "@/lib/types";
 import { formatHour12 } from "@/lib/format";
 import { useCityStore } from "@/store/useCityStore";
@@ -26,7 +26,6 @@ function buildNarrative(
   const desc = weather.weather_description.toLowerCase();
   const lines: string[] = [];
 
-  // Opening line — weather description
   const temp = Math.round(tempUnit === "fahrenheit" ? weather.temperature_f : weather.temperature_c);
   const unit = tempUnit === "fahrenheit" ? "F" : "C";
   lines.push(
@@ -99,10 +98,7 @@ export default function WeatherNarrative({
   const ready = !isLoading && !!weather;
 
   useEffect(() => {
-    if (!ready) {
-      // Reset handled via cleanup — no setState in effect body
-      return;
-    }
+    if (!ready) return;
     const id = setTimeout(() => setFadeIn(true), 100);
     return () => {
       clearTimeout(id);
@@ -112,7 +108,13 @@ export default function WeatherNarrative({
 
   const visible = ready && fadeIn;
 
-  if (isLoading || !weather) {
+  const narrative = useMemo(
+    () => weather ? buildNarrative(weather, similarDay, tempUnit).join(" ") : "",
+    [weather, similarDay, tempUnit],
+  );
+  const tagline = useMemo(() => pickTagline(recommendations), [recommendations]);
+
+  if (!ready) {
     return (
       <div className="flex flex-col items-center max-w-md mx-auto">
         <div className="space-y-3 w-full">
@@ -124,9 +126,6 @@ export default function WeatherNarrative({
     );
   }
 
-  const lines = buildNarrative(weather, similarDay, tempUnit);
-  const tagline = pickTagline(recommendations);
-
   return (
     <div
       className={`flex flex-col items-center max-w-lg mx-auto px-6 transition-all duration-700 ${
@@ -137,12 +136,7 @@ export default function WeatherNarrative({
         className="text-center text-base/relaxed text-white/75 font-light"
         style={{ textShadow: "0 1px 12px rgba(0,0,0,0.4)" }}
       >
-        {lines.map((line, i) => (
-          <span key={i}>
-            {i > 0 && " "}
-            {line}
-          </span>
-        ))}
+        {narrative}
       </p>
 
       {tagline && (
