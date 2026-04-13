@@ -65,7 +65,7 @@ export default function WeatherScene() {
             weather={weather}
             similarDay={similarDay}
             recommendations={insights?.recommendations}
-            isLoading={weatherLoading || similarDayLoading || insightsLoading}
+            isLoading={weatherLoading || similarDayLoading}
           />
         </div>
 

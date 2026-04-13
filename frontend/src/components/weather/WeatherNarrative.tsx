@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { CurrentWeatherResponse, SimilarDayResponse, RecommendationResponse } from "@/lib/types";
+import type { CurrentWeatherResponse, SimilarDayResponse, RecommendationResponse, TempUnit } from "@/lib/types";
 import { formatHour12 } from "@/lib/format";
+import { useCityStore } from "@/store/useCityStore";
 
 const CITY_NAMES: Record<string, string> = {
   nyc: "New York City",
@@ -19,18 +20,23 @@ interface Props {
 function buildNarrative(
   weather: CurrentWeatherResponse,
   similarDay: SimilarDayResponse | undefined,
+  tempUnit: TempUnit,
 ): string[] {
   const cityName = CITY_NAMES[weather.city] ?? weather.city;
   const desc = weather.weather_description.toLowerCase();
   const lines: string[] = [];
 
   // Opening line — weather description
-  const temp = Math.round(weather.temperature_f);
+  const temp = Math.round(tempUnit === "fahrenheit" ? weather.temperature_f : weather.temperature_c);
+  const unit = tempUnit === "fahrenheit" ? "F" : "C";
   lines.push(
-    `It's ${desc} and ${temp}°F in ${cityName} right now.`,
+    `It's ${desc} and ${temp}°${unit} in ${cityName} right now.`,
   );
 
   // Duration insight
+  // ±5% threshold for duration qualifiers (vs ±3% for volume below) —
+  // duration has higher natural variance so we use a wider band to avoid
+  // noisy "longer/shorter" labels on unremarkable days.
   if (similarDay?.avg_duration_minutes != null) {
     const dur = Math.round(similarDay.avg_duration_minutes);
     const qualifier =
@@ -87,15 +93,19 @@ export default function WeatherNarrative({
   recommendations,
   isLoading,
 }: Props) {
+  const tempUnit = useCityStore((s) => s.tempUnit);
   const [visible, setVisible] = useState(false);
 
+  const ready = !isLoading && !!weather;
+
   useEffect(() => {
-    if (!isLoading && weather) {
-      const id = setTimeout(() => setVisible(true), 100);
-      return () => clearTimeout(id);
+    if (!ready) {
+      setVisible(false);
+      return;
     }
-    setVisible(false);
-  }, [isLoading, weather]);
+    const id = setTimeout(() => setVisible(true), 100);
+    return () => clearTimeout(id);
+  }, [ready]);
 
   if (isLoading || !weather) {
     return (
@@ -109,7 +119,7 @@ export default function WeatherNarrative({
     );
   }
 
-  const lines = buildNarrative(weather, similarDay);
+  const lines = buildNarrative(weather, similarDay, tempUnit);
   const tagline = pickTagline(recommendations);
 
   return (
