@@ -2,7 +2,7 @@
 
 import SkyGradient from "./SkyGradient";
 import WeatherHero from "./WeatherHero";
-import BikingScore from "./BikingScore";
+import WeatherNarrative from "./WeatherNarrative";
 import CitySilhouette from "./CitySilhouette";
 import FogOverlay from "./FogOverlay";
 import CloudOverlay from "./CloudOverlay";
@@ -10,6 +10,7 @@ import SunOverlay from "./SunOverlay";
 import WeatherCanvas from "./WeatherCanvas";
 import { useWeather } from "@/hooks/useWeather";
 import { useInsights } from "@/hooks/useInsights";
+import { useSimilarDay } from "@/hooks/useSimilarDay";
 import { useTimePeriod } from "@/hooks/useTimePeriod";
 import { useCityStore } from "@/store/useCityStore";
 import { needsCanvas } from "@/lib/particles";
@@ -44,7 +45,8 @@ export default function WeatherScene() {
   const city = useCityStore((s) => s.city);
   const period = useTimePeriod(city);
   const { data: weather, isLoading: weatherLoading } = useWeather(city);
-  const { data: insights, isLoading: insightsLoading } = useInsights(city);
+  const { data: insights } = useInsights(city);
+  const { data: similarDay, isLoading: similarDayLoading } = useSimilarDay(city);
 
   const category = weather?.weather_category as WeatherCategory | undefined;
 
@@ -59,16 +61,12 @@ export default function WeatherScene() {
         <div className="flex-1" />
 
         <div className="flex justify-center pb-[26vh] relative z-20">
-          <div className="flex flex-col items-center">
-            <BikingScore
-              score={insights?.biking_score}
-              recommendations={insights?.recommendations}
-              isLoading={insightsLoading}
-            />
-            <p className="text-xs text-white/40 mt-4 tracking-wide">
-              Based on <span className="text-white/60 font-medium">238M+</span> bike rides across NYC &amp; London
-            </p>
-          </div>
+          <WeatherNarrative
+            weather={weather}
+            similarDay={similarDay}
+            recommendations={insights?.recommendations}
+            isLoading={weatherLoading || similarDayLoading}
+          />
         </div>
 
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 animate-bounce z-20">
