@@ -2,17 +2,25 @@
 
 import { useEffect, useState } from "react";
 import { getScoreColor } from "@/lib/colors";
-import type { BikingScoreResponse } from "@/lib/types";
+import type { BikingScoreResponse, RecommendationResponse } from "@/lib/types";
+
+const SEVERITY_COLORS: Record<string, string> = {
+  positive: "rgba(74, 222, 128, 0.8)",
+  neutral: "rgba(255, 255, 255, 0.4)",
+  caution: "rgba(251, 191, 36, 0.8)",
+  warning: "rgba(248, 113, 113, 0.8)",
+};
 
 interface Props {
   score: BikingScoreResponse | undefined;
+  recommendations?: RecommendationResponse[];
   isLoading: boolean;
 }
 
 const RADIUS = 54;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
-export default function BikingScore({ score, isLoading }: Props) {
+export default function BikingScore({ score, recommendations, isLoading }: Props) {
   const [displayed, setDisplayed] = useState(0);
 
   useEffect(() => {
@@ -75,7 +83,23 @@ export default function BikingScore({ score, isLoading }: Props) {
           <span className="text-xs text-white/60 mt-0.5">{score.label}</span>
         </div>
       </div>
-      <span className="text-xs text-white/40 mt-2 uppercase tracking-wider">Biking Score</span>
+      <span className="text-[10px] text-white/30 mt-1 tracking-wide">
+        How ideal conditions are for cycling right now
+      </span>
+
+      {recommendations && recommendations.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-3 max-w-xs">
+          {recommendations.map((rec, i) => (
+            <span key={i} className="flex items-center gap-1.5 text-[10px]">
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ background: SEVERITY_COLORS[rec.severity] ?? SEVERITY_COLORS.neutral }}
+              />
+              <span className="text-white/50">{rec.text}</span>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

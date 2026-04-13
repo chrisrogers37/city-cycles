@@ -14,9 +14,8 @@ export default function CitySilhouette({ city }: Props) {
         alt=""
         className="w-full h-auto transition-opacity duration-800"
         style={{
-          color: "rgba(10, 14, 26, 0.9)",
-          filter: "drop-shadow(0 -2px 8px rgba(0,0,0,0.3))",
-          maxHeight: "20vh",
+          filter: "drop-shadow(0 -4px 12px rgba(0,0,0,0.4))",
+          maxHeight: "18vh",
         }}
       />
     </div>
