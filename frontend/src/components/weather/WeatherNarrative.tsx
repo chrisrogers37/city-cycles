@@ -94,18 +94,23 @@ export default function WeatherNarrative({
   isLoading,
 }: Props) {
   const tempUnit = useCityStore((s) => s.tempUnit);
-  const [visible, setVisible] = useState(false);
+  const [fadeIn, setFadeIn] = useState(false);
 
   const ready = !isLoading && !!weather;
 
   useEffect(() => {
     if (!ready) {
-      setVisible(false);
+      // Reset handled via cleanup — no setState in effect body
       return;
     }
-    const id = setTimeout(() => setVisible(true), 100);
-    return () => clearTimeout(id);
+    const id = setTimeout(() => setFadeIn(true), 100);
+    return () => {
+      clearTimeout(id);
+      setFadeIn(false);
+    };
   }, [ready]);
+
+  const visible = ready && fadeIn;
 
   if (isLoading || !weather) {
     return (

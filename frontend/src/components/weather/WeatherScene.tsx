@@ -45,7 +45,7 @@ export default function WeatherScene() {
   const city = useCityStore((s) => s.city);
   const period = useTimePeriod(city);
   const { data: weather, isLoading: weatherLoading } = useWeather(city);
-  const { data: insights, isLoading: insightsLoading } = useInsights(city);
+  const { data: insights } = useInsights(city);
   const { data: similarDay, isLoading: similarDayLoading } = useSimilarDay(city);
 
   const category = weather?.weather_category as WeatherCategory | undefined;
