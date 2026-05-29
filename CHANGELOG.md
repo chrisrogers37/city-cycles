@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **SQL Injection in LIMIT Clause** - Parameterized the LIMIT clause in station-performance query (`api/routes/analytics.py`) — was built via f-string interpolation, now uses DuckDB `$5` placeholder
+
 ### Added
 - **Deployment Infrastructure — Phase 06** - API Dockerfile (`python:3.11-slim`), Railway service config (`railway-api.toml`), and 3 GitHub Actions CI/CD workflows: `frontend-ci.yml` (lint + type-check + build), `api-ci.yml` (pytest), `data-refresh.yml` (monthly API redeploy cron)
 

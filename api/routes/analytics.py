@@ -119,7 +119,11 @@ def get_monthly_trends(
         raise HTTPException(status_code=500, detail=str(e))
 
     return [
-        MonthlyTrendRow(month=int(r["month"]), year=int(r["year"]), metric_value=float(r["metric_value"]))
+        MonthlyTrendRow(
+            month=int(r["month"]),
+            year=int(r["year"]),
+            metric_value=float(r["metric_value"]),
+        )
         for _, r in df.iterrows()
     ]
 
@@ -151,7 +155,9 @@ def get_duration_trends(
         DurationTrendRow(
             month=int(r["month"]),
             year=int(r["year"]),
-            avg_duration=float(r["avg_duration"]) if r["avg_duration"] is not None else None,
+            avg_duration=float(r["avg_duration"])
+            if r["avg_duration"] is not None
+            else None,
         )
         for _, r in df.iterrows()
     ]
@@ -181,7 +187,9 @@ def get_hourly_patterns(city: CityParam):
         raise HTTPException(status_code=500, detail=str(e))
 
     return [
-        HourlyPatternRow(hour_of_day=int(r["hour_of_day"]), ride_count=float(r["ride_count"]))
+        HourlyPatternRow(
+            hour_of_day=int(r["hour_of_day"]), ride_count=float(r["ride_count"])
+        )
         for _, r in df.iterrows()
     ]
 
@@ -191,7 +199,10 @@ def get_hourly_patterns(city: CityParam):
 # ---------------------------------------------------------------------------
 
 
-@router.get("/{city}/weather-correlation/temperature", response_model=list[WeatherCorrelationTempRow])
+@router.get(
+    "/{city}/weather-correlation/temperature",
+    response_model=list[WeatherCorrelationTempRow],
+)
 def get_weather_correlation_temp(city: CityParam):
     """Average daily rides by temperature range."""
     if not parquet_exists("mart_weather_ride_correlation.parquet"):
@@ -225,13 +236,18 @@ def get_weather_correlation_temp(city: CityParam):
 
     return [
         WeatherCorrelationTempRow(
-            temp_range=r["temp_range"], avg_rides=float(r["avg_rides"]), days_observed=int(r["days_observed"])
+            temp_range=r["temp_range"],
+            avg_rides=float(r["avg_rides"]),
+            days_observed=int(r["days_observed"]),
         )
         for _, r in df.iterrows()
     ]
 
 
-@router.get("/{city}/weather-correlation/precipitation", response_model=list[WeatherCorrelationPrecipRow])
+@router.get(
+    "/{city}/weather-correlation/precipitation",
+    response_model=list[WeatherCorrelationPrecipRow],
+)
 def get_weather_correlation_precip(city: CityParam):
     """Average daily rides by precipitation category."""
     if not parquet_exists("mart_weather_ride_correlation.parquet"):
@@ -261,7 +277,9 @@ def get_weather_correlation_precip(city: CityParam):
 
     return [
         WeatherCorrelationPrecipRow(
-            precip_category=r["precip_category"], avg_rides=float(r["avg_rides"]), days_observed=int(r["days_observed"])
+            precip_category=r["precip_category"],
+            avg_rides=float(r["avg_rides"]),
+            days_observed=int(r["days_observed"]),
         )
         for _, r in df.iterrows()
     ]
@@ -313,7 +331,9 @@ def get_weather_impact(city: CityParam, conditions: Optional[str] = None):
     return rows
 
 
-@router.get("/{city}/weather-impact/hourly", response_model=list[HourlyWeatherImpactRow])
+@router.get(
+    "/{city}/weather-impact/hourly", response_model=list[HourlyWeatherImpactRow]
+)
 def get_hourly_weather_impact(city: CityParam):
     """Weather impact by hour — rain, snow, fog % change vs clear."""
     if not parquet_exists("mart_weather_impact_summary.parquet"):
@@ -338,8 +358,12 @@ def get_hourly_weather_impact(city: CityParam):
     return [
         HourlyWeatherImpactRow(
             hour_of_day=int(r["hour_of_day"]),
-            rain_impact=float(r["rain_impact"]) if r["rain_impact"] is not None else None,
-            snow_impact=float(r["snow_impact"]) if r["snow_impact"] is not None else None,
+            rain_impact=float(r["rain_impact"])
+            if r["rain_impact"] is not None
+            else None,
+            snow_impact=float(r["snow_impact"])
+            if r["snow_impact"] is not None
+            else None,
             fog_impact=float(r["fog_impact"]) if r["fog_impact"] is not None else None,
         )
         for _, r in df.iterrows()
@@ -377,10 +401,12 @@ def get_station_performance(
           AND s.hour_of_day BETWEEN $3 AND $4
           AND s.pct_change_vs_clear IS NOT NULL
         GROUP BY s.station_id, d.station_name, d.latitude, d.longitude
-        ORDER BY avg_pct_change DESC LIMIT {limit}
+        ORDER BY avg_pct_change DESC LIMIT $5
     """
     try:
-        df = run_query_params(query, [city.value, weather_condition, hour_start, hour_end])
+        df = run_query_params(
+            query, [city.value, weather_condition, hour_start, hour_end, limit]
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -411,7 +437,9 @@ def get_member_analysis(
 ):
     """NYC member vs casual percentage over time. Returns 404 for London."""
     if city.value != "nyc":
-        raise HTTPException(status_code=404, detail="Member analysis only available for NYC")
+        raise HTTPException(
+            status_code=404, detail="Member analysis only available for NYC"
+        )
 
     if not parquet_exists("mart_nyc_member_analysis.parquet"):
         return []
@@ -436,7 +464,9 @@ def get_member_analysis(
         raise HTTPException(status_code=500, detail=str(e))
 
     return [
-        MemberAnalysisRow(month=str(r["month"]), member_percentage=float(r["member_percentage"]))
+        MemberAnalysisRow(
+            month=str(r["month"]), member_percentage=float(r["member_percentage"])
+        )
         for _, r in df.iterrows()
     ]
 
