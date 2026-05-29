@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **SQL Injection in LIMIT Clause** - Parameterized the LIMIT clause in station-performance query (`api/routes/analytics.py`) — was built via f-string interpolation, now uses DuckDB `$5` placeholder
 - **DuckDB Table Name Allowlisting** - Added `ALLOWED_PARQUETS` allowlist to `api/dependencies.py` so `parquet_path()` and `parquet_exists()` reject unknown filenames. Added `_validate_identifier()` to `db_duckdb/operations.py` for SQL identifier validation in quality-check queries. Defense-in-depth against path traversal and SQL injection via table/column names.
+- **Security Headers Middleware** - Added `SecurityHeadersMiddleware` to `api/main.py` setting X-Content-Type-Options, X-Frame-Options, Referrer-Policy, X-XSS-Protection, and Content-Security-Policy on all responses. HSTS enabled only in Railway (production) environments.
 
 ### Added
 - **Deployment Infrastructure — Phase 06** - API Dockerfile (`python:3.11-slim`), Railway service config (`railway-api.toml`), and 3 GitHub Actions CI/CD workflows: `frontend-ci.yml` (lint + type-check + build), `api-ci.yml` (pytest), `data-refresh.yml` (monthly API redeploy cron)
