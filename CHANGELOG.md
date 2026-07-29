@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **Ignore Claude fleet bot telemetry paths** - Narrow any-depth `.gitignore` rules for `data/events/fleet-*.jsonl`, `data/.last-tool-call`, `data/.idle`: the files Claudlobby supervision hooks can write relative to the session cwd when the bot environment is absent (Claudfather/Claudlobby#874). Prevents a broad `git add` in an agent checkout from staging fleet telemetry into this public repo; product `data/` paths are unaffected.
+
 ### Added
 - **Full System Review & Tech-Debt Triage (2026-07-02)** - Consolidated tracker at `documentation/planning/full-system-review-2026-07-02.md` cataloguing 87 new findings (12 high / 45 medium / 30 low) across the API backend, data pipeline, dbt project, frontend, and CI/infra. Highlights: silent failure masking in the orchestrator/verification layers, a real-time-weather timezone mismatch that corrupts "days like today" insights, mis-aggregated `mart_similar_day_stats` daily totals, and the absence of pipeline/dbt CI. The document also indexes the existing ~60 open GitHub issues by area for a single-source-of-truth backlog.
 - **Full System Review — Issue Filing Plan** - Companion artifact `documentation/planning/full-system-review-2026-07-02-issue-plan.md` recording the P0–P4 + nice-to-have prioritization of all 87 findings and their filed GitHub issues. P0 (#125–#132) and P1 (#133–#141) were filed as individual issues; P2 (#142–#145), P3 (#146–#148), P4 (#149), and nice-to-haves (#150) were filed as clustered, per-subsystem tracking issues with checklists.
