@@ -11,12 +11,22 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIASGIMiddleware
+from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 from api.routes import weather, insights, similar_day, analytics
 
 logger = logging.getLogger(__name__)
+
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[os.getenv("RATE_LIMIT", "60/minute")],
+    headers_enabled=True,
+)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -56,6 +66,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIASGIMiddleware)
+
 # CORS — configurable via CORS_ORIGIN env var
 origins = os.getenv("CORS_ORIGIN", "http://localhost:3000").split(",")
 app.add_middleware(
@@ -77,6 +92,7 @@ app.include_router(analytics.router)
 
 
 @app.get("/health")
+@limiter.exempt
 def health():
     """Health check endpoint."""
     from api.dependencies import DATA_DIR, parquet_exists
