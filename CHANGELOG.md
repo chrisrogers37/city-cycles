@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Security
+- **Python Dependency CVEs** - Upgraded vulnerable pins in `requirements.txt` and `api/requirements.txt` (#113). Verified with `pip-audit` against the OSV database: the pipeline set went from 85 advisories across 15 packages to 4 across 1, and the API set from 12 across 4 to zero. Notable: `GitPython` 3.1.46 -> 3.1.59, `pillow` 11.3.0 -> 12.3.0, `tornado` 6.5.1 -> 6.5.8, `starlette` 0.46.2 -> 1.6.0 (via `fastapi` 0.115.12 -> 0.136.3), plus `urllib3`, `pyarrow`, `python-dotenv`, `requests`, `idna`, `click`, `msgpack`, `soupsieve`, `deepdiff` and `dbt-common`. `sqlparse` is held at 0.5.4 because `dbt-core` pins `sqlparse<0.5.5`; the four residual advisories all require 0.6.0 and are ReDoS on caller-supplied SQL, which sqlparse never sees here.
+- **Rate Limiting Preserved Across the FastAPI Upgrade** - `fastapi` is capped at 0.136.3: from 0.137.0 onward slowapi's `SlowAPIASGIMiddleware` silently stops enforcing limits, so requests pass unthrottled and no 429 is ever returned. The existing suite passed 137/137 in both states, so nothing would have caught it.
+- **Dependency Vulnerability Scanning in CI** - Added `.github/workflows/dependency-audit.yml` running `pip-audit` over both requirements files on relevant pull requests, on a weekly schedule, and on demand. The schedule is the load-bearing part: the CVEs above arrived in dependencies whose pins had not changed, so no pull-request-triggered check would ever have run.
+
+### Added
+- **API Security Middleware Tests** - `tests/test_api_security.py` asserts the behaviour of the edge middleware stack — security headers, CORS origin handling, and per-IP rate limiting actually returning 429 — rather than its wiring. The middleware comes from third-party packages selected by version pins, so correct wiring is not evidence that the behaviour survives an upgrade.
 - **Ignore Claude fleet bot telemetry paths** - Narrow any-depth `.gitignore` rules for `data/events/fleet-*.jsonl`, `data/.last-tool-call`, `data/.idle`: the files Claudlobby supervision hooks can write relative to the session cwd when the bot environment is absent (Claudfather/Claudlobby#874). Prevents a broad `git add` in an agent checkout from staging fleet telemetry into this public repo; product `data/` paths are unaffected.
 
 ### Added

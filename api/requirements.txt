@@ -1,15 +1,21 @@
-fastapi==0.115.12
+fastapi==0.136.3
+# Pinned transitively by fastapi, but held explicitly: 0.46.x carries the
+# Host/path-injection, FileResponse Range-DoS and multipart-limit advisories.
+starlette==1.6.0
+# Ceiling on fastapi: from 0.137.0 onward slowapi's SlowAPIASGIMiddleware stops
+# enforcing limits — requests pass unthrottled and no 429 is ever returned.
+# tests/test_api_security.py is the guard; raise the pin only when it stays green.
 uvicorn[standard]==0.34.3
 duckdb==1.4.4
 pandas==2.3.3
-pyarrow==23.0.0
+pyarrow==23.0.1
 numpy==2.4.2
 boto3==1.42.46
 botocore==1.42.46
 s3transfer==0.16.0
 pydantic==2.12.5
 pydantic_core==2.41.5
-requests==2.32.5
+requests==2.34.2
 httpx==0.28.1
-python-dotenv==1.2.1
+python-dotenv==1.2.3
 slowapi==0.1.9
