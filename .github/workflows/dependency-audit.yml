@@ -1,0 +1,49 @@
+name: Dependency Audit
+
+# A pull-request trigger alone would not have caught the CVEs this workflow was
+# added for: they arrived in dependencies whose pins had not changed, so no PR
+# ever ran. The schedule is the part that matters — it re-asks the question when
+# nothing in the repo has moved.
+on:
+  pull_request:
+    paths:
+      - 'requirements.txt'
+      - 'api/requirements.txt'
+      - '.github/workflows/dependency-audit.yml'
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: pipeline
+            file: requirements.txt
+          - name: api
+            file: api/requirements.txt
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install pip-audit
+
+      - name: Audit ${{ matrix.name }} dependencies
+        # Ignored advisories are the ones with no reachable fix, not the ones we
+        # would rather not look at. Each needs sqlparse>=0.6.0, which dbt-core
+        # forbids (sqlparse<0.5.5); sqlparse only parses this project's own dbt
+        # SQL, never caller-supplied input. Drop these when dbt-core moves.
+        run: |
+          pip-audit -r ${{ matrix.file }} --no-deps --strict \
+            --ignore-vuln PYSEC-2026-3696 \
+            --ignore-vuln PYSEC-2026-3697 \
+            --ignore-vuln PYSEC-2026-3698 \
+            --ignore-vuln PYSEC-2026-3699
