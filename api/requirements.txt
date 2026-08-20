@@ -1,15 +1,25 @@
-fastapi==0.115.12
+# Ceiling, not a preference: from fastapi 0.137.0 include_router stops flattening
+# into app.routes and inserts a _IncludedRouter carrying no .endpoint, so slowapi's
+# _find_route_handler returns None and _should_exempt fails OPEN — every request is
+# served unthrottled and no 429 is ever returned. Swapping to SlowAPIMiddleware or
+# to slowapi 0.1.10 does not escape it. Lift this when slowapi resolves handlers
+# through fastapi's included routers; tests/test_api_security.py is the guard.
+fastapi==0.136.3
+# fastapi only floors starlette (>=0.46.0, no ceiling), so the resolver is free to
+# pick 0.46.x — which carries the Host/path-injection, FileResponse Range-DoS and
+# multipart-limit advisories. Held explicitly so that cannot happen.
+starlette==1.6.0
 uvicorn[standard]==0.34.3
 duckdb==1.4.4
 pandas==2.3.3
-pyarrow==23.0.0
+pyarrow==23.0.1
 numpy==2.4.2
 boto3==1.42.46
 botocore==1.42.46
 s3transfer==0.16.0
 pydantic==2.12.5
 pydantic_core==2.41.5
-requests==2.32.5
+requests==2.34.2
 httpx==0.28.1
-python-dotenv==1.2.1
+python-dotenv==1.2.3
 slowapi==0.1.9

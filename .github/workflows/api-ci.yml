@@ -4,10 +4,14 @@ on:
   push:
     paths:
       - 'api/**'
+      - 'tests/**'
+      - 'requirements.txt'
     branches: [main]
   pull_request:
     paths:
       - 'api/**'
+      - 'tests/**'
+      - 'requirements.txt'
 
 jobs:
   test:
