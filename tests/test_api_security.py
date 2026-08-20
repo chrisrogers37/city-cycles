@@ -8,6 +8,8 @@ it buys silently disappears under a dependency upgrade. Only a request/response
 assertion catches that.
 """
 
+from unittest.mock import patch
+
 import pytest
 
 from tests.conftest_api import *  # noqa: F401,F403
@@ -26,6 +28,20 @@ LIMITED_PATH = "/api/insights/nyc"
 
 # api.main's fallback when CORS_ORIGIN is unset, which is how tests run.
 DEFAULT_ALLOWED_ORIGIN = "http://localhost:3000"
+
+
+@pytest.fixture(autouse=True)
+def stub_upstream_weather(mock_weather):
+    """Keep LIMITED_PATH off the network.
+
+    The insights route reaches Open-Meteo through weather_bridge. These tests
+    care about the middleware wrapping the route, not the route's payload, so a
+    live call would only add latency and a third-party outage to API CI.
+    """
+    with patch(
+        "api.services.weather_bridge.fetch_city_weather", return_value=mock_weather
+    ):
+        yield
 
 
 class TestSecurityHeaders:
@@ -78,10 +94,8 @@ class TestRateLimiting:
         )
 
     def test_health_endpoint_is_exempt(self, client):
-        # Burst past the configured limit; a missing header means the limiter is
-        # down, which the two tests above already report — fall back to a generous
-        # count here rather than adding a third alarm for the same cause.
-        limit = client.get(LIMITED_PATH).headers.get("x-ratelimit-limit")
-        burst = int(limit) + 10 if limit else 100
-        codes = [client.get("/health").status_code for _ in range(burst)]
+        # Railway polls /health continuously; if it were counted, the platform's
+        # own healthcheck would rate-limit the service out of existence.
+        limit = int(client.get(LIMITED_PATH).headers["x-ratelimit-limit"])
+        codes = [client.get("/health").status_code for _ in range(limit + 1)]
         assert set(codes) == {200}
