@@ -21,7 +21,7 @@ dbt-protos==1.0.431
 dbt-semantic-interfaces==0.9.0
 deepdiff==8.6.2
 gitdb==4.0.12
-GitPython==3.1.59
+GitPython==3.1.60
 greenlet==3.2.2
 idna==3.15
 importlib-metadata==6.11.0
@@ -67,20 +67,19 @@ six==1.17.0
 smmap==5.0.2
 snowplow-tracker==1.1.0
 soupsieve==2.9.2
-# Ceiling: dbt-core pins sqlparse<0.5.5, so 0.6.0 (which clears the remaining
-# ReDoS advisories) is unreachable until dbt-core moves. sqlparse only ever
-# parses this project's own dbt SQL here, never caller-supplied input. The four
-# residual advisories are suppressed in .github/workflows/dependency-audit.yml;
-# drop them there when this pin moves.
+# Ceiling: sqlparse 0.6.0 clears the residual advisories, but no dbt-core
+# 1.10.x allows it; 1.11.14 is the first that does. The advisories are
+# suppressed in .github/workflows/dependency-audit.yml; drop them there
+# once this pin reaches 0.6.0.
 sqlparse==0.5.4
 tenacity==9.1.2
 text-unidecode==1.3
 toml==0.10.2
-tornado==6.5.8
+tornado==6.5.9
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 tzdata==2025.3
-urllib3==2.7.0
+urllib3==2.8.0
 zipp==3.23.0
 # Ceiling: from fastapi 0.137.0 slowapi's limiter fails open and never returns a
 # 429 — see api/requirements.txt for the mechanism. Kept in step with that file.

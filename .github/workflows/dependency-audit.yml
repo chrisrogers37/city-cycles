@@ -26,14 +26,17 @@ jobs:
         include:
           - name: pipeline
             file: requirements.txt
-            # No reachable fix: each needs sqlparse>=0.6.0 and dbt-core pins
-            # sqlparse<0.5.5. sqlparse only parses this project's own dbt SQL,
-            # never caller-supplied input. Drop these when that pin moves.
+            # Each id is fixed only in sqlparse 0.6.0, which the pinned dbt-core
+            # cannot take (see the sqlparse pin in requirements.txt). sqlparse
+            # parses only this project's own dbt SQL, never caller-supplied input.
+            # Drop each id once sqlparse reaches 0.6.0. Expires 2026-12-31, a
+            # review date nothing enforces: re-justify any id still here.
             ignore: >-
               --ignore-vuln PYSEC-2026-3696
               --ignore-vuln PYSEC-2026-3697
               --ignore-vuln PYSEC-2026-3698
               --ignore-vuln PYSEC-2026-3699
+              --ignore-vuln PYSEC-2026-3923
           - name: api
             file: api/requirements.txt
             # Deliberately empty: an unreachable-fix suppression carried by a
